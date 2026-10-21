@@ -299,7 +299,7 @@ private fun FrostedCircle(
                         shape = CircleShape,
                         blurRadius = 20f,
                         colors = BlurColors(
-                            blendColors = listOf(BlendColorEntry(surface.copy(alpha = 0.8f))),
+                            blendColors = listOf(BlendColorEntry(surface.copy(alpha = 0.5f))),
                         ),
                     )
                 } else {

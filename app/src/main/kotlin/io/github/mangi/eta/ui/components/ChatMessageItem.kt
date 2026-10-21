@@ -406,7 +406,7 @@ private fun UserMessageBubble(
                             Modifier.background(overlayBubbleColor, RoundedCornerShape(10.dp))
                         } else {
                             Modifier.squircleSurface(
-                                color = MiuixTheme.colorScheme.primary,
+                                color = MiuixTheme.colorScheme.surfaceContainerHigh,
                                 topStart = 20.dp,
                                 topEnd = 20.dp,
                                 // 描边只支持统一圆角，编辑态收起气泡尾角，让描边与填充贴合。
@@ -419,7 +419,7 @@ private fun UserMessageBubble(
                         if (isEditing) {
                             Modifier.squircleBorder(
                                 width = 1.dp,
-                                color = MiuixTheme.colorScheme.onPrimary,
+                                color = MiuixTheme.colorScheme.primary,
                                 cornerRadius = 20.dp,
                             )
                         } else {
@@ -427,8 +427,11 @@ private fun UserMessageBubble(
                         }
                     )
                     .padding(
-                        horizontal = if (assistantOverlay) 12.dp else 16.dp,
-                        vertical = if (assistantOverlay) 8.dp else 12.dp,
+                        start = if (assistantOverlay) 12.dp else 16.dp,
+                        end = if (assistantOverlay) 12.dp else 16.dp,
+                        top = if (assistantOverlay) 8.dp else 12.dp,
+                        // 底部留白交给操作行自己控制，图标才会贴着气泡下沿。
+                        bottom = if (assistantOverlay) 8.dp else 4.dp,
                     ),
             ) {
                 if (message.images.isNotEmpty()) {
@@ -464,7 +467,7 @@ private fun UserMessageBubble(
                         Text(
                             text = visiblePrompt.request,
                             style = MiuixTheme.textStyles.body1,
-                            color = MiuixTheme.colorScheme.onPrimary,
+                            color = MiuixTheme.colorScheme.onSurface,
                         )
                     }
                 }
@@ -472,7 +475,7 @@ private fun UserMessageBubble(
                     Text(
                         text = stringResource(R.string.ui_edited_c36776),
                         style = MiuixTheme.textStyles.body2,
-                        color = MiuixTheme.colorScheme.onPrimary.copy(alpha = 0.7f),
+                        color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
                         modifier = Modifier.padding(top = 4.dp),
                     )
                 }
@@ -531,9 +534,9 @@ private fun UserMessageActionRow(
     onEdit: () -> Unit,
     onDelete: () -> Unit,
 ) {
-    // 操作行现在长在主题色气泡里，需要反色；复制成功时用满不透明度的反色做反馈。
-    val actionTint = MiuixTheme.colorScheme.onPrimary.copy(alpha = 0.78f)
-    val copiedTint = MiuixTheme.colorScheme.onPrimary
+    // 气泡回到默认底色，操作行也回到弱化的次级文字色；复制成功时用主题色反馈。
+    val actionTint = MiuixTheme.colorScheme.onSurfaceVariantSummary.copy(alpha = 0.75f)
+    val copiedTint = MiuixTheme.colorScheme.primary
     AnimatedVisibility(
         visible = visible,
         enter = fadeIn(tween(160)) + expandVertically(tween(160)),
@@ -542,9 +545,7 @@ private fun UserMessageActionRow(
         Row(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.End,
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(top = 2.dp),
+            modifier = Modifier.fillMaxWidth(),
         ) {
             AnswerActionButton(
                 icon = if (copied) Icons.Rounded.Check else Icons.Rounded.ContentCopy,
@@ -773,7 +774,7 @@ private fun AgentMessageBlock(
                         color = bubbleFill,
                         cornerRadius = AssistantBubbleCorner,
                     )
-                    .padding(horizontal = 14.dp, vertical = 12.dp)
+                    .padding(start = 14.dp, end = 14.dp, top = 12.dp, bottom = 6.dp)
             } else {
                 Modifier.fillMaxWidth()
             },
@@ -842,7 +843,7 @@ private fun AgentMessageBlock(
                             // 气泡自带左内边距，此时不必再抵消按钮留白。
                             if (showBubble) Modifier else Modifier.offset(x = -AnswerActionCenterOffset),
                         )
-                        .padding(top = 2.dp),
+                        .padding(top = 0.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     AnswerActionButton(

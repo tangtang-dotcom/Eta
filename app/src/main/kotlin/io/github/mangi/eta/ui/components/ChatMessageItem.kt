@@ -202,6 +202,10 @@ internal fun ChatMessageItem(
     showCopyAction: Boolean = true,
     showMessageActions: Boolean = false,
     assistantModelLabel: String? = null,
+    workMessages: List<AgentChatMessageUi> = emptyList(),
+    workActive: Boolean = false,
+    workStreamingStates: Map<String, StreamingMarkdownState> = emptyMap(),
+    currentBrowserMessageId: String? = null,
     messageActionsEnabled: Boolean = true,
     isEditing: Boolean = false,
     onEditMessage: (String) -> Unit = {},
@@ -224,6 +228,11 @@ internal fun ChatMessageItem(
             message = message,
             allowSpeech = true,
             modelLabel = assistantModelLabel,
+            workMessages = workMessages,
+            workActive = workActive,
+            workStreamingStates = workStreamingStates,
+            currentBrowserMessageId = currentBrowserMessageId,
+            onOpenBrowser = onOpenBrowser,
             assistantOverlay = assistantOverlay,
             retainedStreamingState = retainedStreamingState,
             showCopyAction = showCopyAction,
@@ -461,23 +470,24 @@ private fun UserMessageBubble(
                         modifier = Modifier.padding(top = 4.dp),
                     )
                 }
+                if (!assistantOverlay) {
+                    UserMessageActionRow(
+                        visible = actionsEnabled &&
+                            appearance.chatUserMessageActions &&
+                            visiblePrompt.request.isNotBlank(),
+                        copied = copied,
+                        onCopy = {
+                            @Suppress("DEPRECATION")
+                            clipboardManager.setText(AnnotatedString(message.content))
+                            haptic.performHapticFeedback(HapticFeedbackType.Confirm)
+                            copied = true
+                        },
+                        onRegenerate = { confirmRegenerate = true },
+                        onEdit = onEdit,
+                        onDelete = onDelete,
+                    )
+                }
             }
-        }
-            UserMessageActionRow(
-                visible = !assistantOverlay && actionsEnabled &&
-                    appearance.chatUserMessageActions &&
-                    visiblePrompt.request.isNotBlank(),
-                copied = copied,
-                onCopy = {
-                    @Suppress("DEPRECATION")
-                    clipboardManager.setText(AnnotatedString(message.content))
-                    haptic.performHapticFeedback(HapticFeedbackType.Confirm)
-                    copied = true
-                },
-                onRegenerate = { confirmRegenerate = true },
-                onEdit = onEdit,
-                onDelete = onDelete,
-            )
         }
     }
     if (confirmRegenerate) {
@@ -514,6 +524,9 @@ private fun UserMessageActionRow(
     onEdit: () -> Unit,
     onDelete: () -> Unit,
 ) {
+    // 操作行现在长在主题色气泡里，需要反色；复制成功时用满不透明度的反色做反馈。
+    val actionTint = MiuixTheme.colorScheme.onPrimary.copy(alpha = 0.78f)
+    val copiedTint = MiuixTheme.colorScheme.onPrimary
     AnimatedVisibility(
         visible = visible,
         enter = fadeIn(tween(160)) + expandVertically(tween(160)),
@@ -529,13 +542,14 @@ private fun UserMessageActionRow(
                     if (copied) R.string.copy_copied else R.string.chat_copy_message,
                 ),
                 onClick = onCopy,
-                tint = if (copied) MiuixTheme.colorScheme.primary else null,
+                tint = if (copied) copiedTint else actionTint,
             )
             TooltipBox(text = stringResource(R.string.ui_regenerate_2e1905)) {
                 AnswerActionButton(
                     icon = Icons.Rounded.Refresh,
                     contentDescription = stringResource(R.string.chat_regenerate_user_action),
                     onClick = onRegenerate,
+                    tint = actionTint,
                 )
             }
             TooltipBox(text = stringResource(R.string.ui_edit_a7f814)) {
@@ -543,6 +557,7 @@ private fun UserMessageActionRow(
                     icon = Icons.Rounded.Edit,
                     contentDescription = stringResource(R.string.ui_edit_a7f814),
                     onClick = onEdit,
+                    tint = actionTint,
                 )
             }
             TooltipBox(text = stringResource(R.string.ui_delete_3755f5)) {
@@ -550,6 +565,7 @@ private fun UserMessageActionRow(
                     icon = Icons.Rounded.Delete,
                     contentDescription = stringResource(R.string.ui_delete_3755f5),
                     onClick = onDelete,
+                    tint = actionTint,
                 )
             }
         }
@@ -646,6 +662,11 @@ private fun AgentMessageBlock(
     message: AgentMessageUi,
     allowSpeech: Boolean = false,
     modelLabel: String? = null,
+    workMessages: List<AgentChatMessageUi> = emptyList(),
+    workActive: Boolean = false,
+    workStreamingStates: Map<String, StreamingMarkdownState> = emptyMap(),
+    currentBrowserMessageId: String? = null,
+    onOpenBrowser: () -> Unit = {},
     assistantOverlay: Boolean = false,
     retainedStreamingState: StreamingMarkdownState?,
     showCopyAction: Boolean,
@@ -720,6 +741,9 @@ private fun AgentMessageBlock(
         if (character != null) {
             CharacterReplyHeader(character = character, isGreeting = isGreeting)
         }
+        if (showBubble) {
+            AssistantReplyHeader(modelLabel = modelLabel)
+        }
         Column(
             modifier = if (showBubble) {
                 Modifier
@@ -738,8 +762,16 @@ private fun AgentMessageBlock(
                 Modifier.fillMaxWidth()
             },
         ) {
-            if (showBubble) {
-                AssistantReplyHeader(modelLabel = modelLabel)
+            if (showBubble && workMessages.isNotEmpty()) {
+                AssistantWorkBubble(
+                    messages = workMessages,
+                    active = workActive,
+                    assistantOverlay = assistantOverlay,
+                    onOpenBrowser = onOpenBrowser,
+                    currentBrowserMessageId = currentBrowserMessageId,
+                    retainedStreamingStates = workStreamingStates,
+                    modifier = Modifier.padding(bottom = 10.dp),
+                )
             }
             when {
                 message.content.isBlank() && message.isStreaming -> {
@@ -849,6 +881,43 @@ private fun AgentMessageBlock(
                 }
             }
         }
+    }
+}
+
+/**
+ * 回答气泡里的工作过程气泡：思考与工具调用收在浅色内层卡片里，形成气泡包气泡。
+ *
+ * 内层只提供背景与内边距，可展开的摘要行、时间线与节点沿用 [AgentWorkProcess]。
+ */
+@Composable
+private fun AssistantWorkBubble(
+    messages: List<AgentChatMessageUi>,
+    active: Boolean,
+    assistantOverlay: Boolean,
+    onOpenBrowser: () -> Unit,
+    currentBrowserMessageId: String?,
+    retainedStreamingStates: Map<String, StreamingMarkdownState>,
+    modifier: Modifier = Modifier,
+) {
+    Column(
+        modifier = modifier
+            .fillMaxWidth()
+            .squircleSurface(
+                color = MiuixTheme.colorScheme.background,
+                cornerRadius = AssistantBubbleCorner - 4.dp,
+            )
+            .padding(horizontal = 10.dp, vertical = 8.dp),
+    ) {
+        AgentWorkProcess(
+            id = messages.first().id,
+            messages = messages,
+            assistantOverlay = assistantOverlay,
+            onOpenBrowser = onOpenBrowser,
+            currentBrowserMessageId = currentBrowserMessageId,
+            retainedStreamingStates = retainedStreamingStates,
+            active = active,
+            embedded = true,
+        )
     }
 }
 

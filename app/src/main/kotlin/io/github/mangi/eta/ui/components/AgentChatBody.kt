@@ -754,6 +754,42 @@ internal fun AgentConversationMessages(
                         )
                     }
 
+                    is AgentTimelineEntry.Turn -> {
+                        entry.work.forEach { message ->
+                            if (message is ThinkingMessageUi && message.isStreaming) {
+                                streamingMarkdownCache.getOrCreate(message.id)
+                            }
+                        }
+                        val answer = entry.answer
+                        ChatMessageItem(
+                            message = answer,
+                            assistantOverlay = assistantOverlay,
+                            retainedStreamingState = answer
+                                .takeIf { it.isStreaming || streamingMarkdownStates.containsKey(it.id) }
+                                ?.let { streamingMarkdownCache.getOrCreate(it.id) },
+                            workMessages = entry.work,
+                            workActive = entry.key == activeWorkProcessKey,
+                            workStreamingStates = streamingMarkdownStates,
+                            currentBrowserMessageId = currentBrowserMessageId,
+                            onOpenBrowser = onOpenBrowser,
+                            onSuggestionClick = onSuggestionClick,
+                            onRunTraceClick = onRunTraceClick,
+                            showBrowserShortcut = false,
+                            assistantModelLabel = assistantModelLabel,
+                            showCopyAction = answer.characterEditable ||
+                                answer.id in finalResultMessageIds,
+                            showMessageActions = answer.id in finalResultMessageIds ||
+                                answer.characterEditable,
+                            messageActionsEnabled = messageActionsEnabled,
+                            isEditing = answer.id == editTargetMessageId,
+                            onEditMessage = onEditMessage,
+                            onDeleteMessage = onDeleteMessage,
+                            onRegenerateMessage = onRegenerateMessage,
+                            onSelectReplyCandidate = onSelectReplyCandidate,
+                            modifier = itemModifier,
+                        )
+                    }
+
                     is AgentTimelineEntry.WorkProcess -> {
                         entry.messages.forEach { message ->
                             if (message is ThinkingMessageUi && message.isStreaming) {
@@ -881,6 +917,13 @@ internal sealed interface AgentTimelineEntry {
         override val key: String,
         val messages: List<AgentChatMessageUi>,
     ) : AgentTimelineEntry
+
+    /** 工作过程与其后的回答合并成一条，让思考、工具调用和正文共处同一个气泡。 */
+    data class Turn(
+        override val key: String,
+        val work: List<AgentChatMessageUi>,
+        val answer: AgentMessageUi,
+    ) : AgentTimelineEntry
 }
 
 /**
@@ -920,10 +963,40 @@ internal fun List<AgentChatMessageUi>.toTimelineEntries(
         }
     }
     flushWorkProcess()
+}.mergeWorkIntoAnswers()
+
+/** 相邻的工作过程与最终回答合成一个 [AgentTimelineEntry.Turn]，其余条目原样保留。 */
+private fun List<AgentTimelineEntry>.mergeWorkIntoAnswers(): List<AgentTimelineEntry> = buildList {
+    var pending: AgentTimelineEntry.WorkProcess? = null
+    for (entry in this@mergeWorkIntoAnswers) {
+        when {
+            entry is AgentTimelineEntry.WorkProcess -> pending = entry
+            entry is AgentTimelineEntry.Message &&
+                entry.message is AgentMessageUi &&
+                pending != null -> {
+                val work = pending
+                pending = null
+                add(
+                    AgentTimelineEntry.Turn(
+                        key = work.key,
+                        work = work.messages,
+                        answer = entry.message,
+                    ),
+                )
+            }
+            else -> {
+                pending?.let { add(it) }
+                pending = null
+                add(entry)
+            }
+        }
+    }
+    pending?.let { add(it) }
 }
 
 private fun AgentTimelineEntry.contentType(): Any = when (this) {
     is AgentTimelineEntry.WorkProcess -> AgentTimelineEntry.WorkProcess::class
+    is AgentTimelineEntry.Turn -> AgentTimelineEntry.Turn::class
     is AgentTimelineEntry.Message -> message::class
 }
 

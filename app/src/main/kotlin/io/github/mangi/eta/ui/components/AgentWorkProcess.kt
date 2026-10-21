@@ -86,6 +86,8 @@ internal fun AgentWorkProcess(
     retainedStreamingStates: Map<String, StreamingMarkdownState>,
     modifier: Modifier = Modifier,
     active: Boolean = false,
+    // 嵌入回答气泡时由外层提供内边距与背景，自身不再横向撑开。
+    embedded: Boolean = false,
 ) {
     val running = messages.any { message ->
         (message is ThinkingMessageUi && message.isStreaming) ||
@@ -103,7 +105,14 @@ internal fun AgentWorkProcess(
     Column(
         modifier = modifier
             .fillMaxWidth()
-            .padding(horizontal = if (assistantOverlay) 12.dp else 16.dp, vertical = 2.dp),
+            .padding(
+                horizontal = when {
+                    embedded -> 0.dp
+                    assistantOverlay -> 12.dp
+                    else -> 16.dp
+                },
+                vertical = if (embedded) 0.dp else 2.dp,
+            ),
     ) {
         AgentWorkHeader(
             messages = messages,

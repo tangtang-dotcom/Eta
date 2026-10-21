@@ -39,7 +39,6 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalWindowInfo
@@ -68,7 +67,6 @@ import top.yukonga.miuix.kmp.basic.PopupPositionProvider
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.overlay.OverlayBottomSheet
 import top.yukonga.miuix.kmp.overlay.OverlayListPopup
-import top.yukonga.miuix.kmp.squircle.squircleSurface
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 /**
@@ -199,18 +197,6 @@ private fun ModelQuickList(
     }
 }
 
-private sealed interface ModelSheetEntry {
-    val key: String
-
-    data class Header(val providerId: String, val name: String) : ModelSheetEntry {
-        override val key: String get() = "header:$providerId"
-    }
-
-    data class Option(val model: AgentModelOptionUi) : ModelSheetEntry {
-        override val key: String get() = "model:${model.providerId}:${model.id}"
-    }
-}
-
 @Composable
 private fun ModelSheetContent(
     state: AgentModelPickerUiState,
@@ -221,23 +207,16 @@ private fun ModelSheetContent(
 ) {
     var query by remember { mutableStateOf("") }
     var providerFilter by remember { mutableStateOf<String?>(null) }
-    val entries = remember(state.providerGroups, query, providerFilter) {
+    val groups = remember(state.providerGroups, query, providerFilter) {
         state.filterGroups(query)
             .filter { providerFilter == null || it.providerId == providerFilter }
-            .flatMap { group ->
-                // 只看一个服务商时，筛选标签已经说明了归属，分组标题只会重复。
-                val header = if (providerFilter == null) {
-                    listOf(ModelSheetEntry.Header(group.providerId, group.providerName))
-                } else {
-                    emptyList()
-                }
-                header + group.models.map(ModelSheetEntry::Option)
-            }
     }
-    val selectedIndex = entries.indexOfFirst {
-        it is ModelSheetEntry.Option && it.model.id == state.selectedModel?.id
+    // 只看一个服务商时，筛选标签已经说明了归属，分组标题只会重复。
+    val showGroupTitles = providerFilter == null && groups.size > 1
+    val selectedIndex = groups.indexOfFirst { group ->
+        group.models.any { it.id == state.selectedModel?.id }
     }
-    val listState = rememberLazyListState(initialFirstVisibleItemIndex = (selectedIndex - 2).coerceAtLeast(0))
+    val listState = rememberLazyListState(initialFirstVisibleItemIndex = (selectedIndex - 1).coerceAtLeast(0))
     LaunchedEffect(listState) {
         snapshotFlow { query to providerFilter }.drop(1).collect { listState.scrollToItem(0) }
     }
@@ -257,15 +236,20 @@ private fun ModelSheetContent(
             availableReasoningEfforts.size > 1 &&
             onReasoningEffortChange != null
         ) {
-            ReasoningSlidingPicker(
-                effort = reasoningEffort,
-                options = availableReasoningEfforts,
-                onEffortChange = onReasoningEffortChange,
+            EtaCard(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 20.dp)
+                    .padding(horizontal = 12.dp)
                     .padding(top = 8.dp, bottom = 4.dp),
-            )
+                insideMargin = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
+            ) {
+                ReasoningSlidingPicker(
+                    effort = reasoningEffort,
+                    options = availableReasoningEfforts,
+                    onEffortChange = onReasoningEffortChange,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
         }
         InputField(
             query = query,
@@ -304,11 +288,12 @@ private fun ModelSheetContent(
         LazyColumn(
             state = listState,
             contentPadding = PaddingValues(top = 2.dp, bottom = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(2.dp),
             modifier = Modifier
                 .weight(1f)
                 .fillMaxWidth(),
         ) {
-            if (entries.isEmpty()) {
+            if (groups.isEmpty()) {
                 item(key = "empty") {
                     Text(
                         text = stringResource(R.string.page_no_matching_model_found_ae7e96),
@@ -321,15 +306,31 @@ private fun ModelSheetContent(
                     )
                 }
             }
-            items(entries, key = ModelSheetEntry::key, contentType = { it::class }) { entry ->
-                when (entry) {
-                    is ModelSheetEntry.Header -> ModelProviderLabel(entry.name, horizontalPadding = 24.dp)
-                    is ModelSheetEntry.Option -> ModelPickerRow(
-                        model = entry.model,
-                        selected = entry.model.id == selectedId,
-                        onClick = { select(entry.model.id) },
-                        horizontalPadding = 12.dp,
-                    )
+            items(groups, key = { it.providerId }, contentType = { "group" }) { group ->
+                Column(modifier = Modifier.fillMaxWidth()) {
+                    if (showGroupTitles) {
+                        ModelProviderLabel(group.providerName, horizontalPadding = 24.dp)
+                    }
+                    // 与设置页一致：一张卡片容纳整组，行间用 0.33dp 分割线。
+                    EtaCard(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 12.dp),
+                        insideMargin = PaddingValues(0.dp),
+                    ) {
+                        Column(modifier = Modifier.fillMaxWidth()) {
+                            group.models.forEachIndexed { index, model ->
+                                ModelPickerRow(
+                                    model = model,
+                                    selected = model.id == selectedId,
+                                    onClick = { select(model.id) },
+                                )
+                                if (index != group.models.lastIndex) {
+                                    EtaPreferenceDivider(hasLeading = false)
+                                }
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -384,16 +385,13 @@ private fun ModelPickerRow(
     model: AgentModelOptionUi,
     selected: Boolean,
     onClick: () -> Unit,
-    horizontalPadding: Dp = 8.dp,
 ) {
     val contentColor = if (selected) MiuixTheme.colorScheme.primary else MiuixTheme.colorScheme.onSurface
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = horizontalPadding)
-            .squircleSurface(color = Color.Transparent, cornerRadius = 12.dp)
             .clickable(onClick = onClick)
-            .padding(horizontal = 12.dp, vertical = 11.dp),
+            .padding(horizontal = 16.dp, vertical = 13.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Text(

@@ -41,6 +41,7 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.setProgress
 import androidx.compose.ui.semantics.stateDescription
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -71,12 +72,13 @@ internal fun ReasoningSlidingPicker(
     val haptic = LocalHapticFeedback.current
     val latestChange by rememberUpdatedState(onEffortChange)
     val latestOptions by rememberUpdatedState(options)
+    val latestEffort by rememberUpdatedState(effort)
 
     val previewLevel = options.getOrElse(sliderIndex) { options.last() }
     // 松手才提交：拖动过程中只更新预览，避免每滑一格都写一次设置。
     fun commit() {
         latestOptions.getOrNull(sliderIndex)?.let {
-            if (it != effort) {
+            if (it != latestEffort) {
                 haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                 latestChange(it)
             }
@@ -97,7 +99,7 @@ internal fun ReasoningSlidingPicker(
         ) {
             BasicText(
                 text = effortDisplayName(previewLevel),
-                style = androidx.compose.ui.text.TextStyle(
+                style = TextStyle(
                     color = wordColor,
                     fontWeight = FontWeight.SemiBold,
                     fontSize = 15.sp,
@@ -105,7 +107,7 @@ internal fun ReasoningSlidingPicker(
             )
             BasicText(
                 text = effortWireLabel(previewLevel),
-                style = androidx.compose.ui.text.TextStyle(
+                style = TextStyle(
                     color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
                     fontSize = 12.sp,
                 ),
@@ -116,26 +118,23 @@ internal fun ReasoningSlidingPicker(
         val knobRadius = ReasoningSliderStyle.KnobRadius
         val density = LocalDensity.current
         val knobPx = with(density) { (knobRadius * 2).toPx() }
+        val trackColor = MiuixTheme.colorScheme.surfaceContainerHigh
         val animPos by animateFloatAsState(
             targetValue = sliderIndex.toFloat(),
             animationSpec = tween(160),
             label = "reasoningKnob",
         )
-        val surgePhase = if (previewLevel != ReasoningEffort.OFF) {
-            val transition = rememberInfiniteTransition(label = "reasoningSurge")
-            val p by transition.animateFloat(
-                initialValue = 0f,
-                targetValue = 1f,
-                animationSpec = infiniteRepeatable(
-                    tween(1600, easing = LinearEasing),
-                    RepeatMode.Restart,
-                ),
-                label = "surgePhase",
-            )
-            p
-        } else {
-            0f
-        }
+        // 无条件调用：Compose 要求 composable 调用位置稳定，不能放进 if 分支。
+        val transition = rememberInfiniteTransition(label = "reasoningSurge")
+        val surgePhase by transition.animateFloat(
+            initialValue = 0f,
+            targetValue = 1f,
+            animationSpec = infiniteRepeatable(
+                tween(1600, easing = LinearEasing),
+                RepeatMode.Restart,
+            ),
+            label = "surgePhase",
+        )
         Canvas(
             modifier = Modifier
                 .fillMaxWidth()
@@ -171,7 +170,7 @@ internal fun ReasoningSlidingPicker(
                 level = previewLevel,
                 trackHeightPx = trackHeight.toPx(),
                 knobRadiusPx = knobRadius.toPx(),
-                surfaceColor = inactiveTrackColor,
+                surfaceColor = trackColor,
                 phase = surgePhase,
             )
         }
@@ -179,9 +178,9 @@ internal fun ReasoningSlidingPicker(
 }
 
 private object ReasoningSliderStyle {
-    val TrackHeight = 8.dp
-    val KnobRadius = 9.dp
-    val Height = 40.dp
+    val TrackHeight = 14.dp
+    val KnobRadius = 12.dp
+    val Height = 52.dp
 }
 
 /** 滑块中心可移动区间：knob/2 到 width - knob/2，两端不会越界。 */
@@ -251,8 +250,6 @@ private fun effortWireLabel(level: ReasoningEffort): String = when (level) {
     ReasoningEffort.MAX -> "Max"
 }
 
-private val inactiveTrackColor = Color(0x33808080)
-
 /** 轨道：未选中底色 + 选中段光带（随深度加速、MAX 彩虹）+ 上升火花 + 滑块。 */
 private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawReasoningSurgeTrack(
     count: Int,
@@ -306,7 +303,7 @@ private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawReasoningSurgeT
     }
 
     if (count > 1) {
-        val dotR = 1.4.dp.toPx()
+        val dotR = 2.dp.toPx()
         for (i in 0 until count) {
             val x = reasoningKnobX(i.toFloat(), size.width, knobRadiusPx * 2, count)
             drawCircle(

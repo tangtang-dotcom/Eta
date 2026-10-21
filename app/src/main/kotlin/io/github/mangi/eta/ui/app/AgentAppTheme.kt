@@ -88,6 +88,7 @@ fun AgentAppTheme(
             }
         }
         CompositionLocalProvider(
+            LocalIsDarkTheme provides isDark,
             LocalAppearanceSettings provides appearance,
             LocalBlurEnabled provides appearance.blurEnabled,
             LocalTopBarBlurStyle provides appearance.topBarBlurStyle,

@@ -93,6 +93,7 @@ import io.github.mangi.eta.R
 import io.github.mangi.eta.agent.model.AgentFileReferencePromptCodec
 import io.github.mangi.eta.agent.overlay.toolDisplayName
 import io.github.mangi.eta.ui.app.LocalAppearanceSettings
+import io.github.mangi.eta.ui.app.LocalIsDarkTheme
 import io.github.mangi.eta.ui.markdown.MarkdownTone
 import io.github.mangi.eta.ui.markdown.StaticMarkdown
 import io.github.mangi.eta.ui.markdown.StreamingMarkdown
@@ -758,7 +759,7 @@ private fun AgentMessageBlock(
         // 浅色主题固定纯白，避免莫奈把 surface 染成灰蓝后与页面背景糊在一起；
         // 深色主题的 surface 与 background 常常同色，改用 background 掺 8% onBackground，
         // 在纯黑与深灰底上都能看出一层卡片。
-        val darkBubble = MiuixTheme.colorScheme.background.luminance() < 0.5f
+        val darkBubble = LocalIsDarkTheme.current
         val bubbleFill = if (darkBubble) {
             lerp(MiuixTheme.colorScheme.background, MiuixTheme.colorScheme.onBackground, 0.08f)
         } else {
@@ -916,7 +917,7 @@ private fun AssistantWorkBubble(
 ) {
     // 整组工作过程共用一个灰色圆角框：收起时是一行摘要，展开后是步骤列表，外框不变。
     // 深色下比气泡再亮一档，保证外框、工作过程框和页面底三者互相分得开。
-    val darkWork = MiuixTheme.colorScheme.background.luminance() < 0.5f
+    val darkWork = LocalIsDarkTheme.current
     val cardFill = if (darkWork) {
         lerp(MiuixTheme.colorScheme.background, MiuixTheme.colorScheme.onBackground, 0.16f)
     } else {

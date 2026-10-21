@@ -1207,6 +1207,7 @@ private fun AgentChatBottomBar(
                 onAttachFilePath = onAttachFilePath,
                 onRemoveFileReference = onRemoveFileReference,
                 onCancelMessageEdit = onCancelMessageEdit,
+                frosted = composeFrost,
                 modifier = Modifier.fillMaxWidth(),
             )
         }

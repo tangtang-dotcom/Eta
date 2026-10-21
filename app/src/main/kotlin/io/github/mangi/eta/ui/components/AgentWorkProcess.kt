@@ -305,7 +305,7 @@ private fun AgentWorkStepNode(
     }
 }
 
-/** 时间线节点与引用块两种排布的切换点，正文内容完全一致。 */
+/** 时间线节点与纯内容两种排布的切换点，正文内容完全一致。 */
 @Composable
 private fun WorkStep(
     icon: ImageVector,
@@ -315,46 +315,17 @@ private fun WorkStep(
     content: @Composable () -> Unit,
 ) {
     if (quoted) {
-        WorkQuoteCard(tone = tone) { content() }
+        // 嵌进回答气泡时，整组工作过程共用一个灰色圆角框，步骤自身不再画卡片，
+        // 只用一点纵向间距把相邻步骤分开。
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 2.dp),
+        ) {
+            content()
+        }
     } else {
         WorkTimelineNode(icon = icon, tone = tone, isLast = isLast) { content() }
-    }
-}
-
-/**
- * 工作步骤子气泡：灰色圆角卡片，与白色回答气泡形成反差；失败步骤另加一层错误色描边。
- *
- * 灰色由 surface 与 onSurface 按固定比例混合，不取 surfaceContainer——后者会被莫奈
- * 配色染上紫蓝色，在白气泡里看不再是“灰”。
- */
-@Composable
-private fun WorkQuoteCard(
-    tone: WorkNodeTone,
-    content: @Composable () -> Unit,
-) {
-    val corner = 12.dp
-    val shape = RoundedCornerShape(corner)
-    val cardFill = lerp(
-        MiuixTheme.colorScheme.surface,
-        MiuixTheme.colorScheme.onSurface,
-        0.06f,
-    )
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 3.dp)
-            .clip(shape)
-            .background(cardFill)
-            .then(
-                if (tone == WorkNodeTone.Failed) {
-                    Modifier.border(1.dp, StatusError.copy(alpha = 0.45f), shape)
-                } else {
-                    Modifier
-                },
-            )
-            .padding(horizontal = 11.dp, vertical = 9.dp),
-    ) {
-        content()
     }
 }
 

@@ -72,6 +72,7 @@ import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
@@ -911,9 +912,17 @@ private fun AssistantWorkBubble(
     retainedStreamingStates: Map<String, StreamingMarkdownState>,
     modifier: Modifier = Modifier,
 ) {
+    // 整组工作过程共用一个灰色圆角框：收起时是一行摘要，展开后是步骤列表，外框不变。
+    val cardFill = lerp(
+        MiuixTheme.colorScheme.surface,
+        MiuixTheme.colorScheme.onSurface,
+        0.06f,
+    )
     Column(
         modifier = modifier
-            .fillMaxWidth(),
+            .fillMaxWidth()
+            .squircleSurface(color = cardFill, cornerRadius = 14.dp)
+            .padding(horizontal = 11.dp, vertical = 8.dp),
     ) {
         AgentWorkProcess(
             id = messages.first().id,

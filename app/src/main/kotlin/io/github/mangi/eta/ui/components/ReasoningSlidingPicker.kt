@@ -79,11 +79,19 @@ internal fun ReasoningSlidingPicker(
     val latestEffort by rememberUpdatedState(effort)
 
     val previewLevel = options.getOrElse(sliderIndex) { options.last() }
-    // 松手才提交：拖动过程中只更新预览，避免每滑一格都写一次设置。
+    // 每滑过一档给一次轻触感，滑动过程本身不写设置。
+    fun moveTo(index: Int) {
+        val clamped = index.coerceIn(0, count - 1)
+        if (clamped != sliderIndex) {
+            sliderIndex = clamped
+            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+        }
+    }
+    // 松手才提交：避免每滑一格都写一次设置。
     fun commit() {
         latestOptions.getOrNull(sliderIndex)?.let {
             if (it != latestEffort) {
-                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                haptic.performHapticFeedback(HapticFeedbackType.Confirm)
                 latestChange(it)
             }
         }
@@ -159,14 +167,14 @@ internal fun ReasoningSlidingPicker(
                     contentDescription = "思考深度"
                     stateDescription = effortDisplayName(previewLevel)
                     setProgress { v ->
-                        sliderIndex = (v * (count - 1)).roundToInt().coerceIn(0, count - 1)
+                        moveTo((v * (count - 1)).roundToInt())
                         commit()
                         true
                     }
                 }
                 .pointerInput(count) {
                     detectTapGestures { offset ->
-                        sliderIndex = reasoningStopAt(offset.x, size.width.toFloat(), knobPx, count)
+                        moveTo(reasoningStopAt(offset.x, size.width.toFloat(), knobPx, count))
                         commit()
                     }
                 }
@@ -176,7 +184,7 @@ internal fun ReasoningSlidingPicker(
                         onDragCancel = { commit() },
                     ) { change, _ ->
                         change.consume()
-                        sliderIndex = reasoningStopAt(change.position.x, size.width.toFloat(), knobPx, count)
+                        moveTo(reasoningStopAt(change.position.x, size.width.toFloat(), knobPx, count))
                     }
                 },
         ) {
@@ -196,9 +204,9 @@ internal fun ReasoningSlidingPicker(
 
 private object ReasoningSliderStyle {
     val TrackHeight = 10.dp
-    // 滑块直径略大于轨道（11dp vs 10dp），贴在光带里不向外突出。
-    val KnobRadius = 5.5.dp
-    val Height = 44.dp
+    // 滑块直径 18dp，光晕高 30dp，滑块整颗落在光晕内。
+    val KnobRadius = 9.dp
+    val Height = 52.dp
 }
 
 /** 滑块中心可移动区间：knob/2 到 width - knob/2，两端不会越界。 */
@@ -340,10 +348,11 @@ private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawReasoningSurgeT
     }
 
     // 呼吸光晕：比轨道更高的柔和底光，强度随深度与 pulse 起伏。
-    val haloAlpha = 0.06f + 0.20f * intensity * pulse
-    val haloTopLeft = Offset(0f, top - trackHeightPx * 0.75f)
-    val haloSize = Size(activeWidth, trackHeightPx * 2.5f)
-    val haloRadius = CornerRadius(trackHeightPx * 1.25f, trackHeightPx * 1.25f)
+    val haloAlpha = 0.14f + 0.30f * intensity * pulse
+    // 光晕高度取 3 倍轨道（30dp），盖住 18dp 的滑块，让滑块看起来陷在特效里。
+    val haloTopLeft = Offset(0f, top - trackHeightPx)
+    val haloSize = Size(activeWidth, trackHeightPx * 3f)
+    val haloRadius = CornerRadius(trackHeightPx * 1.5f, trackHeightPx * 1.5f)
     drawRoundRect(
         brush = if (max) bandBrush else SolidColor(base),
         topLeft = haloTopLeft,

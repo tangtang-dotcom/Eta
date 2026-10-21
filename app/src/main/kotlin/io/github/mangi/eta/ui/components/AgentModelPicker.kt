@@ -247,7 +247,7 @@ private fun ModelSheetContent(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(horizontal = EtaPreferenceDefaults.SidePadding)
-                        .padding(top = 8.dp, bottom = 4.dp),
+                        .padding(top = 0.dp, bottom = 2.dp),
                     insideMargin = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
                 ) {
                     ReasoningSlidingPicker(

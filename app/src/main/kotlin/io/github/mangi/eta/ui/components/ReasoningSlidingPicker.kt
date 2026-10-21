@@ -117,15 +117,21 @@ internal fun ReasoningSlidingPicker(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween,
         ) {
-            BasicText(
-                text = effortDisplayName(previewLevel),
-                style = TextStyle(
+            // brush 与 color 在 TextStyle 里互斥，按是否有彩虹画刷分开构造。
+            val wordStyle = if (wordBrush != null) {
+                TextStyle(
                     brush = wordBrush,
+                    fontWeight = FontWeight.SemiBold,
+                    fontSize = 15.sp,
+                )
+            } else {
+                TextStyle(
                     color = wordColor,
                     fontWeight = FontWeight.SemiBold,
                     fontSize = 15.sp,
-                ),
-            )
+                )
+            }
+            BasicText(text = effortDisplayName(previewLevel), style = wordStyle)
             BasicText(
                 text = effortWireLabel(previewLevel),
                 style = TextStyle(

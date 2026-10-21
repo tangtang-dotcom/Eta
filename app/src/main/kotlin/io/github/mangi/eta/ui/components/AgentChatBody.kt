@@ -85,6 +85,7 @@ import io.github.mangi.eta.ui.model.ConversationHistoryLoadState
 import io.github.mangi.eta.ui.model.AgentChatMessageUi
 import io.github.mangi.eta.ui.model.AgentContextUsageUi
 import io.github.mangi.eta.ui.model.AgentMessageUi
+import io.github.mangi.eta.ui.model.AgentModelOptionUi
 import io.github.mangi.eta.ui.model.AgentModelPickerUiState
 import io.github.mangi.eta.ui.model.MessageEditUiState
 import io.github.mangi.eta.ui.model.PendingFileReferenceUi
@@ -398,7 +399,7 @@ private fun AgentChatScaffold(
                 onRegenerateMessage = onRegenerateMessage,
                 onSelectReplyCandidate = onSelectReplyCandidate,
                 messageActionsEnabled = !isStreaming && messageEdit == null,
-                assistantModelLabel = modelPickerState.selectedModel?.displayName,
+                assistantModel = modelPickerState.selectedModel,
                 editTargetMessageId = messageEdit?.targetMessageId,
                 currentBrowserMessageId = currentBrowserMessageId,
                 hasEarlierMessages = hasEarlierMessages,
@@ -432,7 +433,7 @@ internal fun AgentConversationMessages(
     onRegenerateMessage: (String) -> Unit = {},
     onSelectReplyCandidate: (String, Int) -> Unit = { _, _ -> },
     messageActionsEnabled: Boolean = false,
-    assistantModelLabel: String? = null,
+    assistantModel: AgentModelOptionUi? = null,
     editTargetMessageId: String? = null,
     currentBrowserMessageId: String? = null,
     hasEarlierMessages: Boolean = false,
@@ -743,7 +744,7 @@ internal fun AgentConversationMessages(
                                 message.characterEditable || message.id in finalResultMessageIds,
                             showMessageActions = message.id in finalResultMessageIds ||
                                 (message is AgentMessageUi && message.characterEditable),
-                            assistantModelLabel = assistantModelLabel,
+                            assistantModel = assistantModel,
                             messageActionsEnabled = messageActionsEnabled,
                             isEditing = message.id == editTargetMessageId,
                             onEditMessage = onEditMessage,
@@ -775,7 +776,7 @@ internal fun AgentConversationMessages(
                             onSuggestionClick = onSuggestionClick,
                             onRunTraceClick = onRunTraceClick,
                             showBrowserShortcut = false,
-                            assistantModelLabel = assistantModelLabel,
+                            assistantModel = assistantModel,
                             showCopyAction = answer.characterEditable ||
                                 answer.id in finalResultMessageIds,
                             showMessageActions = answer.id in finalResultMessageIds ||

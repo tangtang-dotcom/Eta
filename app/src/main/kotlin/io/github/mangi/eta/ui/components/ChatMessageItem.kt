@@ -46,6 +46,7 @@ import androidx.compose.material.icons.rounded.ChevronRight
 import androidx.compose.material.icons.rounded.Compress
 import androidx.compose.material.icons.rounded.ContentCopy
 import androidx.compose.material.icons.rounded.Delete
+import androidx.compose.material.icons.rounded.Dns
 import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material.icons.rounded.Lightbulb
 import androidx.compose.material.icons.rounded.Refresh
@@ -71,6 +72,7 @@ import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
@@ -79,6 +81,7 @@ import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.pluralStringResource
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
@@ -97,6 +100,7 @@ import io.github.mangi.eta.ui.markdown.StreamingMarkdownState
 import io.github.mangi.eta.ui.markdown.THINKING_LINE_HEIGHT_SP
 import io.github.mangi.eta.ui.model.AgentChatMessageUi
 import io.github.mangi.eta.ui.model.AgentMessageUi
+import io.github.mangi.eta.ui.model.AgentModelOptionUi
 import io.github.mangi.eta.ui.model.RunTraceMessageUi
 import io.github.mangi.eta.ui.model.SuggestionChipsMessageUi
 import io.github.mangi.eta.ui.model.SystemNoticeCode
@@ -201,7 +205,7 @@ internal fun ChatMessageItem(
     retainedStreamingState: StreamingMarkdownState? = null,
     showCopyAction: Boolean = true,
     showMessageActions: Boolean = false,
-    assistantModelLabel: String? = null,
+    assistantModel: AgentModelOptionUi? = null,
     workMessages: List<AgentChatMessageUi> = emptyList(),
     workActive: Boolean = false,
     workStreamingStates: Map<String, StreamingMarkdownState> = emptyMap(),
@@ -227,7 +231,7 @@ internal fun ChatMessageItem(
         is AgentMessageUi -> AgentMessageBlock(
             message = message,
             allowSpeech = true,
-            modelLabel = assistantModelLabel,
+            model = assistantModel,
             workMessages = workMessages,
             workActive = workActive,
             workStreamingStates = workStreamingStates,
@@ -665,7 +669,7 @@ private fun ContextCompactionMarker(
 private fun AgentMessageBlock(
     message: AgentMessageUi,
     allowSpeech: Boolean = false,
-    modelLabel: String? = null,
+    model: AgentModelOptionUi? = null,
     workMessages: List<AgentChatMessageUi> = emptyList(),
     workActive: Boolean = false,
     workStreamingStates: Map<String, StreamingMarkdownState> = emptyMap(),
@@ -746,19 +750,26 @@ private fun AgentMessageBlock(
             CharacterReplyHeader(character = character, isGreeting = isGreeting)
         }
         if (showBubble) {
-            AssistantReplyHeader(modelLabel = modelLabel)
+            AssistantReplyHeader(model = model)
         }
+        // 气泡底色以 surface 为基准掺一点主题色，让莫奈/自定义配色能透出来；
+        // 纯白或纯黑底在暗色下会和工作过程的内层气泡糊成一片。
+        val bubbleFill = lerp(
+            MiuixTheme.colorScheme.surface,
+            MiuixTheme.colorScheme.primary,
+            0.06f,
+        )
         Column(
             modifier = if (showBubble) {
                 Modifier
                     .fillMaxWidth()
                     .squircleSurface(
-                        color = MiuixTheme.colorScheme.surface,
+                        color = bubbleFill,
                         cornerRadius = AssistantBubbleCorner,
                     )
                     .squircleBorder(
                         width = 0.75.dp,
-                        color = MiuixTheme.colorScheme.outline.copy(alpha = 0.45f),
+                        color = MiuixTheme.colorScheme.outline.copy(alpha = 0.55f),
                         cornerRadius = AssistantBubbleCorner,
                     )
                     .padding(horizontal = 13.dp, vertical = 11.dp)
@@ -903,12 +914,22 @@ private fun AssistantWorkBubble(
     retainedStreamingStates: Map<String, StreamingMarkdownState>,
     modifier: Modifier = Modifier,
 ) {
+    val innerCorner = AssistantBubbleCorner - 4.dp
     Column(
         modifier = modifier
             .fillMaxWidth()
             .squircleSurface(
-                color = MiuixTheme.colorScheme.background,
-                cornerRadius = AssistantBubbleCorner - 4.dp,
+                color = lerp(
+                    MiuixTheme.colorScheme.surfaceContainerHigh,
+                    MiuixTheme.colorScheme.primary,
+                    0.04f,
+                ),
+                cornerRadius = innerCorner,
+            )
+            .squircleBorder(
+                width = 0.5.dp,
+                color = MiuixTheme.colorScheme.outline.copy(alpha = 0.4f),
+                cornerRadius = innerCorner,
             )
             .padding(horizontal = 10.dp, vertical = 8.dp),
     ) {
@@ -934,28 +955,40 @@ private val AssistantBubbleCorner = 16.dp
  * 底色取主题色低透明度，不引入图片资源；模型名缺失时退回“AI”。
  */
 @Composable
-private fun AssistantReplyHeader(modelLabel: String?) {
+private fun AssistantReplyHeader(model: AgentModelOptionUi?) {
     Row(
         modifier = Modifier.padding(start = 1.dp, bottom = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Box(
-            modifier = Modifier
-                .size(26.dp)
-                .clip(RoundedCornerShape(9.dp))
-                .background(MiuixTheme.colorScheme.primary.copy(alpha = 0.12f)),
-            contentAlignment = Alignment.Center,
-        ) {
-            Text(
-                text = "AI",
-                style = MiuixTheme.textStyles.footnote2,
-                fontWeight = FontWeight.SemiBold,
-                color = MiuixTheme.colorScheme.primary,
+        val logo = modelOrProviderBrandLogoRes(model?.modelId, model?.providerSourceType)
+        if (logo != null) {
+            Image(
+                painter = painterResource(logo),
+                contentDescription = null,
+                contentScale = ContentScale.Fit,
+                modifier = Modifier
+                    .size(26.dp)
+                    .clip(CircleShape),
             )
+        } else {
+            Box(
+                modifier = Modifier
+                    .size(26.dp)
+                    .clip(CircleShape)
+                    .background(MiuixTheme.colorScheme.primaryContainer),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    imageVector = Icons.Rounded.Dns,
+                    contentDescription = null,
+                    modifier = Modifier.size(15.dp),
+                    tint = MiuixTheme.colorScheme.primary,
+                )
+            }
         }
         Spacer(Modifier.width(7.dp))
         Text(
-            text = modelLabel?.takeIf(String::isNotBlank) ?: "AI",
+            text = model?.displayName?.takeIf(String::isNotBlank) ?: "AI",
             style = MiuixTheme.textStyles.footnote1,
             fontWeight = FontWeight.Medium,
             color = MiuixTheme.colorScheme.onSurfaceVariantSummary,

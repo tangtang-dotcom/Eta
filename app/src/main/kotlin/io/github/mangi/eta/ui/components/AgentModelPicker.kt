@@ -53,6 +53,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import io.github.mangi.eta.R
+import io.github.mangi.eta.data.model.ReasoningEffort
 import io.github.mangi.eta.ui.model.AgentModelOptionUi
 import io.github.mangi.eta.ui.model.AgentModelPickerUiState
 import io.github.mangi.eta.ui.model.filterGroups
@@ -81,6 +82,9 @@ internal fun AgentModelPickerButton(
     popupAnchorTopPx: Int,
     popupMaxHeight: Dp,
     onModelSelected: (String) -> Unit,
+    reasoningEffort: ReasoningEffort? = null,
+    availableReasoningEfforts: List<ReasoningEffort> = emptyList(),
+    onReasoningEffortChange: ((ReasoningEffort) -> Unit)? = null,
     modifier: Modifier = Modifier,
 ) {
     var showPopup by remember { mutableStateOf(false) }
@@ -159,6 +163,9 @@ internal fun AgentModelPickerButton(
                         showSheet = false
                         onModelSelected(modelId)
                     },
+                    reasoningEffort = reasoningEffort,
+                    availableReasoningEfforts = availableReasoningEfforts,
+                    onReasoningEffortChange = onReasoningEffortChange,
                 )
             }
         }
@@ -208,6 +215,9 @@ private sealed interface ModelSheetEntry {
 private fun ModelSheetContent(
     state: AgentModelPickerUiState,
     onModelSelected: (String) -> Unit,
+    reasoningEffort: ReasoningEffort? = null,
+    availableReasoningEfforts: List<ReasoningEffort> = emptyList(),
+    onReasoningEffortChange: ((ReasoningEffort) -> Unit)? = null,
 ) {
     var query by remember { mutableStateOf("") }
     var providerFilter by remember { mutableStateOf<String?>(null) }
@@ -243,6 +253,20 @@ private fun ModelSheetContent(
             .height(sheetHeight)
             .navigationBarsPadding(),
     ) {
+        if (reasoningEffort != null &&
+            availableReasoningEfforts.size > 1 &&
+            onReasoningEffortChange != null
+        ) {
+            ReasoningSlidingPicker(
+                effort = reasoningEffort,
+                options = availableReasoningEfforts,
+                onEffortChange = onReasoningEffortChange,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 20.dp)
+                    .padding(top = 8.dp, bottom = 4.dp),
+            )
+        }
         InputField(
             query = query,
             onQueryChange = { query = it },

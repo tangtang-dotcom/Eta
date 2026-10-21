@@ -318,18 +318,6 @@ internal fun AgentChatInputBar(
                                 onAttachFilePath = onAttachFilePath,
                             )
 
-                            Spacer(modifier = Modifier.width(2.dp))
-
-                            if (availableReasoningEfforts.isNotEmpty()) {
-                                ThinkingEffortChip(
-                                    effort = reasoningEffort,
-                                    options = availableReasoningEfforts,
-                                    enabled = !isStreaming,
-                                    popupAnchorTopPx = inputContainerTopPx,
-                                    popupMaxHeight = thinkingPopupMaxHeight,
-                                    onEffortChange = onReasoningEffortChange,
-                                )
-                            }
                         }
 
                         Spacer(modifier = Modifier.weight(1f))
@@ -349,6 +337,9 @@ internal fun AgentChatInputBar(
                             isStreaming = isStreaming,
                             popupAnchorTopPx = inputContainerTopPx,
                             popupMaxHeight = thinkingPopupMaxHeight,
+                            reasoningEffort = reasoningEffort,
+                            availableReasoningEfforts = availableReasoningEfforts,
+                            onReasoningEffortChange = onReasoningEffortChange,
                             onModelSelected = onModelSelected,
                         )
 
@@ -428,74 +419,6 @@ internal fun AgentChatInputBar(
 }
 
 /** 思考强度选择保持为单一图标，当前状态仅通过图标颜色表达。 */
-@Composable
-private fun ThinkingEffortChip(
-    effort: ReasoningEffort,
-    options: List<ReasoningEffort>,
-    enabled: Boolean,
-    popupAnchorTopPx: Int,
-    popupMaxHeight: Dp,
-    onEffortChange: (ReasoningEffort) -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    var showPopup by remember { mutableStateOf(false) }
-    val active = effort != ReasoningEffort.OFF
-    val menuEnabled = enabled && options.size > 1
-    LaunchedEffect(menuEnabled) {
-        if (!menuEnabled) showPopup = false
-    }
-    val popupPositionProvider = remember(popupAnchorTopPx) {
-        InputPopupPositionProvider(popupAnchorTopPx)
-    }
-    val contentColor by animateColorAsState(
-        targetValue = if (active) {
-            MiuixTheme.colorScheme.primary
-        } else {
-            MiuixTheme.colorScheme.onSurfaceVariantSummary
-        },
-        animationSpec = tween(durationMillis = 160),
-        label = "thinking_content",
-    )
-    Box(modifier = modifier) {
-        IconButton(
-            onClick = { showPopup = true },
-            enabled = menuEnabled,
-            minWidth = ChatInputActionSize,
-            minHeight = ChatInputActionSize,
-        ) {
-            Icon(
-                imageVector = ImageVector.vectorResource(R.drawable.ic_atom),
-                contentDescription = stringResource(R.string.chat_reasoning_effort, effort.displayName),
-                modifier = Modifier.size(ThinkingIconSize),
-                tint = contentColor,
-            )
-        }
-        WindowListPopup(
-            show = showPopup && menuEnabled && popupAnchorTopPx > 0,
-            popupPositionProvider = popupPositionProvider,
-            alignment = PopupPositionProvider.Align.TopStart,
-            onDismissRequest = { showPopup = false },
-            maxHeight = popupMaxHeight,
-        ) {
-            val dismiss = LocalDismissState.current
-            ListPopupColumn {
-                options.forEachIndexed { index, option ->
-                    DropdownImpl(
-                        text = option.displayName,
-                        optionSize = options.size,
-                        isSelected = option == effort,
-                        index = index,
-                        onSelectedIndexChange = {
-                            onEffortChange(option)
-                            dismiss?.invoke()
-                        },
-                    )
-                }
-            }
-        }
-    }
-}
-
 /**
  * 横向跟随 Chip，竖向则避开整个输入面板；默认下拉定位只会避开 Chip 自身。
  */

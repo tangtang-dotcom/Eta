@@ -431,7 +431,7 @@ private fun UserMessageBubble(
                         end = if (assistantOverlay) 12.dp else 16.dp,
                         top = if (assistantOverlay) 8.dp else 12.dp,
                         // 底部留白交给操作行自己控制，图标才会贴着气泡下沿。
-                        bottom = if (assistantOverlay) 8.dp else 4.dp,
+                        bottom = if (assistantOverlay) 8.dp else 2.dp,
                     ),
             ) {
                 if (message.images.isNotEmpty()) {
@@ -545,7 +545,10 @@ private fun UserMessageActionRow(
         Row(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.End,
-            modifier = Modifier.fillMaxWidth(),
+            // 贴着气泡右下角：横向越过内边距，纵向下压一点。
+            modifier = Modifier
+                .fillMaxWidth()
+                .offset(x = 6.dp, y = 2.dp),
         ) {
             AnswerActionButton(
                 icon = if (copied) Icons.Rounded.Check else Icons.Rounded.ContentCopy,
@@ -774,7 +777,7 @@ private fun AgentMessageBlock(
                         color = bubbleFill,
                         cornerRadius = AssistantBubbleCorner,
                     )
-                    .padding(start = 14.dp, end = 14.dp, top = 12.dp, bottom = 6.dp)
+                    .padding(start = 14.dp, end = 14.dp, top = 12.dp, bottom = 4.dp)
             } else {
                 Modifier.fillMaxWidth()
             },
@@ -840,8 +843,12 @@ private fun AgentMessageBlock(
                     modifier = Modifier
                         .fillMaxWidth()
                         .then(
-                            // 气泡自带左内边距，此时不必再抵消按钮留白。
-                            if (showBubble) Modifier else Modifier.offset(x = -AnswerActionCenterOffset),
+                            // 气泡内贴着左下角，无气泡时抵消按钮留白对齐工作过程图标。
+                            if (showBubble) {
+                                Modifier.offset(x = (-6).dp, y = 2.dp)
+                            } else {
+                                Modifier.offset(x = -AnswerActionCenterOffset)
+                            },
                         )
                         .padding(top = 0.dp),
                     verticalAlignment = Alignment.CenterVertically,

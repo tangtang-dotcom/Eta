@@ -203,10 +203,10 @@ internal fun ReasoningSlidingPicker(
 }
 
 private object ReasoningSliderStyle {
-    val TrackHeight = 10.dp
-    // 滑块直径 18dp，光晕高 30dp，滑块整颗落在光晕内。
-    val KnobRadius = 9.dp
-    val Height = 52.dp
+    val TrackHeight = 8.dp
+    // 滑块直径 14dp；光晕高 12dp，比滑块略小一圈，滑块边缘微微露出。
+    val KnobRadius = 7.dp
+    val Height = 44.dp
 }
 
 /** 滑块中心可移动区间：knob/2 到 width - knob/2，两端不会越界。 */
@@ -307,7 +307,8 @@ private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawReasoningSurgeT
         cornerRadius = radius,
     )
 
-    val activeWidth = knobX.coerceIn(0f, size.width)
+    // 光带与光晕右端对齐滑块右缘，而不是滑块中心。
+    val activeWidth = (knobX + knobRadiusPx).coerceIn(0f, size.width)
     if (activeWidth <= 0f) {
         drawReasoningKnob(knobX, cy, knobRadiusPx, base)
         return
@@ -348,11 +349,12 @@ private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawReasoningSurgeT
     }
 
     // 呼吸光晕：比轨道更高的柔和底光，强度随深度与 pulse 起伏。
-    val haloAlpha = 0.14f + 0.30f * intensity * pulse
-    // 光晕高度取 3 倍轨道（30dp），盖住 18dp 的滑块，让滑块看起来陷在特效里。
-    val haloTopLeft = Offset(0f, top - trackHeightPx)
-    val haloSize = Size(activeWidth, trackHeightPx * 3f)
-    val haloRadius = CornerRadius(trackHeightPx * 1.5f, trackHeightPx * 1.5f)
+    val haloAlpha = 0.16f + 0.30f * intensity * pulse
+    // 光晕高度 1.5 倍轨道（12dp），比 14dp 的滑块略小，滑块边缘微露。
+    val haloHeight = trackHeightPx * 1.5f
+    val haloTopLeft = Offset(0f, cy - haloHeight / 2f)
+    val haloSize = Size(activeWidth, haloHeight)
+    val haloRadius = CornerRadius(haloHeight / 2f, haloHeight / 2f)
     drawRoundRect(
         brush = if (max) bandBrush else SolidColor(base),
         topLeft = haloTopLeft,

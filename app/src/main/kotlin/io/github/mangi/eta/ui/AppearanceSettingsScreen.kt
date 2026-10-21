@@ -241,6 +241,24 @@ internal fun AppearanceSettingsScreen(onBack: () -> Unit) {
                     },
                 )
                 EtaPreferenceDivider(hasLeading = false)
+                EtaSwitchPreference(
+                    title = stringResource(R.string.appearance_chat_user_actions),
+                    summary = stringResource(R.string.appearance_chat_user_actions_summary),
+                    checked = appearance.chatUserMessageActions,
+                    onCheckedChange = { enabled ->
+                        update { current -> current.copy(chatUserMessageActions = enabled) }
+                    },
+                )
+                EtaPreferenceDivider(hasLeading = false)
+                EtaSwitchPreference(
+                    title = stringResource(R.string.appearance_chat_haptic),
+                    summary = stringResource(R.string.appearance_chat_haptic_summary),
+                    checked = appearance.chatGenerationHaptic,
+                    onCheckedChange = { enabled ->
+                        update { current -> current.copy(chatGenerationHaptic = enabled) }
+                    },
+                )
+                EtaPreferenceDivider(hasLeading = false)
                 EtaArrowPreference(
                     title = stringResource(R.string.appearance_interface_scale),
                     summary = stringResource(R.string.appearance_interface_scale_summary),

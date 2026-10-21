@@ -17,6 +17,8 @@ data class AppearanceSettings(
     val topBarBlurStyle: AppearanceTopBarBlurStyle = AppearanceTopBarBlurStyle.GAUSSIAN,
     val swipeDismissEnabled: Boolean = true,
     val predictiveBackEnabled: Boolean = true,
+    val chatUserMessageActions: Boolean = true,
+    val chatGenerationHaptic: Boolean = true,
     val interfaceScale: Float = DEFAULT_INTERFACE_SCALE,
 ) {
     fun normalized(): AppearanceSettings = copy(

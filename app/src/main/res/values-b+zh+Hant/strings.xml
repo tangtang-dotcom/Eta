@@ -170,6 +170,10 @@
   <string name="appearance_swipe_dismiss_summary">在頁面任意位置橫移即可返回上一頁</string>
   <string name="appearance_predictive_back">預測性返回手勢</string>
   <string name="appearance_predictive_back_summary">啟用預測性返回動畫效果</string>
+  <string name="appearance_chat_user_actions">訊息操作列</string>
+  <string name="appearance_chat_user_actions_summary">在你傳送的每則訊息下方常駐顯示複製、重新生成、編輯與刪除</string>
+  <string name="appearance_chat_haptic">生成觸感回饋</string>
+  <string name="appearance_chat_haptic_summary">模型輸出回覆時以輕微震動逐段回饋</string>
   <string name="appearance_interface_scale">介面縮放</string>
   <string name="appearance_interface_scale_summary" formatted="false">調整全域顯示比例（80%–110%）</string>
   <string name="appearance_interface_scale_dialog_title">介面縮放</string>
@@ -480,6 +484,10 @@
   <string name="markdown_alert_caution">注意</string>
   <string name="copy_copied">已複製</string>
   <string name="copy_answer">複製回答</string>
+  <string name="chat_copy_message">複製訊息</string>
+  <string name="chat_regenerate_user_action">從這則重新生成</string>
+  <string name="chat_regenerate_user_title">重新生成回覆</string>
+  <string name="chat_regenerate_user_body">將從這則訊息重新生成回覆，並刪除這則之後的對話。</string>
   <string name="copy_code">複製程式碼</string>
   <string name="copy_command">複製指令</string>
   <string name="shell_command">Shell 指令</string>

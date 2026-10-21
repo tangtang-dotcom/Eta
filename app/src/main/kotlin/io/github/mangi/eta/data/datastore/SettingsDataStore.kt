@@ -63,6 +63,10 @@ internal object SettingsDataStore {
     private val APPEARANCE_PREDICTIVE_BACK_ENABLED =
         booleanPreferencesKey("appearance_predictive_back_enabled")
     private val APPEARANCE_INTERFACE_SCALE = floatPreferencesKey("appearance_interface_scale")
+    private val APPEARANCE_CHAT_USER_MESSAGE_ACTIONS =
+        booleanPreferencesKey("appearance_chat_user_message_actions")
+    private val APPEARANCE_CHAT_GENERATION_HAPTIC =
+        booleanPreferencesKey("appearance_chat_generation_haptic")
     private const val SELECTED_MODEL_BY_PROVIDER_PREFIX = "selected_model_id_by_provider."
 
     private val Context.dataStore: DataStore<Preferences> by preferencesDataStore(name = STORE_NAME)
@@ -249,6 +253,8 @@ internal object SettingsDataStore {
             ),
             swipeDismissEnabled = this[APPEARANCE_SWIPE_DISMISS_ENABLED] ?: true,
             predictiveBackEnabled = this[APPEARANCE_PREDICTIVE_BACK_ENABLED] ?: true,
+            chatUserMessageActions = this[APPEARANCE_CHAT_USER_MESSAGE_ACTIONS] ?: true,
+            chatGenerationHaptic = this[APPEARANCE_CHAT_GENERATION_HAPTIC] ?: true,
             interfaceScale = this[APPEARANCE_INTERFACE_SCALE] ?: 1f,
         ).normalized(),
     )
@@ -263,6 +269,8 @@ internal object SettingsDataStore {
         this[APPEARANCE_TOP_BAR_BLUR_STYLE] = settings.topBarBlurStyle.persistedValue
         this[APPEARANCE_SWIPE_DISMISS_ENABLED] = settings.swipeDismissEnabled
         this[APPEARANCE_PREDICTIVE_BACK_ENABLED] = settings.predictiveBackEnabled
+        this[APPEARANCE_CHAT_USER_MESSAGE_ACTIONS] = settings.chatUserMessageActions
+        this[APPEARANCE_CHAT_GENERATION_HAPTIC] = settings.chatGenerationHaptic
         this[APPEARANCE_INTERFACE_SCALE] = settings.interfaceScale
     }
 }

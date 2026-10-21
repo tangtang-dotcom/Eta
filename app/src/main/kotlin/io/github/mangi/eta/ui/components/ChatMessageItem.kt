@@ -1,6 +1,7 @@
 package io.github.mangi.eta.ui.components
 
 import android.graphics.BitmapFactory
+import android.os.SystemClock
 import android.util.Base64
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.FastOutSlowInEasing
@@ -52,6 +53,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -87,6 +89,7 @@ import androidx.compose.ui.unit.sp
 import io.github.mangi.eta.R
 import io.github.mangi.eta.agent.model.AgentFileReferencePromptCodec
 import io.github.mangi.eta.agent.overlay.toolDisplayName
+import io.github.mangi.eta.ui.app.LocalAppearanceSettings
 import io.github.mangi.eta.ui.markdown.MarkdownTone
 import io.github.mangi.eta.ui.markdown.StaticMarkdown
 import io.github.mangi.eta.ui.markdown.StreamingMarkdown
@@ -213,6 +216,7 @@ internal fun ChatMessageItem(
             isEditing = isEditing,
             onEdit = { onEditMessage(message.id) },
             onDelete = { onDeleteMessage(message.id) },
+            onRegenerate = { onRegenerateMessage(message.id) },
             modifier = modifier,
         )
         is AgentMessageUi -> AgentMessageBlock(
@@ -294,12 +298,22 @@ private fun UserMessageBubble(
     isEditing: Boolean,
     onEdit: () -> Unit,
     onDelete: () -> Unit,
+    onRegenerate: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     @Suppress("DEPRECATION")
     val clipboardManager = LocalClipboardManager.current
     val tooltipState = rememberTooltipState(isPersistent = true)
     val haptic = LocalHapticFeedback.current
+    var copied by remember(message.id) { mutableStateOf(false) }
+    var confirmRegenerate by remember(message.id) { mutableStateOf(false) }
+    val appearance = LocalAppearanceSettings.current
+    LaunchedEffect(copied) {
+        if (copied) {
+            delay(1_400)
+            copied = false
+        }
+    }
     LaunchedEffect(actionsEnabled) {
         if (!actionsEnabled) tooltipState.dismiss()
     }
@@ -326,6 +340,7 @@ private fun UserMessageBubble(
             ),
         horizontalArrangement = Arrangement.End,
     ) {
+        Column(horizontalAlignment = Alignment.End) {
         TooltipBox(
             positionProvider = TooltipDefaults.rememberTooltipPositionProvider(
                 positioning = TooltipAnchorPosition.Below,
@@ -446,6 +461,96 @@ private fun UserMessageBubble(
                 }
             }
         }
+            UserMessageActionRow(
+                visible = !assistantOverlay && actionsEnabled &&
+                    appearance.chatUserMessageActions &&
+                    visiblePrompt.request.isNotBlank(),
+                copied = copied,
+                onCopy = {
+                    @Suppress("DEPRECATION")
+                    clipboardManager.setText(AnnotatedString(message.content))
+                    haptic.performHapticFeedback(HapticFeedbackType.Confirm)
+                    copied = true
+                },
+                onRegenerate = { confirmRegenerate = true },
+                onEdit = onEdit,
+                onDelete = onDelete,
+            )
+        }
+    }
+    if (confirmRegenerate) {
+        EtaWindowDialog(
+            show = true,
+            title = stringResource(R.string.chat_regenerate_user_title),
+            summary = stringResource(R.string.chat_regenerate_user_body),
+            onDismissRequest = { confirmRegenerate = false },
+        ) {
+            MiuixDialogActions(
+                confirmText = stringResource(R.string.ui_regenerate_2e1905),
+                onCancel = { confirmRegenerate = false },
+                onConfirm = {
+                    confirmRegenerate = false
+                    onRegenerate()
+                },
+            )
+        }
+    }
+}
+
+/**
+ * 用户消息下方的常驻操作行：复制、重新生成、编辑、删除。
+ *
+ * 与助手回答的操作行共用 [AnswerActionButton] 的尺寸和弱化配色，两处样式保持一致；
+ * 流式运行中由外部传入 visible=false 隐藏，避免打断执行态。
+ */
+@Composable
+private fun UserMessageActionRow(
+    visible: Boolean,
+    copied: Boolean,
+    onCopy: () -> Unit,
+    onRegenerate: () -> Unit,
+    onEdit: () -> Unit,
+    onDelete: () -> Unit,
+) {
+    AnimatedVisibility(
+        visible = visible,
+        enter = fadeIn(tween(160)) + expandVertically(tween(160)),
+        exit = fadeOut(tween(120)) + shrinkVertically(tween(120)),
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.padding(top = 2.dp),
+        ) {
+            AnswerActionButton(
+                icon = if (copied) Icons.Rounded.Check else Icons.Rounded.ContentCopy,
+                contentDescription = stringResource(
+                    if (copied) R.string.copy_copied else R.string.chat_copy_message,
+                ),
+                onClick = onCopy,
+                tint = if (copied) MiuixTheme.colorScheme.primary else null,
+            )
+            TooltipBox(text = stringResource(R.string.ui_regenerate_2e1905)) {
+                AnswerActionButton(
+                    icon = Icons.Rounded.Refresh,
+                    contentDescription = stringResource(R.string.chat_regenerate_user_action),
+                    onClick = onRegenerate,
+                )
+            }
+            TooltipBox(text = stringResource(R.string.ui_edit_a7f814)) {
+                AnswerActionButton(
+                    icon = Icons.Rounded.Edit,
+                    contentDescription = stringResource(R.string.ui_edit_a7f814),
+                    onClick = onEdit,
+                )
+            }
+            TooltipBox(text = stringResource(R.string.ui_delete_3755f5)) {
+                AnswerActionButton(
+                    icon = Icons.Rounded.Delete,
+                    contentDescription = stringResource(R.string.ui_delete_3755f5),
+                    onClick = onDelete,
+                )
+            }
+        }
     }
 }
 
@@ -553,6 +658,20 @@ private fun AgentMessageBlock(
     val clipboardManager = LocalClipboardManager.current
     val haptic = LocalHapticFeedback.current
     var copied by remember(message.id) { mutableStateOf(false) }
+    // 生成触感反馈：内容每有新字符到达时给一次轻触感，45ms 节流，
+    // 避免逐字刷新时连续触发把马达打满。
+    val appearance = LocalAppearanceSettings.current
+    var lastGenerationHapticAt by remember(message.id) { mutableLongStateOf(0L) }
+    LaunchedEffect(message.content.length, message.isStreaming, appearance.chatGenerationHaptic) {
+        if (!appearance.chatGenerationHaptic || !message.isStreaming || message.content.isEmpty()) {
+            return@LaunchedEffect
+        }
+        val now = SystemClock.elapsedRealtime()
+        if (now - lastGenerationHapticAt >= 45L) {
+            lastGenerationHapticAt = now
+            haptic.performHapticFeedback(HapticFeedbackType.KeyboardTap)
+        }
+    }
     val keepStreamingMarkdown = remember(message.id) { message.isStreaming }
     DisposableEffect(retainedStreamingState) {
         retainedStreamingState?.attachContent()

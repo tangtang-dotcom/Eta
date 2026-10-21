@@ -173,6 +173,10 @@
   <string name="appearance_swipe_dismiss_summary">Swipe horizontally anywhere on a page to return</string>
   <string name="appearance_predictive_back">Predictive back gesture</string>
   <string name="appearance_predictive_back_summary">Enable predictive back animations</string>
+  <string name="appearance_chat_user_actions">Actions on your messages</string>
+  <string name="appearance_chat_user_actions_summary">Keep copy, regenerate, edit and delete under every message you send</string>
+  <string name="appearance_chat_haptic">Generation haptic feedback</string>
+  <string name="appearance_chat_haptic_summary">Light vibration while the model is writing its reply</string>
   <string name="appearance_interface_scale">Interface scale</string>
   <string name="appearance_interface_scale_summary" formatted="false">Adjust the global display scale (80%–110%)</string>
   <string name="appearance_interface_scale_dialog_title">Interface scale</string>
@@ -508,6 +512,10 @@
   <string name="markdown_alert_caution">Caution</string>
   <string name="copy_copied">Copied</string>
   <string name="copy_answer">Copy answer</string>
+  <string name="chat_copy_message">Copy message</string>
+  <string name="chat_regenerate_user_action">Regenerate from this message</string>
+  <string name="chat_regenerate_user_title">Regenerate reply</string>
+  <string name="chat_regenerate_user_body">The reply will be regenerated from this message, and later turns in this conversation will be removed.</string>
   <string name="copy_code">Copy code</string>
   <string name="copy_command">Copy command</string>
   <string name="shell_command">Shell command</string>

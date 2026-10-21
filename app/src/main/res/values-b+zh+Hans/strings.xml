@@ -171,6 +171,10 @@
   <string name="appearance_swipe_dismiss_summary">在页面任意位置横移即可返回上一页</string>
   <string name="appearance_predictive_back">预测性返回手势</string>
   <string name="appearance_predictive_back_summary">启用预测性返回动画效果</string>
+  <string name="appearance_chat_user_actions">消息操作列</string>
+  <string name="appearance_chat_user_actions_summary">在你发送的每条消息下方常驻显示复制、重新生成、编辑与删除</string>
+  <string name="appearance_chat_haptic">生成触感反馈</string>
+  <string name="appearance_chat_haptic_summary">模型输出回复时以轻微振动逐段反馈</string>
   <string name="appearance_interface_scale">界面缩放</string>
   <string name="appearance_interface_scale_summary" formatted="false">调整全局显示比例（80%–110%）</string>
   <string name="appearance_interface_scale_dialog_title">界面缩放</string>
@@ -492,6 +496,10 @@
   <string name="markdown_alert_caution">注意</string>
   <string name="copy_copied">已复制</string>
   <string name="copy_answer">复制回答</string>
+  <string name="chat_copy_message">复制消息</string>
+  <string name="chat_regenerate_user_action">从这条重新生成</string>
+  <string name="chat_regenerate_user_title">重新生成回复</string>
+  <string name="chat_regenerate_user_body">将从这条消息重新生成回复，并删除这条之后的对话。</string>
   <string name="copy_code">复制代码</string>
   <string name="copy_command">复制命令</string>
   <string name="shell_command">Shell 命令</string>

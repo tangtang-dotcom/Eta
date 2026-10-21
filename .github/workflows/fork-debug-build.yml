@@ -1,0 +1,45 @@
+name: Fork Debug Build
+
+# 自编译用工作流：只构建 Debug APK，不依赖发版签名 Secrets。
+# 触发方式：Actions 页面手动运行，或推送到 main 时自动构建。
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+concurrency:
+  group: fork-debug-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-debug:
+    name: 构建 Debug APK
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: 配置构建环境
+        uses: ./.github/actions/setup-build
+
+      - name: 构建 Debug APK
+        run: >-
+          ./gradlew --no-daemon --no-configuration-cache
+          -Peta.buildMetadata=${GITHUB_SHA::7}
+          :app:assembleDebug
+
+      - name: 上传 APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: Eta-debug-apk
+          path: app/build/outputs/apk/debug/*.apk
+          if-no-files-found: error
+          retention-days: 14

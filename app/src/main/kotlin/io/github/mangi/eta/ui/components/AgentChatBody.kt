@@ -80,6 +80,7 @@ import io.github.mangi.eta.agent.browser.AgentBrowserSession
 import io.github.mangi.eta.data.model.ReasoningEffort
 import io.github.mangi.eta.ui.app.AgentConversationRevisionReducer
 import io.github.mangi.eta.ui.app.LocalBlurEnabled
+import io.github.mangi.eta.ui.app.LocalChatTopOverlayInset
 import io.github.mangi.eta.ui.markdown.StreamingMarkdownStateCache
 import io.github.mangi.eta.ui.model.ConversationHistoryLoadState
 import io.github.mangi.eta.ui.model.AgentChatMessageUi

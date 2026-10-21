@@ -68,6 +68,8 @@ import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.overlay.OverlayBottomSheet
 import top.yukonga.miuix.kmp.overlay.OverlayListPopup
 import top.yukonga.miuix.kmp.theme.MiuixTheme
+import top.yukonga.miuix.kmp.basic.CardDefaults
+import top.yukonga.miuix.kmp.squircle.squircleBorder
 
 /**
  * 模型不多时用输入栏上方的轻量弹窗一次列完；模型较多时弹窗既放不下也不好找，
@@ -240,8 +242,14 @@ private fun ModelSheetContent(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 12.dp)
-                    .padding(top = 8.dp, bottom = 4.dp),
+                    .padding(top = 8.dp, bottom = 4.dp)
+                    .squircleBorder(
+                        width = 0.5.dp,
+                        color = MiuixTheme.colorScheme.outline.copy(alpha = 0.4f),
+                        cornerRadius = EtaCardDefaults.CornerRadius,
+                    ),
                 insideMargin = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
+                colors = CardDefaults.defaultColors(color = MiuixTheme.colorScheme.surfaceContainerHigh),
             ) {
                 ReasoningSlidingPicker(
                     effort = reasoningEffort,
@@ -315,8 +323,14 @@ private fun ModelSheetContent(
                     EtaCard(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(horizontal = 12.dp),
+                            .padding(horizontal = 12.dp)
+                            .squircleBorder(
+                                width = 0.5.dp,
+                                color = MiuixTheme.colorScheme.outline.copy(alpha = 0.4f),
+                                cornerRadius = EtaCardDefaults.CornerRadius,
+                            ),
                         insideMargin = PaddingValues(0.dp),
+                        colors = CardDefaults.defaultColors(color = MiuixTheme.colorScheme.surfaceContainerHigh),
                     ) {
                         Column(modifier = Modifier.fillMaxWidth()) {
                             group.models.forEachIndexed { index, model ->

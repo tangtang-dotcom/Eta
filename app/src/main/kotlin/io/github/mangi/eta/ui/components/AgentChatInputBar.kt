@@ -76,6 +76,10 @@ import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.ListPopupDefaults
 import top.yukonga.miuix.kmp.basic.Text
+import top.yukonga.miuix.kmp.blur.BlendColorEntry
+import top.yukonga.miuix.kmp.blur.BlurDefaults
+import top.yukonga.miuix.kmp.blur.LayerBackdrop
+import top.yukonga.miuix.kmp.blur.textureBlur
 import top.yukonga.miuix.kmp.squircle.squircleBorder
 import top.yukonga.miuix.kmp.squircle.squircleSurface
 import top.yukonga.miuix.kmp.theme.MiuixTheme
@@ -117,8 +121,9 @@ internal fun AgentChatInputBar(
     onAttachFilePath: (String) -> Unit,
     onRemoveFileReference: (String) -> Unit,
     onCancelMessageEdit: () -> Unit,
-    // 底栏开启磨砂时，输入框本体也半透明，透出背后已虚化的消息内容。
+    // 开启磨砂时，输入胶囊自己采样背后消息做虚化，底栏其余部分仍是实底。
     frosted: Boolean = false,
+    backdrop: LayerBackdrop? = null,
     modifier: Modifier = Modifier,
 ) {
     val keyboard = LocalSoftwareKeyboardController.current
@@ -222,13 +227,26 @@ internal fun AgentChatInputBar(
                             alpha = 0.08f,
                         ),
                     )
-                    .squircleSurface(
-                        color = if (frosted) {
-                            MiuixTheme.colorScheme.surfaceContainer.copy(alpha = 0.5f)
+                    .then(
+                        if (frosted && backdrop != null) {
+                            Modifier.textureBlur(
+                                backdrop = backdrop,
+                                shape = RoundedCornerShape(20.dp),
+                                blurRadius = 20f,
+                                colors = BlurDefaults.blurColors(
+                                    blendColors = listOf(
+                                        BlendColorEntry(
+                                            MiuixTheme.colorScheme.surfaceContainer.copy(alpha = 0.4f),
+                                        ),
+                                    ),
+                                ),
+                            )
                         } else {
-                            MiuixTheme.colorScheme.surfaceContainer
+                            Modifier.squircleSurface(
+                                color = MiuixTheme.colorScheme.surfaceContainer,
+                                cornerRadius = 20.dp,
+                            )
                         },
-                        cornerRadius = 20.dp,
                     )
                     .squircleBorder(
                         width = 0.5.dp,

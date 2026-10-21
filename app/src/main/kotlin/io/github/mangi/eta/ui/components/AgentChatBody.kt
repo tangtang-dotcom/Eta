@@ -1153,30 +1153,13 @@ private fun AgentChatBottomBar(
                     ),
             )
         }
-        // 输入框与底栏共用一个磨砂层：开启时半透明并虚化背后的消息，关闭时退回实底。
+        // 底栏保持实底，磨砂只作用在悬浮的输入胶囊上。
         val composeFrost = LocalAppearanceSettings.current.chatComposerFrost &&
             messageBackdrop != null
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .then(
-                    if (composeFrost) {
-                        Modifier.textureBlur(
-                            backdrop = messageBackdrop!!,
-                            shape = RectangleShape,
-                            blurRadius = 24f,
-                            colors = BlurDefaults.blurColors(
-                                blendColors = listOf(
-                                    BlendColorEntry(
-                                        MiuixTheme.colorScheme.surface.copy(alpha = 0.55f),
-                                    ),
-                                ),
-                            ),
-                        )
-                    } else {
-                        Modifier.background(MiuixTheme.colorScheme.surface)
-                    },
-                )
+                .background(MiuixTheme.colorScheme.surface)
                 .navigationBarsPadding()
                 .padding(start = 16.dp, end = 16.dp, bottom = 12.dp),
         ) {
@@ -1208,6 +1191,7 @@ private fun AgentChatBottomBar(
                 onRemoveFileReference = onRemoveFileReference,
                 onCancelMessageEdit = onCancelMessageEdit,
                 frosted = composeFrost,
+                backdrop = messageBackdrop,
                 modifier = Modifier.fillMaxWidth(),
             )
         }

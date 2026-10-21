@@ -259,7 +259,7 @@ private fun ModelSheetContent(
                 LazyRow(
                     contentPadding = PaddingValues(horizontal = 20.dp),
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    modifier = Modifier.padding(top = 28.dp, bottom = 6.dp),
+                    modifier = Modifier.padding(top = 18.dp, bottom = 6.dp),
                 ) {
                     item(key = "all") {
                         EtaChoiceChip(
@@ -381,7 +381,7 @@ private fun ModelPickerRow(
         modifier = Modifier
             .fillMaxWidth()
             .clickable(onClick = onClick)
-            .padding(horizontal = 16.dp, vertical = 10.dp),
+            .padding(horizontal = 16.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Text(

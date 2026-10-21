@@ -926,7 +926,7 @@ private fun AssistantWorkBubble(
         modifier = modifier
             .fillMaxWidth()
             .squircleSurface(color = cardFill, cornerRadius = 14.dp)
-            .padding(horizontal = 11.dp, vertical = 8.dp),
+            .padding(horizontal = 10.dp, vertical = 5.dp),
     ) {
         AgentWorkProcess(
             id = messages.first().id,

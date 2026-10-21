@@ -120,6 +120,7 @@ internal fun AgentWorkProcess(
             messages = messages,
             working = active || running,
             expanded = bodyVisible,
+            compact = embedded,
             onClick = { manualExpanded = !bodyVisible },
         )
         AnimatedVisibility(
@@ -160,6 +161,7 @@ private fun AgentWorkHeader(
     messages: List<AgentChatMessageUi>,
     working: Boolean,
     expanded: Boolean,
+    compact: Boolean = false,
     onClick: () -> Unit,
 ) {
     val runningTool = messages.lastOrNull { message ->
@@ -178,12 +180,16 @@ private fun AgentWorkHeader(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .heightIn(min = WorkRowHeight)
+            // 嵌进气泡时这一行就是收起态的整个灰框，压矮一些不占地方。
+            .heightIn(min = if (compact) 26.dp else WorkRowHeight)
             .clip(RoundedCornerShape(10.dp))
             .clickable(onClick = onClick),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Box(modifier = Modifier.width(WorkGutterWidth), contentAlignment = Alignment.Center) {
+        Box(
+            modifier = Modifier.width(if (compact) 18.dp else WorkGutterWidth),
+            contentAlignment = Alignment.Center,
+        ) {
             Icon(
                 imageVector = when {
                     runningTool != null -> iconForTool(runningTool.toolName)
@@ -191,7 +197,7 @@ private fun AgentWorkHeader(
                     else -> Icons.Rounded.Checklist
                 },
                 contentDescription = null,
-                modifier = Modifier.size(15.dp),
+                modifier = Modifier.size(if (compact) 13.dp else 15.dp),
                 tint = if (working) {
                     MiuixTheme.colorScheme.primary
                 } else {
@@ -199,7 +205,7 @@ private fun AgentWorkHeader(
                 },
             )
         }
-        Spacer(modifier = Modifier.width(WorkGutterGap))
+        Spacer(modifier = Modifier.width(if (compact) 4.dp else WorkGutterGap))
         ShimmerText(
             text = text,
             active = working,

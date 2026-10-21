@@ -19,6 +19,7 @@ data class AppearanceSettings(
     val predictiveBackEnabled: Boolean = true,
     val chatUserMessageActions: Boolean = true,
     val chatGenerationHaptic: Boolean = true,
+    val chatComposerFrost: Boolean = true,
     val interfaceScale: Float = DEFAULT_INTERFACE_SCALE,
 ) {
     fun normalized(): AppearanceSettings = copy(

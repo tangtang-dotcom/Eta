@@ -259,6 +259,15 @@ internal fun AppearanceSettingsScreen(onBack: () -> Unit) {
                     },
                 )
                 EtaPreferenceDivider(hasLeading = false)
+                EtaSwitchPreference(
+                    title = stringResource(R.string.appearance_chat_composer_frost),
+                    summary = stringResource(R.string.appearance_chat_composer_frost_summary),
+                    checked = appearance.chatComposerFrost,
+                    onCheckedChange = { enabled ->
+                        update { current -> current.copy(chatComposerFrost = enabled) }
+                    },
+                )
+                EtaPreferenceDivider(hasLeading = false)
                 EtaArrowPreference(
                     title = stringResource(R.string.appearance_interface_scale),
                     summary = stringResource(R.string.appearance_interface_scale_summary),

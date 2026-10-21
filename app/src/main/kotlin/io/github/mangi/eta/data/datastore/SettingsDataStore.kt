@@ -67,6 +67,8 @@ internal object SettingsDataStore {
         booleanPreferencesKey("appearance_chat_user_message_actions")
     private val APPEARANCE_CHAT_GENERATION_HAPTIC =
         booleanPreferencesKey("appearance_chat_generation_haptic")
+    private val APPEARANCE_CHAT_COMPOSER_FROST =
+        booleanPreferencesKey("appearance_chat_composer_frost")
     private const val SELECTED_MODEL_BY_PROVIDER_PREFIX = "selected_model_id_by_provider."
 
     private val Context.dataStore: DataStore<Preferences> by preferencesDataStore(name = STORE_NAME)
@@ -255,6 +257,7 @@ internal object SettingsDataStore {
             predictiveBackEnabled = this[APPEARANCE_PREDICTIVE_BACK_ENABLED] ?: true,
             chatUserMessageActions = this[APPEARANCE_CHAT_USER_MESSAGE_ACTIONS] ?: true,
             chatGenerationHaptic = this[APPEARANCE_CHAT_GENERATION_HAPTIC] ?: true,
+            chatComposerFrost = this[APPEARANCE_CHAT_COMPOSER_FROST] ?: true,
             interfaceScale = this[APPEARANCE_INTERFACE_SCALE] ?: 1f,
         ).normalized(),
     )
@@ -271,6 +274,7 @@ internal object SettingsDataStore {
         this[APPEARANCE_PREDICTIVE_BACK_ENABLED] = settings.predictiveBackEnabled
         this[APPEARANCE_CHAT_USER_MESSAGE_ACTIONS] = settings.chatUserMessageActions
         this[APPEARANCE_CHAT_GENERATION_HAPTIC] = settings.chatGenerationHaptic
+        this[APPEARANCE_CHAT_COMPOSER_FROST] = settings.chatComposerFrost
         this[APPEARANCE_INTERFACE_SCALE] = settings.interfaceScale
     }
 }

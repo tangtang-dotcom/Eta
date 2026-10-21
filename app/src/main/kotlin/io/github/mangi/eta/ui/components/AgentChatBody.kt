@@ -79,6 +79,7 @@ import io.github.mangi.eta.R
 import io.github.mangi.eta.agent.browser.AgentBrowserSession
 import io.github.mangi.eta.data.model.ReasoningEffort
 import io.github.mangi.eta.ui.app.AgentConversationRevisionReducer
+import io.github.mangi.eta.ui.app.LocalAppearanceSettings
 import io.github.mangi.eta.ui.app.LocalBlurEnabled
 import io.github.mangi.eta.ui.app.LocalChatTopOverlayInset
 import io.github.mangi.eta.ui.markdown.StreamingMarkdownStateCache
@@ -1152,10 +1153,30 @@ private fun AgentChatBottomBar(
                     ),
             )
         }
+        // 输入框与底栏共用一个磨砂层：开启时半透明并虚化背后的消息，关闭时退回实底。
+        val composeFrost = LocalAppearanceSettings.current.chatComposerFrost &&
+            messageBackdrop != null
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .background(MiuixTheme.colorScheme.surface)
+                .then(
+                    if (composeFrost) {
+                        Modifier.textureBlur(
+                            backdrop = messageBackdrop!!,
+                            shape = RectangleShape,
+                            blurRadius = 24f,
+                            colors = BlurDefaults.blurColors(
+                                blendColors = listOf(
+                                    BlendColorEntry(
+                                        MiuixTheme.colorScheme.surface.copy(alpha = 0.55f),
+                                    ),
+                                ),
+                            ),
+                        )
+                    } else {
+                        Modifier.background(MiuixTheme.colorScheme.surface)
+                    },
+                )
                 .navigationBarsPadding()
                 .padding(start = 16.dp, end = 16.dp, bottom = 12.dp),
         ) {

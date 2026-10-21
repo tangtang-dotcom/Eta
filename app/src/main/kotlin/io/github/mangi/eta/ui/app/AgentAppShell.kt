@@ -1,6 +1,7 @@
 package io.github.mangi.eta.ui.app
 
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -60,6 +61,11 @@ import io.github.mangi.eta.ui.model.ConversationSummaryUi
 import io.github.mangi.eta.ui.navigation.AppRoute
 import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.basic.DropdownImpl
+import top.yukonga.miuix.kmp.blur.BlendColorEntry
+import top.yukonga.miuix.kmp.blur.BlurColors
+import top.yukonga.miuix.kmp.blur.LayerBackdrop
+import top.yukonga.miuix.kmp.blur.isRuntimeShaderSupported
+import top.yukonga.miuix.kmp.blur.textureBlur
 import top.yukonga.miuix.kmp.basic.DropdownItem
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
@@ -130,6 +136,7 @@ internal fun AgentAppShell(
                             route = currentRoute,
                             scrollBehavior = scrollBehavior,
                             color = topBarColor,
+                            backdrop = backdrop,
                             onBack = onBack,
                             onOpenConversationPane = onOpenConversationPane,
                             onNewConversation = onNewConversation,
@@ -191,6 +198,7 @@ private fun AgentTopBar(
     route: AppRoute?,
     scrollBehavior: ScrollBehavior,
     color: Color,
+    backdrop: LayerBackdrop? = null,
     onBack: () -> Unit,
     onOpenConversationPane: () -> Unit,
     onNewConversation: () -> Unit,
@@ -208,12 +216,14 @@ private fun AgentTopBar(
     val navigationIcon: @Composable () -> Unit = {
         if (isHome) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                IconButton(onClick = onOpenConversationPane) {
-                    Icon(
-                        imageVector = Icons.AutoMirrored.Outlined.ShortText,
-                        modifier = Modifier.size(24.dp),
-                        contentDescription = stringResource(R.string.action_conversation_history),
-                    )
+                FrostedCircle(backdrop = backdrop) {
+                    IconButton(onClick = onOpenConversationPane) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Outlined.ShortText,
+                            modifier = Modifier.size(20.dp),
+                            contentDescription = stringResource(R.string.action_conversation_history),
+                        )
+                    }
                 }
                 // 角色对话的身份标识放在顶栏左侧，点按进入角色详情；普通对话保持空标题。
                 homeCharacter?.let { character ->
@@ -226,16 +236,18 @@ private fun AgentTopBar(
     }
     val actions: @Composable RowScope.() -> Unit = {
         if (isHome) {
-            TopBarOverflowMenu(
-                onNewConversation = onNewConversation,
-                onOpenTerminal = onOpenTerminal,
-                onLaunchKimiWeb = onLaunchKimiWeb,
-                kimiWebLabel = kimiWebLabel,
-                canStopKimiWeb = canStopKimiWeb,
-                onStopKimiWeb = onStopKimiWeb,
-                onRefreshKimiWeb = onRefreshKimiWeb,
-                onOpenBrowser = onOpenBrowser,
-            )
+            FrostedCircle(backdrop = backdrop) {
+                TopBarOverflowMenu(
+                    onNewConversation = onNewConversation,
+                    onOpenTerminal = onOpenTerminal,
+                    onLaunchKimiWeb = onLaunchKimiWeb,
+                    kimiWebLabel = kimiWebLabel,
+                    canStopKimiWeb = canStopKimiWeb,
+                    onStopKimiWeb = onStopKimiWeb,
+                    onRefreshKimiWeb = onRefreshKimiWeb,
+                    onOpenBrowser = onOpenBrowser,
+                )
+            }
         }
     }
 
@@ -258,6 +270,38 @@ private fun AgentTopBar(
             navigationIcon = navigationIcon,
             actions = actions,
         )
+    }
+}
+
+/** 40dp 磨砂圆钮：采样顶栏同一份 backdrop，没有实时模糊时退回半透明实底。 */
+@Composable
+private fun FrostedCircle(
+    backdrop: LayerBackdrop?,
+    content: @Composable () -> Unit,
+) {
+    val surface = MiuixTheme.colorScheme.surface
+    val blurAvailable = backdrop != null && LocalBlurEnabled.current && isRuntimeShaderSupported()
+    Box(
+        modifier = Modifier
+            .size(40.dp)
+            .clip(CircleShape)
+            .then(
+                if (blurAvailable) {
+                    Modifier.textureBlur(
+                        backdrop = backdrop!!,
+                        shape = CircleShape,
+                        blurRadius = 20f,
+                        colors = BlurColors(
+                            blendColors = listOf(BlendColorEntry(surface.copy(alpha = 0.4f))),
+                        ),
+                    )
+                } else {
+                    Modifier.background(surface.copy(alpha = 0.85f))
+                },
+            ),
+        contentAlignment = Alignment.Center,
+    ) {
+        content()
     }
 }
 

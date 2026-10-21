@@ -68,6 +68,7 @@ import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.overlay.OverlayBottomSheet
 import top.yukonga.miuix.kmp.overlay.OverlayListPopup
 import top.yukonga.miuix.kmp.theme.MiuixTheme
+import androidx.compose.ui.text.font.FontWeight
 
 /**
  * 模型不多时用输入栏上方的轻量弹窗一次列完；模型较多时弹窗既放不下也不好找，
@@ -148,23 +149,27 @@ internal fun AgentModelPickerButton(
             )
         }
 
-        OverlayBottomSheet(
-            show = showSheet,
-            title = stringResource(R.string.model_picker_title),
-            onDismissRequest = { showSheet = false },
-            insideMargin = DpSize(0.dp, 0.dp),
-        ) {
-            key(sheetSession) {
-                ModelSheetContent(
-                    state = state,
-                    onModelSelected = { modelId ->
-                        showSheet = false
-                        onModelSelected(modelId)
-                    },
-                    reasoningEffort = reasoningEffort,
-                    availableReasoningEfforts = availableReasoningEfforts,
-                    onReasoningEffortChange = onReasoningEffortChange,
-                )
+        // 主题包在抽屉外层，backgroundColor 才能取到设置页那层底色，顶栏与内容区不割裂。
+        EtaPreferenceTheme {
+            OverlayBottomSheet(
+                show = showSheet,
+                title = stringResource(R.string.model_picker_title),
+                onDismissRequest = { showSheet = false },
+                insideMargin = DpSize(0.dp, 0.dp),
+                backgroundColor = MiuixTheme.colorScheme.background,
+            ) {
+                key(sheetSession) {
+                    ModelSheetContent(
+                        state = state,
+                        onModelSelected = { modelId ->
+                            showSheet = false
+                            onModelSelected(modelId)
+                        },
+                        reasoningEffort = reasoningEffort,
+                        availableReasoningEfforts = availableReasoningEfforts,
+                        onReasoningEffortChange = onReasoningEffortChange,
+                    )
+                }
             }
         }
     }
@@ -321,15 +326,12 @@ private fun ModelSheetContent(
                             insideMargin = PaddingValues(0.dp),
                         ) {
                             Column(modifier = Modifier.fillMaxWidth()) {
-                                group.models.forEachIndexed { index, model ->
+                                group.models.forEach { model ->
                                     ModelPickerRow(
                                         model = model,
                                         selected = model.id == selectedId,
                                         onClick = { select(model.id) },
                                     )
-                                    if (index != group.models.lastIndex) {
-                                        EtaPreferenceDivider(hasLeading = false)
-                                    }
                                 }
                             }
                         }
@@ -372,14 +374,14 @@ private fun rememberConfirmedSelection(onConfirm: (String) -> Unit): ConfirmedSe
 private fun ModelProviderLabel(name: String, horizontalPadding: Dp = 20.dp) {
     Text(
         text = name,
-        style = MiuixTheme.textStyles.footnote1,
-        color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+        style = MiuixTheme.textStyles.subtitle.copy(fontWeight = FontWeight.SemiBold),
+        color = MiuixTheme.colorScheme.primary,
         maxLines = 1,
         overflow = TextOverflow.Ellipsis,
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = horizontalPadding)
-            .padding(top = 14.dp, bottom = 4.dp),
+            .padding(top = 16.dp, bottom = 6.dp),
     )
 }
 

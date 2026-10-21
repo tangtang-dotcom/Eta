@@ -195,9 +195,10 @@ internal fun ReasoningSlidingPicker(
 }
 
 private object ReasoningSliderStyle {
-    val TrackHeight = 11.dp
-    val KnobRadius = 11.dp
-    val Height = 46.dp
+    val TrackHeight = 10.dp
+    // 滑块直径略大于轨道（11dp vs 10dp），贴在光带里不向外突出。
+    val KnobRadius = 5.5.dp
+    val Height = 44.dp
 }
 
 /** 滑块中心可移动区间：knob/2 到 width - knob/2，两端不会越界。 */
@@ -409,9 +410,9 @@ private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawReasoningKnob(
     base: Color,
 ) {
     drawCircle(
-        color = Color.Black.copy(alpha = 0.18f),
-        radius = knobRadiusPx + 1.dp.toPx(),
-        center = Offset(knobX, cy + 1.dp.toPx()),
+        color = Color.Black.copy(alpha = 0.16f),
+        radius = knobRadiusPx + 0.5.dp.toPx(),
+        center = Offset(knobX, cy + 0.5.dp.toPx()),
     )
     drawCircle(
         color = Color.White,
@@ -422,6 +423,6 @@ private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawReasoningKnob(
         color = base,
         radius = knobRadiusPx,
         center = Offset(knobX, cy),
-        style = Stroke(2.dp.toPx()),
+        style = Stroke(1.5.dp.toPx()),
     )
 }

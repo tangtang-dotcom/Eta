@@ -233,8 +233,7 @@ private fun ModelSheetContent(
             modifier = Modifier
                 .fillMaxWidth()
                 .height(sheetHeight)
-                .background(MiuixTheme.colorScheme.background)
-                .navigationBarsPadding(),
+                .background(MiuixTheme.colorScheme.background),
         ) {
             if (reasoningEffort != null &&
                 availableReasoningEfforts.size > 1 &&
@@ -257,7 +256,7 @@ private fun ModelSheetContent(
             }
             LazyColumn(
                 state = listState,
-                contentPadding = PaddingValues(top = 2.dp, bottom = 12.dp),
+                contentPadding = PaddingValues(top = 2.dp, bottom = 24.dp),
                 verticalArrangement = Arrangement.spacedBy(2.dp),
                 modifier = Modifier
                     .weight(1f)
@@ -307,7 +306,8 @@ private fun ModelSheetContent(
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .background(MiuixTheme.colorScheme.surfaceContainer),
+                        .background(MiuixTheme.colorScheme.surfaceContainer)
+                        .navigationBarsPadding(),
                 ) {
                     EtaPreferenceDivider(hasLeading = false)
                     LazyRow(

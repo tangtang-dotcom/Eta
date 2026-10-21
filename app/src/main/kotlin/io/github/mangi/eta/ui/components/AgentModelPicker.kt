@@ -255,28 +255,6 @@ private fun ModelSheetContent(
                     )
                 }
             }
-            if (state.providerGroups.size > 1) {
-                LazyRow(
-                    contentPadding = PaddingValues(horizontal = 20.dp),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    modifier = Modifier.padding(top = 18.dp, bottom = 6.dp),
-                ) {
-                    item(key = "all") {
-                        EtaChoiceChip(
-                            text = stringResource(R.string.model_picker_filter_all),
-                            selected = providerFilter == null,
-                            onClick = { providerFilter = null },
-                        )
-                    }
-                    items(state.providerGroups, key = { it.providerId }) { group ->
-                        EtaChoiceChip(
-                            text = group.providerName,
-                            selected = providerFilter == group.providerId,
-                            onClick = { providerFilter = group.providerId },
-                        )
-                    }
-                }
-            }
             LazyColumn(
                 state = listState,
                 contentPadding = PaddingValues(top = 2.dp, bottom = 12.dp),
@@ -319,6 +297,37 @@ private fun ModelSheetContent(
                                     )
                                 }
                             }
+                        }
+                    }
+                }
+            }
+
+            // 底部不透明底栏：筛选放这里，像 Moxw Agent 那样固定在面板底部。
+            if (state.providerGroups.size > 1) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(MiuixTheme.colorScheme.surfaceContainer),
+                ) {
+                    EtaPreferenceDivider(hasLeading = false)
+                    LazyRow(
+                        contentPadding = PaddingValues(horizontal = 20.dp, vertical = 10.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        item(key = "all") {
+                            EtaChoiceChip(
+                                text = stringResource(R.string.model_picker_filter_all),
+                                selected = providerFilter == null,
+                                onClick = { providerFilter = null },
+                            )
+                        }
+                        items(state.providerGroups, key = { it.providerId }) { group ->
+                            EtaChoiceChip(
+                                text = group.providerName,
+                                selected = providerFilter == group.providerId,
+                                onClick = { providerFilter = group.providerId },
+                            )
                         }
                     }
                 }

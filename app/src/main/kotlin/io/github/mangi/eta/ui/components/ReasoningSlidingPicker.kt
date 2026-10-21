@@ -50,6 +50,7 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
 import kotlin.math.roundToInt
 import kotlin.math.PI
 import kotlin.math.sin
+import androidx.compose.animation.core.FastOutSlowInEasing
 
 /**
  * 思考档位滑条：拖动选择推理深度，松手回写。
@@ -156,6 +157,15 @@ internal fun ReasoningSlidingPicker(
         // 深度越深光带流得越快：AUTO 约 3.4s 一圈，MAX 约 0.7s。
         val surgeDepth = previewLevel.ordinal / (ReasoningEffort.entries.size - 1).toFloat()
         val flowPeriodMs = (3400 - (2600 * surgeDepth)).roundToInt().coerceAtLeast(700)
+        val surgePulse by transition.animateFloat(
+            initialValue = 0f,
+            targetValue = 1f,
+            animationSpec = infiniteRepeatable(
+                tween((flowPeriodMs / 2).coerceAtLeast(350), easing = FastOutSlowInEasing),
+                RepeatMode.Reverse,
+            ),
+            label = "surgePulse",
+        )
         val surgePhase by transition.animateFloat(
             initialValue = 0f,
             targetValue = 1f,
@@ -202,6 +212,7 @@ internal fun ReasoningSlidingPicker(
                 knobRadiusPx = knobRadius.toPx(),
                 surfaceColor = trackColor,
                 phase = surgePhase,
+                pulse = surgePulse,
                 knobColor = knobColor,
             )
         }
@@ -294,6 +305,7 @@ private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawReasoningSurgeT
     knobRadiusPx: Float,
     surfaceColor: Color,
     phase: Float,
+    pulse: Float,
     knobColor: Color? = null,
 ) {
     val cy = size.height / 2f
@@ -338,6 +350,20 @@ private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawReasoningSurgeT
         end = Offset(shift, 0f),
         tileMode = TileMode.Repeated,
     )
+    // 呼吸光晕：比轨道更大的一圈柔光，随 pulse 起伏（对齐 rikkahub 的 halo）。
+    val haloAlpha = 0.06f + 0.20f * intensity * pulse
+    val haloHeight = trackHeightPx * 2.5f
+    val haloTopLeft = Offset(0f, cy - haloHeight / 2f)
+    val haloSize = Size(activeWidth, haloHeight)
+    val haloRadius = CornerRadius(trackHeightPx * 1.25f, trackHeightPx * 1.25f)
+    drawRoundRect(
+        brush = rainbowBrush,
+        topLeft = haloTopLeft,
+        size = haloSize,
+        cornerRadius = haloRadius,
+        alpha = haloAlpha,
+    )
+
     drawRoundRect(
         brush = rainbowBrush,
         topLeft = Offset(0f, top),
@@ -379,10 +405,12 @@ private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawReasoningKnob(
     base: Color,
     knobColor: Color? = null,
 ) {
-    // 实心圆点直接压在彩虹轨道上（Moxw Agent 的滑块形态）。
+    // 双层圆点：外层主题色，内层高光小点（对齐 rikkahub 的 thumb）。
+    val outer = knobColor ?: base
+    drawCircle(color = outer, radius = knobRadiusPx, center = Offset(knobX, cy))
     drawCircle(
-        color = knobColor ?: base,
-        radius = knobRadiusPx,
+        color = Color.White.copy(alpha = 0.9f),
+        radius = knobRadiusPx * 0.42f,
         center = Offset(knobX, cy),
     )
 }

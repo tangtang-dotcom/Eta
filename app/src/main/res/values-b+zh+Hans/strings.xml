@@ -1416,4 +1416,6 @@
   <string name="speech_recognition_enabled_summary">使用 Eta 的系统或云端语音输入</string>
   <string name="speech_recognition_disabled">已关闭</string>
   <string name="speech_recognition_disabled_note">保存后隐藏聊天和助手浮窗中的麦克风入口。全局唤醒会在入场动画结束后打开文字输入和键盘，可使用输入法自带的语音输入。原服务配置会保留。</string>
+  <string name="appearance_chat_composer_frost">输入框磨砂</string>
+  <string name="appearance_chat_composer_frost_summary">输入框与底栏半透明并虚化背后的消息内容</string>
 </resources>

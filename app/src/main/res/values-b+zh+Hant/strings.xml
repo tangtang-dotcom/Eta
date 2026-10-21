@@ -1346,4 +1346,6 @@
   <string name="memory_discard">放棄</string>
   <string name="chat_character_input_hint">對%1$s說點什麼…</string>
   <string name="chat_character_typing">%1$s 正在回覆…</string>
+  <string name="appearance_chat_composer_frost">輸入框磨砂</string>
+  <string name="appearance_chat_composer_frost_summary">輸入框與底欄半透明並虛化背後訊息內容</string>
 </resources>

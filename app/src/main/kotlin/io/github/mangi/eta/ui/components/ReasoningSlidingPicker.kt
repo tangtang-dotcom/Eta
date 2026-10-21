@@ -32,7 +32,6 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.TileMode
-import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
@@ -49,8 +48,6 @@ import androidx.compose.foundation.text.BasicText
 import io.github.mangi.eta.data.model.ReasoningEffort
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import kotlin.math.roundToInt
-import androidx.compose.animation.core.FastOutSlowInEasing
-import androidx.compose.ui.graphics.SolidColor
 import kotlin.math.PI
 import kotlin.math.sin
 
@@ -102,6 +99,17 @@ internal fun ReasoningSlidingPicker(
         animationSpec = tween(180),
         label = "reasoningWord",
     )
+    val knobColor = MiuixTheme.colorScheme.primary
+    // 档位名跟轨道一样用彩虹：开启时走渐变，关闭时回落主题色。
+    val wordBrush = if (previewLevel == ReasoningEffort.OFF) {
+        null
+    } else {
+        Brush.linearGradient(
+            colors = SurgeRainbow,
+            start = Offset.Zero,
+            end = Offset(220f, 0f),
+        )
+    }
 
     Column(modifier = modifier.fillMaxWidth()) {
         Row(
@@ -112,6 +120,7 @@ internal fun ReasoningSlidingPicker(
             BasicText(
                 text = effortDisplayName(previewLevel),
                 style = TextStyle(
+                    brush = wordBrush,
                     color = wordColor,
                     fontWeight = FontWeight.SemiBold,
                     fontSize = 15.sp,
@@ -150,15 +159,6 @@ internal fun ReasoningSlidingPicker(
             ),
             label = "surgePhase",
         )
-        val surgePulse by transition.animateFloat(
-            initialValue = 0f,
-            targetValue = 1f,
-            animationSpec = infiniteRepeatable(
-                tween((flowPeriodMs / 2).coerceAtLeast(350), easing = FastOutSlowInEasing),
-                RepeatMode.Reverse,
-            ),
-            label = "surgePulse",
-        )
         Canvas(
             modifier = Modifier
                 .fillMaxWidth()
@@ -196,7 +196,7 @@ internal fun ReasoningSlidingPicker(
                 knobRadiusPx = knobRadius.toPx(),
                 surfaceColor = trackColor,
                 phase = surgePhase,
-                pulse = surgePulse,
+                knobColor = knobColor,
             )
         }
     }
@@ -288,13 +288,12 @@ private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawReasoningSurgeT
     knobRadiusPx: Float,
     surfaceColor: Color,
     phase: Float,
-    pulse: Float,
+    knobColor: Color? = null,
 ) {
     val cy = size.height / 2f
     val top = cy - trackHeightPx / 2f
     val radius = CornerRadius(trackHeightPx / 2f, trackHeightPx / 2f)
     val base = reasoningSurgeColor(level)
-    val max = level == ReasoningEffort.MAX
     val animated = level != ReasoningEffort.OFF
     val levels = ReasoningEffort.entries
     val intensity = level.ordinal / (levels.size - 1).toFloat()
@@ -307,7 +306,7 @@ private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawReasoningSurgeT
         cornerRadius = radius,
     )
 
-    // 光带与光晕右端对齐滑块右缘，而不是滑块中心。
+    // 激活段与滑块右缘对齐。
     val activeWidth = (knobX + knobRadiusPx).coerceIn(0f, size.width)
     if (activeWidth <= 0f) {
         drawReasoningKnob(knobX, cy, knobRadiusPx, base)
@@ -315,7 +314,7 @@ private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawReasoningSurgeT
     }
     if (!animated) {
         drawRoundRect(
-            color = base.copy(alpha = 0.6f),
+            color = base.copy(alpha = 0.55f),
             topLeft = Offset(0f, top),
             size = Size(activeWidth, trackHeightPx),
             cornerRadius = radius,
@@ -324,90 +323,43 @@ private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawReasoningSurgeT
         return
     }
 
-    // 流动光带：亮→暗→暗→亮的重复波纹沿轨道滑动；MAX 换成流动彩虹。
-    val bandPeriod = (if (max) 200.dp else 140.dp).toPx()
+    // 整条激活段就是一道沿轨道缓慢流动的彩虹（Moxw Agent 的做法）。
+    val bandPeriod = 220.dp.toPx()
     val shift = phase * bandPeriod
-    val bandBrush = if (max) {
-        Brush.linearGradient(
-            colors = SurgeRainbow,
-            start = Offset(shift - bandPeriod, 0f),
-            end = Offset(shift, 0f),
-            tileMode = TileMode.Repeated,
-        )
-    } else {
-        Brush.linearGradient(
-            colorStops = arrayOf(
-                0.0f to base,
-                0.45f to base.copy(alpha = 0.45f),
-                0.55f to base.copy(alpha = 0.45f),
-                1.0f to base,
-            ),
-            start = Offset(shift - bandPeriod, 0f),
-            end = Offset(shift, 0f),
-            tileMode = TileMode.Repeated,
-        )
-    }
-
-    // 呼吸光晕：比轨道更高的柔和底光，强度随深度与 pulse 起伏。
-    val haloAlpha = 0.16f + 0.30f * intensity * pulse
-    // 光晕高度 1.5 倍轨道（12dp），比 14dp 的滑块略小，滑块边缘微露。
-    val haloHeight = trackHeightPx * 1.5f
-    val haloTopLeft = Offset(0f, cy - haloHeight / 2f)
-    val haloSize = Size(activeWidth, haloHeight)
-    val haloRadius = CornerRadius(haloHeight / 2f, haloHeight / 2f)
-    drawRoundRect(
-        brush = if (max) bandBrush else SolidColor(base),
-        topLeft = haloTopLeft,
-        size = haloSize,
-        cornerRadius = haloRadius,
-        alpha = haloAlpha,
+    val rainbowBrush = Brush.linearGradient(
+        colors = SurgeRainbow,
+        start = Offset(shift - bandPeriod, 0f),
+        end = Offset(shift, 0f),
+        tileMode = TileMode.Repeated,
     )
-
     drawRoundRect(
-        brush = bandBrush,
+        brush = rainbowBrush,
         topLeft = Offset(0f, top),
         size = Size(activeWidth, trackHeightPx),
         cornerRadius = radius,
     )
 
-    // 刻度点
-    if (count > 1) {
-        val dotR = 2.dp.toPx()
-        for (i in 0 until count) {
-            val x = reasoningKnobX(i.toFloat(), size.width, knobRadiusPx * 2, count)
-            drawCircle(
-                color = if (x <= knobX) Color.White.copy(alpha = 0.9f) else Color.White.copy(alpha = 0.3f),
-                radius = dotR,
-                center = Offset(x, cy),
-            )
-        }
-    }
-
-    // 上升火花：正弦淡入淡出 + 横向摆动，深度越深越多越高。
-    val particleCount = (intensity * 18f).roundToInt()
-    if (particleCount > 0) {
-        val riseMax = trackHeightPx * 2f
-        val barCenterY = top + trackHeightPx / 2f
-        val rainbowSwatches = SurgeRainbow.size - 1
-        for (i in 0 until particleCount) {
-            val rnd = kotlin.random.Random(i.toLong() * 31 + 17)
-            val xFrac = rnd.nextFloat()
-            val offset = rnd.nextFloat()
-            val rise = 0.55f + 0.65f * rnd.nextFloat()
-            val rDp = 1.2f + 1.4f * rnd.nextFloat()
-            val sway = rnd.nextFloat() * 2f - 1f
-            val t = ((phase + offset) % 1f)
-            val px = activeWidth * xFrac +
-                sin(t * 2f * PI.toFloat() + i.toFloat()) * trackHeightPx * 0.5f * sway
-            val py = barCenterY - t * riseMax * rise
-            val alpha = sin(t * PI.toFloat()) * (0.45f + 0.45f * intensity)
-            drawCircle(
-                color = if (max) SurgeRainbow[i % rainbowSwatches] else base,
-                alpha = alpha.coerceIn(0f, 1f),
-                radius = rDp.dp.toPx(),
-                center = Offset(px, py),
-            )
-        }
+    // 火花：彩色小点散布在轨道上方，越高越密。
+    val particleCount = (6 + intensity * 14f).roundToInt()
+    val riseMax = trackHeightPx * 2.2f
+    val barTop = top
+    for (i in 0 until particleCount) {
+        val rnd = kotlin.random.Random(i.toLong() * 37 + 11)
+        val xFrac = rnd.nextFloat()
+        val offset = rnd.nextFloat()
+        val rise = 0.5f + 0.8f * rnd.nextFloat()
+        val rDp = 0.9f + 1.3f * rnd.nextFloat()
+        val sway = rnd.nextFloat() * 2f - 1f
+        val t = ((phase + offset) % 1f)
+        val px = activeWidth * xFrac + sin(t * 2f * PI.toFloat() + i.toFloat()) * trackHeightPx * 0.4f * sway
+        val py = barTop - t * riseMax * rise
+        val alpha = sin(t * PI.toFloat()) * 0.85f
+        drawCircle(
+            color = SurgeRainbow[i % (SurgeRainbow.size - 1)],
+            alpha = alpha.coerceIn(0f, 1f),
+            radius = rDp.dp.toPx(),
+            center = Offset(px, py),
+        )
     }
 
     drawReasoningKnob(knobX, cy, knobRadiusPx, base)
@@ -419,21 +371,12 @@ private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawReasoningKnob(
     cy: Float,
     knobRadiusPx: Float,
     base: Color,
+    knobColor: Color? = null,
 ) {
+    // 实心圆点直接压在彩虹轨道上（Moxw Agent 的滑块形态）。
     drawCircle(
-        color = Color.Black.copy(alpha = 0.16f),
-        radius = knobRadiusPx + 0.5.dp.toPx(),
-        center = Offset(knobX, cy + 0.5.dp.toPx()),
-    )
-    drawCircle(
-        color = Color.White,
+        color = knobColor ?: base,
         radius = knobRadiusPx,
         center = Offset(knobX, cy),
-    )
-    drawCircle(
-        color = base,
-        radius = knobRadiusPx,
-        center = Offset(knobX, cy),
-        style = Stroke(1.5.dp.toPx()),
     )
 }

@@ -90,6 +90,8 @@ import io.github.mangi.eta.ui.model.AgentModelPickerUiState
 import io.github.mangi.eta.ui.model.MessageEditUiState
 import io.github.mangi.eta.ui.model.PendingFileReferenceUi
 import io.github.mangi.eta.ui.model.PendingImageUi
+import io.github.mangi.eta.ui.model.SystemNoticeCode
+import io.github.mangi.eta.ui.model.SystemNoticeMessageUi
 import io.github.mangi.eta.ui.model.ThinkingMessageUi
 import io.github.mangi.eta.ui.model.ToolActivityMessageUi
 import io.github.mangi.eta.ui.model.ToolActivityStatusUi
@@ -454,7 +456,9 @@ internal fun AgentConversationMessages(
         when (val last = timelineEntries.lastOrNull()) {
             is AgentTimelineEntry.WorkProcess -> last.key
             // 正文还没开始时，工作过程处于自动展开态；正文一开始就让位给回答。
-            is AgentTimelineEntry.Turn -> last.key.takeIf { last.answer.content.isBlank() }
+            is AgentTimelineEntry.Turn -> last.key.takeIf {
+                (last.answer as? AgentMessageUi)?.content?.isBlank() == true
+            }
             else -> null
         }
     } else {
@@ -768,11 +772,12 @@ internal fun AgentConversationMessages(
                             }
                         }
                         val answer = entry.answer
+                        val answerAgent = answer as? AgentMessageUi
                         ChatMessageItem(
                             message = answer,
                             assistantOverlay = assistantOverlay,
-                            retainedStreamingState = answer
-                                .takeIf { it.isStreaming || streamingMarkdownStates.containsKey(it.id) }
+                            retainedStreamingState = answerAgent
+                                ?.takeIf { it.isStreaming || streamingMarkdownStates.containsKey(it.id) }
                                 ?.let { streamingMarkdownCache.getOrCreate(it.id) },
                             workMessages = entry.work,
                             workActive = entry.key == activeWorkProcessKey,
@@ -783,10 +788,11 @@ internal fun AgentConversationMessages(
                             onRunTraceClick = onRunTraceClick,
                             showBrowserShortcut = false,
                             assistantModel = assistantModel,
-                            showCopyAction = answer.characterEditable ||
-                                answer.id in finalResultMessageIds,
-                            showMessageActions = answer.id in finalResultMessageIds ||
-                                answer.characterEditable,
+                            showCopyAction = answerAgent?.let { agent ->
+                                agent.characterEditable || agent.id in finalResultMessageIds
+                            } ?: true,
+                            showMessageActions = answerAgent != null &&
+                                (answer.id in finalResultMessageIds || answerAgent.characterEditable),
                             messageActionsEnabled = messageActionsEnabled,
                             isEditing = answer.id == editTargetMessageId,
                             onEditMessage = onEditMessage,
@@ -929,7 +935,8 @@ internal sealed interface AgentTimelineEntry {
     data class Turn(
         override val key: String,
         val work: List<AgentChatMessageUi>,
-        val answer: AgentMessageUi,
+        // 通常是模型回答，任务中断等情况下是系统提示，同样要落在气泡里。
+        val answer: AgentChatMessageUi,
     ) : AgentTimelineEntry
 }
 
@@ -972,6 +979,13 @@ internal fun List<AgentChatMessageUi>.toTimelineEntries(
     flushWorkProcess()
 }.mergeWorkIntoAnswers()
 
+/** 能作为一轮收尾的消息：模型回答，或不带上下文压缩标记的系统提示。 */
+private fun AgentChatMessageUi.isTurnAnswer(): Boolean = when (this) {
+    is AgentMessageUi -> true
+    is SystemNoticeMessageUi -> code != SystemNoticeCode.ContextCompaction
+    else -> false
+}
+
 /** 相邻的工作过程与最终回答合成一个 [AgentTimelineEntry.Turn]，其余条目原样保留。 */
 private fun List<AgentTimelineEntry>.mergeWorkIntoAnswers(): List<AgentTimelineEntry> = buildList {
     var pending: AgentTimelineEntry.WorkProcess? = null
@@ -979,7 +993,7 @@ private fun List<AgentTimelineEntry>.mergeWorkIntoAnswers(): List<AgentTimelineE
         when {
             entry is AgentTimelineEntry.WorkProcess -> pending = entry
             entry is AgentTimelineEntry.Message &&
-                entry.message is AgentMessageUi &&
+                entry.message.isTurnAnswer() &&
                 pending != null -> {
                 val work = pending
                 pending = null

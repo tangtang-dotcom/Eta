@@ -273,6 +273,7 @@ internal fun ChatMessageItem(
                     },
                     renderMarkdown = false,
                 ),
+                forceBubble = true,
                 assistantOverlay = false,
                 retainedStreamingState = null,
                 showCopyAction = showCopyAction,
@@ -674,6 +675,8 @@ private fun AgentMessageBlock(
     workStreamingStates: Map<String, StreamingMarkdownState> = emptyMap(),
     currentBrowserMessageId: String? = null,
     onOpenBrowser: () -> Unit = {},
+    // 系统提示（已停止、任务中断等）也要落在气泡里，但它没有正文可渲染。
+    forceBubble: Boolean = false,
     assistantOverlay: Boolean = false,
     retainedStreamingState: StreamingMarkdownState?,
     showCopyAction: Boolean,
@@ -735,7 +738,7 @@ private fun AgentMessageBlock(
     val character = LocalRoleplayChat.current.takeUnless { assistantOverlay }
     val isGreeting = character != null && message.id.startsWith(GreetingMessagePrefix)
     // 回答气泡：非悬浮窗的正常回答包成描边卡片，并在顶部署名模型。
-    val showBubble = !assistantOverlay && message.renderMarkdown
+    val showBubble = !assistantOverlay && (forceBubble || message.renderMarkdown)
 
     Column(
         modifier = modifier
@@ -748,7 +751,7 @@ private fun AgentMessageBlock(
         if (character != null) {
             CharacterReplyHeader(character = character, isGreeting = isGreeting)
         }
-        if (showBubble) {
+        if (showBubble && message.renderMarkdown) {
             AssistantReplyHeader(model = model)
         }
         // 浅色主题下回答气泡固定纯白，避免莫奈把 surface 染成灰蓝后与页面背景糊在一起；

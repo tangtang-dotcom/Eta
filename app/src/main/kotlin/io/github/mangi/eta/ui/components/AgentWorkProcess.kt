@@ -16,13 +16,12 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
@@ -322,42 +321,33 @@ private fun WorkStep(
 }
 
 /**
- * 引用块样式的工作步骤卡片：浅底色圆角块 + 左侧竖条。
+ * 工作步骤子气泡：灰色圆角卡片，失败步骤另加一层错误色描边以示区分。
  *
- * 竖条取主题色（失败时用错误色），底色用 surfaceContainer，在纯白气泡与深色气泡里都能分层。
+ * 与白色回答气泡对比明显，深色主题下 surfaceContainer 也比 surface 亮一档。
  */
 @Composable
 private fun WorkQuoteCard(
     tone: WorkNodeTone,
     content: @Composable () -> Unit,
 ) {
-    val accent = when (tone) {
-        WorkNodeTone.Failed -> StatusError
-        WorkNodeTone.Running -> MiuixTheme.colorScheme.primary
-        WorkNodeTone.Done -> MiuixTheme.colorScheme.primary.copy(alpha = 0.55f)
-    }
     val corner = 12.dp
-    Row(
+    val shape = RoundedCornerShape(corner)
+    Box(
         modifier = Modifier
             .fillMaxWidth()
             .padding(vertical = 3.dp)
-            .height(IntrinsicSize.Min)
-            .clip(RoundedCornerShape(corner))
-            .background(MiuixTheme.colorScheme.surfaceContainer),
+            .clip(shape)
+            .background(MiuixTheme.colorScheme.surfaceContainer)
+            .then(
+                if (tone == WorkNodeTone.Failed) {
+                    Modifier.border(1.dp, StatusError.copy(alpha = 0.45f), shape)
+                } else {
+                    Modifier
+                },
+            )
+            .padding(horizontal = 11.dp, vertical = 9.dp),
     ) {
-        Box(
-            modifier = Modifier
-                .width(3.dp)
-                .fillMaxHeight()
-                .background(accent),
-        )
-        Box(
-            modifier = Modifier
-                .weight(1f)
-                .padding(horizontal = 10.dp, vertical = 9.dp),
-        ) {
-            content()
-        }
+        content()
     }
 }
 

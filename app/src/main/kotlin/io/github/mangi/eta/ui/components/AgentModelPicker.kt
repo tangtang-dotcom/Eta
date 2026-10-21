@@ -55,14 +55,12 @@ import io.github.mangi.eta.R
 import io.github.mangi.eta.data.model.ReasoningEffort
 import io.github.mangi.eta.ui.model.AgentModelOptionUi
 import io.github.mangi.eta.ui.model.AgentModelPickerUiState
-import io.github.mangi.eta.ui.model.filterGroups
 import io.github.mangi.eta.ui.model.modelCount
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
-import top.yukonga.miuix.kmp.basic.InputField
 import top.yukonga.miuix.kmp.basic.PopupPositionProvider
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.overlay.OverlayBottomSheet
@@ -210,10 +208,9 @@ private fun ModelSheetContent(
     availableReasoningEfforts: List<ReasoningEffort> = emptyList(),
     onReasoningEffortChange: ((ReasoningEffort) -> Unit)? = null,
 ) {
-    var query by remember { mutableStateOf("") }
     var providerFilter by remember { mutableStateOf<String?>(null) }
-    val groups = remember(state.providerGroups, query, providerFilter) {
-        state.filterGroups(query)
+    val groups = remember(state.providerGroups, providerFilter) {
+        state.providerGroups
             .filter { providerFilter == null || it.providerId == providerFilter }
     }
     // 只看一个服务商时，筛选标签已经说明了归属，分组标题只会重复。
@@ -223,7 +220,7 @@ private fun ModelSheetContent(
     }
     val listState = rememberLazyListState(initialFirstVisibleItemIndex = (selectedIndex - 1).coerceAtLeast(0))
     LaunchedEffect(listState) {
-        snapshotFlow { query to providerFilter }.drop(1).collect { listState.scrollToItem(0) }
+        snapshotFlow { providerFilter }.drop(1).collect { listState.scrollToItem(0) }
     }
     val select = rememberConfirmedSelection(onModelSelected)
     val selectedId = select.pendingId ?: state.selectedModel?.id
@@ -258,18 +255,6 @@ private fun ModelSheetContent(
                     )
                 }
             }
-            InputField(
-                query = query,
-                onQueryChange = { query = it },
-                onSearch = {},
-                expanded = false,
-                onExpandedChange = {},
-                label = stringResource(R.string.ui_search_model_df5586),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 20.dp)
-                    .padding(top = 4.dp, bottom = 8.dp),
-            )
             if (state.providerGroups.size > 1) {
                 LazyRow(
                     contentPadding = PaddingValues(horizontal = 20.dp),

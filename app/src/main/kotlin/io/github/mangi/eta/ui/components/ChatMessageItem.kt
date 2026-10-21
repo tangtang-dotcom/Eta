@@ -201,6 +201,7 @@ internal fun ChatMessageItem(
     retainedStreamingState: StreamingMarkdownState? = null,
     showCopyAction: Boolean = true,
     showMessageActions: Boolean = false,
+    assistantModelLabel: String? = null,
     messageActionsEnabled: Boolean = true,
     isEditing: Boolean = false,
     onEditMessage: (String) -> Unit = {},
@@ -222,6 +223,7 @@ internal fun ChatMessageItem(
         is AgentMessageUi -> AgentMessageBlock(
             message = message,
             allowSpeech = true,
+            modelLabel = assistantModelLabel,
             assistantOverlay = assistantOverlay,
             retainedStreamingState = retainedStreamingState,
             showCopyAction = showCopyAction,
@@ -389,7 +391,7 @@ private fun UserMessageBubble(
                             Modifier.background(overlayBubbleColor, RoundedCornerShape(10.dp))
                         } else {
                             Modifier.squircleSurface(
-                                color = MiuixTheme.colorScheme.surfaceContainerHigh,
+                                color = MiuixTheme.colorScheme.primary,
                                 topStart = 20.dp,
                                 topEnd = 20.dp,
                                 // 描边只支持统一圆角，编辑态收起气泡尾角，让描边与填充贴合。
@@ -402,7 +404,7 @@ private fun UserMessageBubble(
                         if (isEditing) {
                             Modifier.squircleBorder(
                                 width = 1.dp,
-                                color = MiuixTheme.colorScheme.primary,
+                                color = MiuixTheme.colorScheme.onPrimary,
                                 cornerRadius = 20.dp,
                             )
                         } else {
@@ -447,7 +449,7 @@ private fun UserMessageBubble(
                         Text(
                             text = visiblePrompt.request,
                             style = MiuixTheme.textStyles.body1,
-                            color = MiuixTheme.colorScheme.onSurface,
+                            color = MiuixTheme.colorScheme.onPrimary,
                         )
                     }
                 }
@@ -455,7 +457,7 @@ private fun UserMessageBubble(
                     Text(
                         text = stringResource(R.string.ui_edited_c36776),
                         style = MiuixTheme.textStyles.body2,
-                        color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                        color = MiuixTheme.colorScheme.onPrimary.copy(alpha = 0.7f),
                         modifier = Modifier.padding(top = 4.dp),
                     )
                 }
@@ -643,6 +645,7 @@ private fun ContextCompactionMarker(
 private fun AgentMessageBlock(
     message: AgentMessageUi,
     allowSpeech: Boolean = false,
+    modelLabel: String? = null,
     assistantOverlay: Boolean = false,
     retainedStreamingState: StreamingMarkdownState?,
     showCopyAction: Boolean,
@@ -703,6 +706,9 @@ private fun AgentMessageBlock(
 
     val character = LocalRoleplayChat.current.takeUnless { assistantOverlay }
     val isGreeting = character != null && message.id.startsWith(GreetingMessagePrefix)
+    // 回答气泡：非悬浮窗的正常回答包成描边卡片，并在顶部署名模型。
+    val showBubble = !assistantOverlay && message.renderMarkdown
+
     Column(
         modifier = modifier
             .fillMaxWidth()
@@ -714,111 +720,176 @@ private fun AgentMessageBlock(
         if (character != null) {
             CharacterReplyHeader(character = character, isGreeting = isGreeting)
         }
-        when {
-            message.content.isBlank() && message.isStreaming -> {
-                AITypingIndicator(
-                    modifier = Modifier.padding(top = 4.dp)
-                )
+        Column(
+            modifier = if (showBubble) {
+                Modifier
+                    .fillMaxWidth()
+                    .squircleSurface(
+                        color = MiuixTheme.colorScheme.surface,
+                        cornerRadius = AssistantBubbleCorner,
+                    )
+                    .squircleBorder(
+                        width = 0.75.dp,
+                        color = MiuixTheme.colorScheme.outline.copy(alpha = 0.45f),
+                        cornerRadius = AssistantBubbleCorner,
+                    )
+                    .padding(horizontal = 13.dp, vertical = 11.dp)
+            } else {
+                Modifier.fillMaxWidth()
+            },
+        ) {
+            if (showBubble) {
+                AssistantReplyHeader(modelLabel = modelLabel)
             }
-            streamingState != null && !revealComplete -> {
-                StreamingMarkdown(
-                    state = streamingState,
-                    content = message.content,
-                    isStreaming = message.isStreaming,
-                    tone = MarkdownTone.Answer,
-                    onRevealCompleteChange = { streamingRevealComplete = it },
-                    modifier = Modifier.fillMaxWidth(),
-                )
-            }
-            message.renderMarkdown -> {
-                SelectionContainer {
-                    StaticMarkdown(
+            when {
+                message.content.isBlank() && message.isStreaming -> {
+                    AITypingIndicator(
+                        modifier = Modifier.padding(top = 4.dp)
+                    )
+                }
+                streamingState != null && !revealComplete -> {
+                    StreamingMarkdown(
+                        state = streamingState,
                         content = message.content,
+                        isStreaming = message.isStreaming,
                         tone = MarkdownTone.Answer,
-                        parsed = completedDocument,
+                        onRevealCompleteChange = { streamingRevealComplete = it },
                         modifier = Modifier.fillMaxWidth(),
                     )
                 }
-            }
-            message.content.isNotBlank() -> {
-                SelectionContainer {
-                    Text(
-                        text = message.content,
-                        style = MiuixTheme.textStyles.body1,
-                        color = MiuixTheme.colorScheme.onSurface,
-                    )
+                message.renderMarkdown -> {
+                    SelectionContainer {
+                        StaticMarkdown(
+                            content = message.content,
+                            tone = MarkdownTone.Answer,
+                            parsed = completedDocument,
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                    }
+                }
+                message.content.isNotBlank() -> {
+                    SelectionContainer {
+                        Text(
+                            text = message.content,
+                            style = MiuixTheme.textStyles.body1,
+                            color = MiuixTheme.colorScheme.onSurface,
+                        )
+                    }
                 }
             }
-        }
 
-        // 回答显现完成后才出现操作行；淡入展开避免贴底滚动时整页突然跳动一行高度。
-        AnimatedVisibility(
-            visible = showCopyAction &&
-                !message.isStreaming &&
-                message.content.isNotBlank() &&
-                revealComplete,
-            enter = fadeIn(tween(160)) + expandVertically(tween(160)),
-            exit = fadeOut(tween(120)) + shrinkVertically(tween(120)),
-        ) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    // 抵消按钮的居中留白，与工作过程标题图标共用左侧中心线。
-                    .offset(x = -AnswerActionCenterOffset)
-                    .padding(top = 2.dp),
-                verticalAlignment = Alignment.CenterVertically,
+            // 回答显现完成后才出现操作行；淡入展开避免贴底滚动时整页突然跳动一行高度。
+            AnimatedVisibility(
+                visible = showCopyAction &&
+                    !message.isStreaming &&
+                    message.content.isNotBlank() &&
+                    revealComplete,
+                enter = fadeIn(tween(160)) + expandVertically(tween(160)),
+                exit = fadeOut(tween(120)) + shrinkVertically(tween(120)),
             ) {
-                AnswerActionButton(
-                    icon = if (copied) Icons.Rounded.Check else Icons.Rounded.ContentCopy,
-                    contentDescription = stringResource(
-                        if (copied) R.string.copy_copied else R.string.copy_answer,
-                    ),
-                    onClick = {
-                        @Suppress("DEPRECATION")
-                        clipboardManager.setText(AnnotatedString(message.content))
-                        haptic.performHapticFeedback(HapticFeedbackType.Confirm)
-                        copied = true
-                    },
-                    tint = if (copied) MiuixTheme.colorScheme.primary else null,
-                )
-                if (allowSpeech) SpeechReadAloudButton(message.id, message.content)
-                if (showMessageActions) {
-                    if (message.characterEditable) {
-                        AnswerActionButton(
-                            icon = Icons.Rounded.Edit,
-                            contentDescription = stringResource(R.string.chat_edit_character_reply),
-                            onClick = onEdit,
-                            enabled = messageActionsEnabled,
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .then(
+                            // 气泡自带左内边距，此时不必再抵消按钮留白。
+                            if (showBubble) Modifier else Modifier.offset(x = -AnswerActionCenterOffset),
                         )
-                    }
-                    TooltipBox(text = stringResource(R.string.ui_regenerate_2e1905), enabled = messageActionsEnabled) {
-                        AnswerActionButton(
-                            icon = Icons.Rounded.Refresh,
-                            contentDescription = stringResource(R.string.ui_regenerate_reply_84a7d9),
-                            onClick = onRegenerate,
-                            enabled = messageActionsEnabled,
-                        )
-                    }
-                    TooltipBox(text = stringResource(R.string.ui_delete_3755f5), enabled = messageActionsEnabled) {
-                        AnswerActionButton(
-                            icon = Icons.Rounded.Delete,
-                            contentDescription = stringResource(R.string.ui_delete_this_conversation_3f351b),
-                            onClick = onDelete,
-                            enabled = messageActionsEnabled,
-                        )
-                    }
-                    if (message.characterEditable && message.candidateCount > 1) {
-                        Spacer(Modifier.weight(1f))
-                        CandidateSwitcher(
-                            selected = message.selectedCandidate,
-                            count = message.candidateCount,
-                            enabled = messageActionsEnabled,
-                            onSelect = onSelectCandidate,
-                        )
+                        .padding(top = 2.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    AnswerActionButton(
+                        icon = if (copied) Icons.Rounded.Check else Icons.Rounded.ContentCopy,
+                        contentDescription = stringResource(
+                            if (copied) R.string.copy_copied else R.string.copy_answer,
+                        ),
+                        onClick = {
+                            @Suppress("DEPRECATION")
+                            clipboardManager.setText(AnnotatedString(message.content))
+                            haptic.performHapticFeedback(HapticFeedbackType.Confirm)
+                            copied = true
+                        },
+                        tint = if (copied) MiuixTheme.colorScheme.primary else null,
+                    )
+                    if (allowSpeech) SpeechReadAloudButton(message.id, message.content)
+                    if (showMessageActions) {
+                        if (message.characterEditable) {
+                            AnswerActionButton(
+                                icon = Icons.Rounded.Edit,
+                                contentDescription = stringResource(R.string.chat_edit_character_reply),
+                                onClick = onEdit,
+                                enabled = messageActionsEnabled,
+                            )
+                        }
+                        TooltipBox(text = stringResource(R.string.ui_regenerate_2e1905), enabled = messageActionsEnabled) {
+                            AnswerActionButton(
+                                icon = Icons.Rounded.Refresh,
+                                contentDescription = stringResource(R.string.ui_regenerate_reply_84a7d9),
+                                onClick = onRegenerate,
+                                enabled = messageActionsEnabled,
+                            )
+                        }
+                        TooltipBox(text = stringResource(R.string.ui_delete_3755f5), enabled = messageActionsEnabled) {
+                            AnswerActionButton(
+                                icon = Icons.Rounded.Delete,
+                                contentDescription = stringResource(R.string.ui_delete_this_conversation_3f351b),
+                                onClick = onDelete,
+                                enabled = messageActionsEnabled,
+                            )
+                        }
+                        if (message.characterEditable && message.candidateCount > 1) {
+                            Spacer(Modifier.weight(1f))
+                            CandidateSwitcher(
+                                selected = message.selectedCandidate,
+                                count = message.candidateCount,
+                                enabled = messageActionsEnabled,
+                                onSelect = onSelectCandidate,
+                            )
+                        }
                     }
                 }
             }
         }
+    }
+}
+
+/** 回答气泡圆角；与思考卡片的 12dp 区分，气泡更圆一些。 */
+private val AssistantBubbleCorner = 16.dp
+
+/**
+ * 回答气泡顶部的署名行：圆角方块 AI 标识加模型名。
+ *
+ * 底色取主题色低透明度，不引入图片资源；模型名缺失时退回“AI”。
+ */
+@Composable
+private fun AssistantReplyHeader(modelLabel: String?) {
+    Row(
+        modifier = Modifier.padding(start = 1.dp, bottom = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(
+            modifier = Modifier
+                .size(26.dp)
+                .clip(RoundedCornerShape(9.dp))
+                .background(MiuixTheme.colorScheme.primary.copy(alpha = 0.12f)),
+            contentAlignment = Alignment.Center,
+        ) {
+            Text(
+                text = "AI",
+                style = MiuixTheme.textStyles.footnote2,
+                fontWeight = FontWeight.SemiBold,
+                color = MiuixTheme.colorScheme.primary,
+            )
+        }
+        Spacer(Modifier.width(7.dp))
+        Text(
+            text = modelLabel?.takeIf(String::isNotBlank) ?: "AI",
+            style = MiuixTheme.textStyles.footnote1,
+            fontWeight = FontWeight.Medium,
+            color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1f, fill = false),
+        )
     }
 }
 

@@ -741,6 +741,7 @@ internal fun AgentConversationMessages(
                                 message.characterEditable || message.id in finalResultMessageIds,
                             showMessageActions = message.id in finalResultMessageIds ||
                                 (message is AgentMessageUi && message.characterEditable),
+                            assistantModelLabel = modelPickerState.selectedModel?.displayName,
                             messageActionsEnabled = messageActionsEnabled,
                             isEditing = message.id == editTargetMessageId,
                             onEditMessage = onEditMessage,

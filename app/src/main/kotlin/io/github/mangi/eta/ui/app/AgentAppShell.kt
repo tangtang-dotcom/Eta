@@ -2,6 +2,7 @@ package io.github.mangi.eta.ui.app
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -131,7 +132,13 @@ internal fun AgentAppShell(
             ),
             topBar = {
                 if (currentRoute !is AppRoute.Settings) {
-                    TopBarBackdrop(backdrop) {
+                    val isChat = currentRoute is AppRoute.Home
+                    TopBarBackdrop(
+                        backdrop = backdrop,
+                        // 聊天页正文密集，透出太多会显得脏；设置页维持原本的轻盈感。
+                        progressiveAlpha = if (isChat) ChatTopBarProgressiveAlpha else 0.3f,
+                        surfaceAlpha = if (isChat) ChatTopBarSurfaceAlpha else 0.8f,
+                    ) {
                         AgentTopBar(
                             route = currentRoute,
                             scrollBehavior = scrollBehavior,
@@ -292,18 +299,28 @@ private fun FrostedCircle(
                         shape = CircleShape,
                         blurRadius = 20f,
                         colors = BlurColors(
-                            blendColors = listOf(BlendColorEntry(surface.copy(alpha = 0.4f))),
+                            blendColors = listOf(BlendColorEntry(surface.copy(alpha = 0.8f))),
                         ),
                     )
                 } else {
-                    Modifier.background(surface.copy(alpha = 0.85f))
+                    Modifier.background(surface.copy(alpha = 0.92f))
                 },
+            )
+            // 半透明白钮落在浅色内容上几乎看不见，补一圈极淡描边把轮廓交代清楚。
+            .border(
+                width = 0.5.dp,
+                color = MiuixTheme.colorScheme.outline.copy(alpha = 0.35f),
+                shape = CircleShape,
             ),
         contentAlignment = Alignment.Center,
     ) {
         content()
     }
 }
+
+/** 聊天页顶栏的遮蔽强度：比设置页更强，避免正文透出后看起来发脏。 */
+private const val ChatTopBarProgressiveAlpha = 0.55f
+private const val ChatTopBarSurfaceAlpha = 0.88f
 
 private val TopBarMenuIconSize = 20.dp
 

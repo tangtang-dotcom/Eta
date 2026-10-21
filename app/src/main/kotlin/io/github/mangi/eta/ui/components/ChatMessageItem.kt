@@ -751,12 +751,19 @@ private fun AgentMessageBlock(
         if (showBubble) {
             AssistantReplyHeader(model = model)
         }
+        // 浅色主题下回答气泡固定纯白，避免莫奈把 surface 染成灰蓝后与页面背景糊在一起；
+        // 深色主题仍取 surface，纯白在夜间过于刺眼。
+        val bubbleFill = if (MiuixTheme.colorScheme.background.luminance() < 0.5f) {
+            MiuixTheme.colorScheme.surface
+        } else {
+            Color.White
+        }
         Column(
             modifier = if (showBubble) {
                 Modifier
                     .fillMaxWidth()
                     .squircleSurface(
-                        color = MiuixTheme.colorScheme.surface,
+                        color = bubbleFill,
                         cornerRadius = AssistantBubbleCorner,
                     )
                     .padding(horizontal = 14.dp, vertical = 12.dp)
@@ -901,15 +908,9 @@ private fun AssistantWorkBubble(
     retainedStreamingStates: Map<String, StreamingMarkdownState>,
     modifier: Modifier = Modifier,
 ) {
-    val innerCorner = AssistantBubbleCorner - 4.dp
     Column(
         modifier = modifier
-            .fillMaxWidth()
-            .squircleSurface(
-                color = MiuixTheme.colorScheme.surfaceContainer,
-                cornerRadius = innerCorner,
-            )
-            .padding(horizontal = 10.dp, vertical = 8.dp),
+            .fillMaxWidth(),
     ) {
         AgentWorkProcess(
             id = messages.first().id,

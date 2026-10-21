@@ -18,9 +18,11 @@ import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
@@ -141,6 +143,7 @@ internal fun AgentWorkProcess(
                         AgentWorkStepNode(
                             step = step,
                             isLast = index == steps.lastIndex,
+                            quoted = embedded,
                             onOpenBrowser = onOpenBrowser,
                             currentBrowserMessageId = currentBrowserMessageId,
                             retainedStreamingStates = retainedStreamingStates,
@@ -237,9 +240,11 @@ private fun AgentWorkStepNode(
     onOpenBrowser: () -> Unit,
     currentBrowserMessageId: String?,
     retainedStreamingStates: Map<String, StreamingMarkdownState>,
+    // 嵌进回答气泡时改画成引用块样式的小卡片，不再走左侧时间线。
+    quoted: Boolean = false,
 ) {
     when (step) {
-        is AgentWorkStep.ToolGroup -> WorkTimelineNode(
+        is AgentWorkStep.ToolGroup -> WorkStep(
             icon = iconForTool(step.toolName),
             tone = when {
                 step.running -> WorkNodeTone.Running
@@ -247,15 +252,17 @@ private fun AgentWorkStepNode(
                 else -> WorkNodeTone.Done
             },
             isLast = isLast,
+            quoted = quoted,
         ) {
             ToolGroupRow(group = step, onOpenBrowser = onOpenBrowser)
         }
 
         is AgentWorkStep.Single -> when (val message = step.message) {
-            is ToolActivityMessageUi -> WorkTimelineNode(
+            is ToolActivityMessageUi -> WorkStep(
                 icon = iconForTool(message.toolName),
                 tone = message.status.nodeTone(),
                 isLast = isLast,
+                quoted = quoted,
             ) {
                 ToolActivityRow(
                     message = message,
@@ -264,10 +271,11 @@ private fun AgentWorkStepNode(
                 )
             }
 
-            is ThinkingMessageUi -> WorkTimelineNode(
+            is ThinkingMessageUi -> WorkStep(
                 icon = Icons.Rounded.Lightbulb,
                 tone = if (message.isStreaming) WorkNodeTone.Running else WorkNodeTone.Done,
                 isLast = isLast,
+                quoted = quoted,
             ) {
                 ThinkingRow(
                     message = message,
@@ -276,10 +284,11 @@ private fun AgentWorkStepNode(
                 )
             }
 
-            is ToolSummaryMessageUi -> WorkTimelineNode(
+            is ToolSummaryMessageUi -> WorkStep(
                 icon = Icons.Rounded.Build,
                 tone = WorkNodeTone.Done,
                 isLast = isLast,
+                quoted = quoted,
             ) {
                 ChatMessageItem(
                     message = message,
@@ -292,6 +301,62 @@ private fun AgentWorkStepNode(
             }
 
             else -> Unit
+        }
+    }
+}
+
+/** 时间线节点与引用块两种排布的切换点，正文内容完全一致。 */
+@Composable
+private fun WorkStep(
+    icon: ImageVector,
+    tone: WorkNodeTone,
+    isLast: Boolean,
+    quoted: Boolean,
+    content: @Composable () -> Unit,
+) {
+    if (quoted) {
+        WorkQuoteCard(tone = tone) { content() }
+    } else {
+        WorkTimelineNode(icon = icon, tone = tone, isLast = isLast) { content() }
+    }
+}
+
+/**
+ * 引用块样式的工作步骤卡片：浅底色圆角块 + 左侧竖条。
+ *
+ * 竖条取主题色（失败时用错误色），底色用 surfaceContainer，在纯白气泡与深色气泡里都能分层。
+ */
+@Composable
+private fun WorkQuoteCard(
+    tone: WorkNodeTone,
+    content: @Composable () -> Unit,
+) {
+    val accent = when (tone) {
+        WorkNodeTone.Failed -> StatusError
+        WorkNodeTone.Running -> MiuixTheme.colorScheme.primary
+        WorkNodeTone.Done -> MiuixTheme.colorScheme.primary.copy(alpha = 0.55f)
+    }
+    val corner = 12.dp
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 3.dp)
+            .height(IntrinsicSize.Min)
+            .clip(RoundedCornerShape(corner))
+            .background(MiuixTheme.colorScheme.surfaceContainer),
+    ) {
+        Box(
+            modifier = Modifier
+                .width(3.dp)
+                .fillMaxHeight()
+                .background(accent),
+        )
+        Box(
+            modifier = Modifier
+                .weight(1f)
+                .padding(horizontal = 10.dp, vertical = 9.dp),
+        ) {
+            content()
         }
     }
 }

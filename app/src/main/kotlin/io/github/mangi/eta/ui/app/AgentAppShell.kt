@@ -1,9 +1,7 @@
 package io.github.mangi.eta.ui.app
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
@@ -11,13 +9,10 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.CircleShape
@@ -42,7 +37,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
@@ -66,11 +60,6 @@ import io.github.mangi.eta.ui.model.ConversationSummaryUi
 import io.github.mangi.eta.ui.navigation.AppRoute
 import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.basic.DropdownImpl
-import top.yukonga.miuix.kmp.blur.BlendColorEntry
-import top.yukonga.miuix.kmp.blur.BlurColors
-import top.yukonga.miuix.kmp.blur.LayerBackdrop
-import top.yukonga.miuix.kmp.blur.isRuntimeShaderSupported
-import top.yukonga.miuix.kmp.blur.textureBlur
 import top.yukonga.miuix.kmp.basic.DropdownItem
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
@@ -135,23 +124,7 @@ internal fun AgentAppShell(
                 WindowInsetsSides.Top + WindowInsetsSides.Horizontal,
             ),
             topBar = {
-                if (currentRoute is AppRoute.Home) {
-                    // 首页不画整条顶栏：只在顶部铺一层渐隐，操作按钮单独做成磨砂圆钮。
-                    HomeFloatingTopBar(
-                        backdrop = backdrop,
-                        onOpenConversationPane = onOpenConversationPane,
-                        onNewConversation = onNewConversation,
-                        onOpenTerminal = onOpenTerminal,
-                        onLaunchKimiWeb = onLaunchKimiWeb,
-                        kimiWebLabel = kimiWebLabel,
-                        canStopKimiWeb = canStopKimiWeb,
-                        onStopKimiWeb = onStopKimiWeb,
-                        onRefreshKimiWeb = onRefreshKimiWeb,
-                        onOpenBrowser = onOpenBrowser,
-                        homeCharacter = homeCharacter,
-                        onOpenCharacter = onOpenCharacter,
-                    )
-                } else if (currentRoute !is AppRoute.Settings) {
+                if (currentRoute !is AppRoute.Settings) {
                     TopBarBackdrop(backdrop) {
                         AgentTopBar(
                             route = currentRoute,
@@ -210,116 +183,6 @@ internal fun AgentAppShell(
         } else {
             pageContent()
         }
-    }
-}
-
-/**
- * 首页悬浮顶栏：不铺整条实底，顶部只加一层向下渐隐的蒙层，
- * 历史与更多两个操作做成磨砂圆钮浮在内容之上。
- */
-@Composable
-private fun HomeFloatingTopBar(
-    backdrop: LayerBackdrop?,
-    onOpenConversationPane: () -> Unit,
-    onNewConversation: () -> Unit,
-    onOpenTerminal: () -> Unit,
-    onLaunchKimiWeb: () -> Unit,
-    kimiWebLabel: String,
-    canStopKimiWeb: Boolean,
-    onStopKimiWeb: () -> Unit,
-    onRefreshKimiWeb: () -> Unit,
-    onOpenBrowser: () -> Unit,
-    homeCharacter: RoleplayChatUi?,
-    onOpenCharacter: () -> Unit,
-) {
-    val surface = MiuixTheme.colorScheme.surface
-    Box(modifier = Modifier.fillMaxWidth()) {
-        // 蒙层跟着顶栏高度走，消息滚到状态栏下方时逐渐淡出，而不是被一条实色切断。
-        Box(
-            modifier = Modifier
-                .matchParentSize()
-                .background(
-                    Brush.verticalGradient(
-                        0f to surface.copy(alpha = 0.96f),
-                        0.6f to surface.copy(alpha = 0.7f),
-                        1f to Color.Transparent,
-                    ),
-                ),
-        )
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .statusBarsPadding()
-                .height(52.dp)
-                .padding(horizontal = 14.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween,
-        ) {
-            FrostedCircleButton(backdrop = backdrop) {
-                IconButton(onClick = onOpenConversationPane) {
-                    Icon(
-                        imageVector = Icons.AutoMirrored.Outlined.ShortText,
-                        modifier = Modifier.size(20.dp),
-                        contentDescription = stringResource(R.string.action_conversation_history),
-                    )
-                }
-            }
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(10.dp),
-            ) {
-                homeCharacter?.let { character ->
-                    CharacterTopBarIdentity(character = character, onClick = onOpenCharacter)
-                }
-                FrostedCircleButton(backdrop = backdrop) {
-                    TopBarOverflowMenu(
-                        onNewConversation = onNewConversation,
-                        onOpenTerminal = onOpenTerminal,
-                        onLaunchKimiWeb = onLaunchKimiWeb,
-                        kimiWebLabel = kimiWebLabel,
-                        canStopKimiWeb = canStopKimiWeb,
-                        onStopKimiWeb = onStopKimiWeb,
-                        onRefreshKimiWeb = onRefreshKimiWeb,
-                        onOpenBrowser = onOpenBrowser,
-                    )
-                }
-            }
-        }
-    }
-}
-
-/**
- * 40dp 磨砂圆钮：系统支持实时模糊时用 textureBlur 采样背后内容，
- * 否则退回半透明实底，最差也不会露出透明陷坑。
- */
-@Composable
-private fun FrostedCircleButton(
-    backdrop: LayerBackdrop?,
-    content: @Composable () -> Unit,
-) {
-    val surface = MiuixTheme.colorScheme.surface
-    val blurAvailable = backdrop != null && LocalBlurEnabled.current && isRuntimeShaderSupported()
-    Box(
-        modifier = Modifier
-            .size(40.dp)
-            .clip(CircleShape)
-            .then(
-                if (blurAvailable) {
-                    Modifier.textureBlur(
-                        backdrop = backdrop!!,
-                        shape = CircleShape,
-                        blurRadius = 20f,
-                        colors = BlurColors(
-                            blendColors = listOf(BlendColorEntry(surface.copy(alpha = 0.45f))),
-                        ),
-                    )
-                } else {
-                    Modifier.background(surface.copy(alpha = 0.85f))
-                },
-            ),
-        contentAlignment = Alignment.Center,
-    ) {
-        content()
     }
 }
 

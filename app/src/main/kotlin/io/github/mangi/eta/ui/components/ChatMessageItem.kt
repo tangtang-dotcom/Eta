@@ -72,7 +72,6 @@ import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
@@ -752,27 +751,15 @@ private fun AgentMessageBlock(
         if (showBubble) {
             AssistantReplyHeader(model = model)
         }
-        // 气泡底色以 surface 为基准掺一点主题色，让莫奈/自定义配色能透出来；
-        // 纯白或纯黑底在暗色下会和工作过程的内层气泡糊成一片。
-        val bubbleFill = lerp(
-            MiuixTheme.colorScheme.surface,
-            MiuixTheme.colorScheme.primary,
-            0.06f,
-        )
         Column(
             modifier = if (showBubble) {
                 Modifier
                     .fillMaxWidth()
                     .squircleSurface(
-                        color = bubbleFill,
+                        color = MiuixTheme.colorScheme.surface,
                         cornerRadius = AssistantBubbleCorner,
                     )
-                    .squircleBorder(
-                        width = 0.75.dp,
-                        color = MiuixTheme.colorScheme.outline.copy(alpha = 0.55f),
-                        cornerRadius = AssistantBubbleCorner,
-                    )
-                    .padding(horizontal = 13.dp, vertical = 11.dp)
+                    .padding(horizontal = 14.dp, vertical = 12.dp)
             } else {
                 Modifier.fillMaxWidth()
             },
@@ -919,16 +906,7 @@ private fun AssistantWorkBubble(
         modifier = modifier
             .fillMaxWidth()
             .squircleSurface(
-                color = lerp(
-                    MiuixTheme.colorScheme.surfaceContainerHigh,
-                    MiuixTheme.colorScheme.primary,
-                    0.04f,
-                ),
-                cornerRadius = innerCorner,
-            )
-            .squircleBorder(
-                width = 0.5.dp,
-                color = MiuixTheme.colorScheme.outline.copy(alpha = 0.4f),
+                color = MiuixTheme.colorScheme.surfaceContainer,
                 cornerRadius = innerCorner,
             )
             .padding(horizontal = 10.dp, vertical = 8.dp),
@@ -947,7 +925,7 @@ private fun AssistantWorkBubble(
 }
 
 /** 回答气泡圆角；与思考卡片的 12dp 区分，气泡更圆一些。 */
-private val AssistantBubbleCorner = 16.dp
+private val AssistantBubbleCorner = 18.dp
 
 /**
  * 回答气泡顶部的署名行：圆角方块 AI 标识加模型名。

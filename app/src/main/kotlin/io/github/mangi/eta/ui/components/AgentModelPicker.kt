@@ -244,7 +244,7 @@ private fun ModelSheetContent(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(horizontal = EtaPreferenceDefaults.SidePadding)
-                        .padding(top = 0.dp, bottom = 2.dp),
+                        .padding(top = 0.dp, bottom = 4.dp),
                     insideMargin = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
                 ) {
                     ReasoningSlidingPicker(
@@ -259,7 +259,7 @@ private fun ModelSheetContent(
                 LazyRow(
                     contentPadding = PaddingValues(horizontal = 20.dp),
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    modifier = Modifier.padding(bottom = 6.dp),
+                    modifier = Modifier.padding(top = 10.dp, bottom = 4.dp),
                 ) {
                     item(key = "all") {
                         EtaChoiceChip(

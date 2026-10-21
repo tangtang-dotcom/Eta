@@ -2,6 +2,7 @@ package io.github.mangi.eta.ui
 
 import android.app.UiModeManager
 import android.content.Intent
+import android.content.res.Configuration
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.SystemBarStyle
@@ -95,6 +96,17 @@ class MainActivity : ComponentActivity() {
             }
             contentReady = true
         }
+    }
+
+    /**
+     * uiMode 已被 configChanges 接管，白天/夜间切换不再重建 Activity，
+     * 这里只需把系统栏图标配色刷新到新的明暗状态。
+     */
+    override fun onConfigurationChanged(newConfig: Configuration) {
+        super.onConfigurationChanged(newConfig)
+        val dark = newConfig.uiMode and Configuration.UI_MODE_NIGHT_MASK ==
+            Configuration.UI_MODE_NIGHT_YES
+        updateSystemBars(dark)
     }
 
     override fun onNewIntent(intent: Intent) {

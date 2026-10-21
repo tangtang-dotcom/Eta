@@ -68,8 +68,6 @@ import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.overlay.OverlayBottomSheet
 import top.yukonga.miuix.kmp.overlay.OverlayListPopup
 import top.yukonga.miuix.kmp.theme.MiuixTheme
-import top.yukonga.miuix.kmp.basic.CardDefaults
-import top.yukonga.miuix.kmp.squircle.squircleBorder
 
 /**
  * 模型不多时用输入栏上方的轻量弹窗一次列完；模型较多时弹窗既放不下也不好找，
@@ -228,119 +226,110 @@ private fun ModelSheetContent(
     // 面板高度固定，不随搜索结果伸缩；键盘弹出时由面板的约束自然压缩列表区域。
     val sheetHeight = with(density) { LocalWindowInfo.current.containerSize.height.toDp() } * 0.68f
 
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(sheetHeight)
-            .navigationBarsPadding(),
-    ) {
-        if (reasoningEffort != null &&
-            availableReasoningEfforts.size > 1 &&
-            onReasoningEffortChange != null
-        ) {
-            EtaCard(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 12.dp)
-                    .padding(top = 8.dp, bottom = 4.dp)
-                    .squircleBorder(
-                        width = 0.5.dp,
-                        color = MiuixTheme.colorScheme.outline.copy(alpha = 0.4f),
-                        cornerRadius = EtaCardDefaults.CornerRadius,
-                    ),
-                insideMargin = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
-                colors = CardDefaults.defaultColors(color = MiuixTheme.colorScheme.surfaceContainerHigh),
-            ) {
-                ReasoningSlidingPicker(
-                    effort = reasoningEffort,
-                    options = availableReasoningEfforts,
-                    onEffortChange = onReasoningEffortChange,
-                    modifier = Modifier.fillMaxWidth(),
-                )
-            }
-        }
-        InputField(
-            query = query,
-            onQueryChange = { query = it },
-            onSearch = {},
-            expanded = false,
-            onExpandedChange = {},
-            label = stringResource(R.string.ui_search_model_df5586),
+    EtaPreferenceTheme {
+        Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 20.dp)
-                .padding(top = 4.dp, bottom = 8.dp),
-        )
-        if (state.providerGroups.size > 1) {
-            LazyRow(
-                contentPadding = PaddingValues(horizontal = 20.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                modifier = Modifier.padding(bottom = 6.dp),
-            ) {
-                item(key = "all") {
-                    EtaChoiceChip(
-                        text = stringResource(R.string.model_picker_filter_all),
-                        selected = providerFilter == null,
-                        onClick = { providerFilter = null },
-                    )
-                }
-                items(state.providerGroups, key = { it.providerId }) { group ->
-                    EtaChoiceChip(
-                        text = group.providerName,
-                        selected = providerFilter == group.providerId,
-                        onClick = { providerFilter = group.providerId },
-                    )
-                }
-            }
-        }
-        LazyColumn(
-            state = listState,
-            contentPadding = PaddingValues(top = 2.dp, bottom = 12.dp),
-            verticalArrangement = Arrangement.spacedBy(2.dp),
-            modifier = Modifier
-                .weight(1f)
-                .fillMaxWidth(),
+                .height(sheetHeight)
+                .background(MiuixTheme.colorScheme.background)
+                .navigationBarsPadding(),
         ) {
-            if (groups.isEmpty()) {
-                item(key = "empty") {
-                    Text(
-                        text = stringResource(R.string.page_no_matching_model_found_ae7e96),
-                        style = MiuixTheme.textStyles.body2,
-                        color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-                        textAlign = TextAlign.Center,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 20.dp, vertical = 48.dp),
+            if (reasoningEffort != null &&
+                availableReasoningEfforts.size > 1 &&
+                onReasoningEffortChange != null
+            ) {
+                EtaCard(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = EtaPreferenceDefaults.SidePadding)
+                        .padding(top = 8.dp, bottom = 4.dp),
+                    insideMargin = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
+                ) {
+                    ReasoningSlidingPicker(
+                        effort = reasoningEffort,
+                        options = availableReasoningEfforts,
+                        onEffortChange = onReasoningEffortChange,
+                        modifier = Modifier.fillMaxWidth(),
                     )
                 }
             }
-            items(groups, key = { it.providerId }, contentType = { "group" }) { group ->
-                Column(modifier = Modifier.fillMaxWidth()) {
-                    if (showGroupTitles) {
-                        ModelProviderLabel(group.providerName, horizontalPadding = 24.dp)
+            InputField(
+                query = query,
+                onQueryChange = { query = it },
+                onSearch = {},
+                expanded = false,
+                onExpandedChange = {},
+                label = stringResource(R.string.ui_search_model_df5586),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 20.dp)
+                    .padding(top = 4.dp, bottom = 8.dp),
+            )
+            if (state.providerGroups.size > 1) {
+                LazyRow(
+                    contentPadding = PaddingValues(horizontal = 20.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier.padding(bottom = 6.dp),
+                ) {
+                    item(key = "all") {
+                        EtaChoiceChip(
+                            text = stringResource(R.string.model_picker_filter_all),
+                            selected = providerFilter == null,
+                            onClick = { providerFilter = null },
+                        )
                     }
-                    // 与设置页一致：一张卡片容纳整组，行间用 0.33dp 分割线。
-                    EtaCard(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 12.dp)
-                            .squircleBorder(
-                                width = 0.5.dp,
-                                color = MiuixTheme.colorScheme.outline.copy(alpha = 0.4f),
-                                cornerRadius = EtaCardDefaults.CornerRadius,
-                            ),
-                        insideMargin = PaddingValues(0.dp),
-                        colors = CardDefaults.defaultColors(color = MiuixTheme.colorScheme.surfaceContainerHigh),
-                    ) {
-                        Column(modifier = Modifier.fillMaxWidth()) {
-                            group.models.forEachIndexed { index, model ->
-                                ModelPickerRow(
-                                    model = model,
-                                    selected = model.id == selectedId,
-                                    onClick = { select(model.id) },
-                                )
-                                if (index != group.models.lastIndex) {
-                                    EtaPreferenceDivider(hasLeading = false)
+                    items(state.providerGroups, key = { it.providerId }) { group ->
+                        EtaChoiceChip(
+                            text = group.providerName,
+                            selected = providerFilter == group.providerId,
+                            onClick = { providerFilter = group.providerId },
+                        )
+                    }
+                }
+            }
+            LazyColumn(
+                state = listState,
+                contentPadding = PaddingValues(top = 2.dp, bottom = 12.dp),
+                verticalArrangement = Arrangement.spacedBy(2.dp),
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxWidth(),
+            ) {
+                if (groups.isEmpty()) {
+                    item(key = "empty") {
+                        Text(
+                            text = stringResource(R.string.page_no_matching_model_found_ae7e96),
+                            style = MiuixTheme.textStyles.body2,
+                            color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                            textAlign = TextAlign.Center,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 20.dp, vertical = 48.dp),
+                        )
+                    }
+                }
+                items(groups, key = { it.providerId }, contentType = { "group" }) { group ->
+                    Column(modifier = Modifier.fillMaxWidth()) {
+                        if (showGroupTitles) {
+                            ModelProviderLabel(group.providerName, horizontalPadding = 24.dp)
+                        }
+                        // 与设置页一致：一张卡片容纳整组，行间用 0.33dp 分割线。
+                        EtaCard(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = EtaPreferenceDefaults.SidePadding),
+                            insideMargin = PaddingValues(0.dp),
+                        ) {
+                            Column(modifier = Modifier.fillMaxWidth()) {
+                                group.models.forEachIndexed { index, model ->
+                                    ModelPickerRow(
+                                        model = model,
+                                        selected = model.id == selectedId,
+                                        onClick = { select(model.id) },
+                                    )
+                                    if (index != group.models.lastIndex) {
+                                        EtaPreferenceDivider(hasLeading = false)
+                                    }
                                 }
                             }
                         }

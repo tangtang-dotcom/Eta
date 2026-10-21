@@ -195,9 +195,9 @@ internal fun ReasoningSlidingPicker(
 }
 
 private object ReasoningSliderStyle {
-    val TrackHeight = 14.dp
-    val KnobRadius = 12.dp
-    val Height = 52.dp
+    val TrackHeight = 11.dp
+    val KnobRadius = 11.dp
+    val Height = 46.dp
 }
 
 /** 滑块中心可移动区间：knob/2 到 width - knob/2，两端不会越界。 */

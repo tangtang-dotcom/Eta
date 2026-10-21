@@ -11,10 +11,12 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -325,12 +327,30 @@ fun AgentAppRoot(
                 agentState.homeState.roleplay?.let { pushRoute(AppRoute.CharacterDetail(it.characterId)) }
             },
         ) { padding ->
+            val homeRoute = route is AppRoute.Home
+            val layoutDirection = LocalLayoutDirection.current
+            // 首页不给顶部留白：消息要能滚到状态栏和顶栏下面，顶栏的磨砂才有内容可采样。
+            val contentPadding = if (homeRoute) {
+                PaddingValues(
+                    start = padding.calculateStartPadding(layoutDirection),
+                    top = 0.dp,
+                    end = padding.calculateEndPadding(layoutDirection),
+                    bottom = padding.calculateBottomPadding(),
+                )
+            } else {
+                padding
+            }
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(padding)
+                    .padding(contentPadding),
             ) {
-                content()
+                CompositionLocalProvider(
+                    LocalChatTopOverlayInset provides
+                        if (homeRoute) padding.calculateTopPadding() else 0.dp,
+                ) {
+                    content()
+                }
             }
         }
     }

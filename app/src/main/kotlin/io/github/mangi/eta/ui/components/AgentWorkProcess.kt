@@ -54,6 +54,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
@@ -321,9 +322,10 @@ private fun WorkStep(
 }
 
 /**
- * 工作步骤子气泡：灰色圆角卡片，失败步骤另加一层错误色描边以示区分。
+ * 工作步骤子气泡：灰色圆角卡片，与白色回答气泡形成反差；失败步骤另加一层错误色描边。
  *
- * 与白色回答气泡对比明显，深色主题下 surfaceContainer 也比 surface 亮一档。
+ * 灰色由 surface 与 onSurface 按固定比例混合，不取 surfaceContainer——后者会被莫奈
+ * 配色染上紫蓝色，在白气泡里看不再是“灰”。
  */
 @Composable
 private fun WorkQuoteCard(
@@ -332,12 +334,17 @@ private fun WorkQuoteCard(
 ) {
     val corner = 12.dp
     val shape = RoundedCornerShape(corner)
+    val cardFill = lerp(
+        MiuixTheme.colorScheme.surface,
+        MiuixTheme.colorScheme.onSurface,
+        0.06f,
+    )
     Box(
         modifier = Modifier
             .fillMaxWidth()
             .padding(vertical = 3.dp)
             .clip(shape)
-            .background(MiuixTheme.colorScheme.surfaceContainer)
+            .background(cardFill)
             .then(
                 if (tone == WorkNodeTone.Failed) {
                     Modifier.border(1.dp, StatusError.copy(alpha = 0.45f), shape)

@@ -755,10 +755,12 @@ private fun AgentMessageBlock(
         if (showBubble && message.renderMarkdown) {
             AssistantReplyHeader(model = model)
         }
-        // 浅色主题下回答气泡固定纯白，避免莫奈把 surface 染成灰蓝后与页面背景糊在一起；
-        // 深色主题仍取 surface，纯白在夜间过于刺眼。
-        val bubbleFill = if (MiuixTheme.colorScheme.background.luminance() < 0.5f) {
-            MiuixTheme.colorScheme.surface
+        // 浅色主题固定纯白，避免莫奈把 surface 染成灰蓝后与页面背景糊在一起；
+        // 深色主题的 surface 与 background 常常同色，改用 background 掺 8% onBackground，
+        // 在纯黑与深灰底上都能看出一层卡片。
+        val darkBubble = MiuixTheme.colorScheme.background.luminance() < 0.5f
+        val bubbleFill = if (darkBubble) {
+            lerp(MiuixTheme.colorScheme.background, MiuixTheme.colorScheme.onBackground, 0.08f)
         } else {
             Color.White
         }
@@ -913,11 +915,13 @@ private fun AssistantWorkBubble(
     modifier: Modifier = Modifier,
 ) {
     // 整组工作过程共用一个灰色圆角框：收起时是一行摘要，展开后是步骤列表，外框不变。
-    val cardFill = lerp(
-        MiuixTheme.colorScheme.surface,
-        MiuixTheme.colorScheme.onSurface,
-        0.06f,
-    )
+    // 深色下比气泡再亮一档，保证外框、工作过程框和页面底三者互相分得开。
+    val darkWork = MiuixTheme.colorScheme.background.luminance() < 0.5f
+    val cardFill = if (darkWork) {
+        lerp(MiuixTheme.colorScheme.background, MiuixTheme.colorScheme.onBackground, 0.16f)
+    } else {
+        lerp(MiuixTheme.colorScheme.surface, MiuixTheme.colorScheme.onSurface, 0.06f)
+    }
     Column(
         modifier = modifier
             .fillMaxWidth()

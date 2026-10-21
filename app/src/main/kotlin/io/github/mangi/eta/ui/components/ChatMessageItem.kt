@@ -489,6 +489,7 @@ private fun UserMessageBubble(
                 }
             }
         }
+        }
     }
     if (confirmRegenerate) {
         EtaWindowDialog(
@@ -534,7 +535,10 @@ private fun UserMessageActionRow(
     ) {
         Row(
             verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier.padding(top = 2.dp),
+            horizontalArrangement = Arrangement.End,
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(top = 2.dp),
         ) {
             AnswerActionButton(
                 icon = if (copied) Icons.Rounded.Check else Icons.Rounded.ContentCopy,

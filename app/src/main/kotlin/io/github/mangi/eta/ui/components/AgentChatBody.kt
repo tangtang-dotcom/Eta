@@ -92,6 +92,7 @@ import io.github.mangi.eta.ui.model.PendingFileReferenceUi
 import io.github.mangi.eta.ui.model.PendingImageUi
 import io.github.mangi.eta.ui.model.ThinkingMessageUi
 import io.github.mangi.eta.ui.model.ToolActivityMessageUi
+import io.github.mangi.eta.ui.model.ToolActivityStatusUi
 import io.github.mangi.eta.ui.model.ToolSummaryMessageUi
 import io.github.mangi.eta.ui.model.UserMessageUi
 import io.github.mangi.eta.ui.model.latestContextUsage
@@ -450,7 +451,12 @@ internal fun AgentConversationMessages(
     }
     SideEffect { previousTimelineEntries[0] = timelineEntries }
     val activeWorkProcessKey = if (isStreaming) {
-        (timelineEntries.lastOrNull() as? AgentTimelineEntry.WorkProcess)?.key
+        when (val last = timelineEntries.lastOrNull()) {
+            is AgentTimelineEntry.WorkProcess -> last.key
+            // 正文还没开始时，工作过程处于自动展开态；正文一开始就让位给回答。
+            is AgentTimelineEntry.Turn -> last.key.takeIf { last.answer.content.isBlank() }
+            else -> null
+        }
     } else {
         null
     }
@@ -992,7 +998,25 @@ private fun List<AgentTimelineEntry>.mergeWorkIntoAnswers(): List<AgentTimelineE
             }
         }
     }
-    pending?.let { add(it) }
+    // 生成刚开始时还没有正文，但气泡、头像和模型名要立刻出现，
+    // 因此末尾的工作过程同样合成一条 Turn，answer 用空内容的占位消息。
+    pending?.let { work ->
+        add(
+            AgentTimelineEntry.Turn(
+                key = work.key,
+                work = work.messages,
+                answer = AgentMessageUi(
+                    id = work.key,
+                    content = "",
+                    isStreaming = work.messages.any { message ->
+                        (message is ThinkingMessageUi && message.isStreaming) ||
+                            (message is ToolActivityMessageUi &&
+                                message.status == ToolActivityStatusUi.Running)
+                    },
+                ),
+            ),
+        )
+    }
 }
 
 private fun AgentTimelineEntry.contentType(): Any = when (this) {

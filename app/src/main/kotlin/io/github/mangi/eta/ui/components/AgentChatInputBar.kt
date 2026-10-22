@@ -357,17 +357,6 @@ internal fun AgentChatInputBar(
                             Spacer(modifier = Modifier.width(2.dp))
                         }
 
-                        AgentModelPickerButton(
-                            state = modelPickerState,
-                            isStreaming = isStreaming,
-                            popupAnchorTopPx = inputContainerTopPx,
-                            popupMaxHeight = thinkingPopupMaxHeight,
-                            reasoningEffort = reasoningEffort,
-                            availableReasoningEfforts = availableReasoningEfforts,
-                            onReasoningEffortChange = onReasoningEffortChange,
-                            onModelSelected = onModelSelected,
-                        )
-
                         val showStreamingSend = isStreaming && !isCompacting && canSend
                         val submitCurrentDraft: (Boolean) -> Unit = { interrupt ->
                             if (canSend) {

@@ -3,7 +3,9 @@ package io.github.mangi.eta.ui.app
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
@@ -15,6 +17,8 @@ import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.CircleShape
@@ -27,6 +31,7 @@ import androidx.compose.material.icons.outlined.MoreHoriz
 import androidx.compose.material.icons.rounded.AddComment
 import androidx.compose.material.icons.rounded.Language
 import androidx.compose.material.icons.rounded.Stop
+import androidx.compose.material.icons.rounded.Dns
 import androidx.compose.material.icons.rounded.Terminal
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -37,6 +42,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.nestedscroll.nestedScroll
@@ -49,6 +55,8 @@ import io.github.mangi.eta.R
 import io.github.mangi.eta.data.model.TtsProvider
 import io.github.mangi.eta.data.repository.SpeechSettingsRepository
 import io.github.mangi.eta.ui.components.AdaptiveTopAppBar
+import io.github.mangi.eta.ui.components.AgentModelPickerModelSheet
+import io.github.mangi.eta.ui.components.modelOrProviderBrandLogoRes
 import io.github.mangi.eta.ui.components.CharacterAvatar
 import io.github.mangi.eta.ui.components.ConversationSidePaneScaffold
 import io.github.mangi.eta.ui.components.MiuixBackButton
@@ -59,6 +67,7 @@ import io.github.mangi.eta.ui.components.rememberTopBarBackdrop
 import io.github.mangi.eta.ui.components.topBarContainerColor
 import io.github.mangi.eta.ui.model.ConversationPaneUiState
 import io.github.mangi.eta.ui.model.ConversationSummaryUi
+import io.github.mangi.eta.ui.model.AgentModelPickerUiState
 import io.github.mangi.eta.ui.navigation.AppRoute
 import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.basic.DropdownImpl
@@ -116,6 +125,8 @@ internal fun AgentAppShell(
     onOpenPermissions: () -> Unit,
     onOpenSettings: () -> Unit,
     onOpenModelProviders: () -> Unit,
+    modelPickerState: AgentModelPickerUiState? = null,
+    onModelSelected: (String) -> Unit = {},
     modifier: Modifier = Modifier,
     homeCharacter: RoleplayChatUi? = null,
     onOpenCharacter: () -> Unit = {},
@@ -145,6 +156,8 @@ internal fun AgentAppShell(
                             scrollBehavior = scrollBehavior,
                             color = topBarColor,
                             backdrop = backdrop,
+                            modelPickerState = modelPickerState,
+                            onModelSelected = onModelSelected,
                             onBack = onBack,
                             onOpenConversationPane = onOpenConversationPane,
                             onNewConversation = onNewConversation,
@@ -201,12 +214,112 @@ internal fun AgentAppShell(
     }
 }
 
+// Aether 式首页顶栏：一行三元素——左圆钮、中间模型胶囊、右圆钮。
+@Composable
+private fun HomeTopBar(
+    backdrop: LayerBackdrop?,
+    modelPickerState: AgentModelPickerUiState?,
+    onModelSelected: (String) -> Unit,
+    navigationIcon: @Composable () -> Unit,
+    actions: @Composable RowScope.() -> Unit,
+) {
+    var showSheet by remember { mutableStateOf(false) }
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .statusBarsPadding()
+            .padding(horizontal = 16.dp, vertical = 8.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        navigationIcon()
+        ModelSelectorCapsule(
+            modelPickerState = modelPickerState,
+            onClick = {
+                if (modelPickerState?.providerGroups?.isNotEmpty() == true) {
+                    showSheet = true
+                }
+            },
+        )
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            actions()
+        }
+    }
+    modelPickerState?.let { state ->
+        if (showSheet) {
+            AgentModelPickerModelSheet(
+                state = state,
+                onDismissRequest = { showSheet = false },
+                onModelSelected = { modelId ->
+                    showSheet = false
+                    onModelSelected(modelId)
+                },
+            )
+        }
+    }
+}
+
+// 顶栏中间模型胶囊：模型品牌图标 + 名称，浅白底 + 极淡描边。
+@Composable
+private fun ModelSelectorCapsule(
+    modelPickerState: AgentModelPickerUiState?,
+    onClick: () -> Unit,
+) {
+    val selected = modelPickerState?.selectedModel
+    val label = selected?.displayName ?: stringResource(R.string.model_not_selected)
+    Row(
+        modifier = Modifier
+            .height(38.dp)
+            .clip(RoundedCornerShape(percent = 50))
+            .background(MiuixTheme.colorScheme.surface.copy(alpha = 0.88f))
+            .border(
+                width = 0.5.dp,
+                color = MiuixTheme.colorScheme.outline.copy(alpha = 0.3f),
+                shape = RoundedCornerShape(percent = 50),
+            )
+            .clickable(onClick = onClick)
+            .padding(horizontal = 14.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        val logo = modelOrProviderBrandLogoRes(selected?.modelId, selected?.providerSourceType)
+        if (selected != null && logo != null) {
+            Image(
+                painter = painterResource(logo),
+                contentDescription = null,
+                contentScale = ContentScale.Fit,
+                modifier = Modifier.size(20.dp).clip(CircleShape),
+            )
+        } else {
+            Icon(
+                imageVector = Icons.Rounded.Dns,
+                contentDescription = null,
+                modifier = Modifier.size(16.dp),
+                tint = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+            )
+        }
+        Text(
+            text = label,
+            style = MiuixTheme.textStyles.body2,
+            color = MiuixTheme.colorScheme.onSurface,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.widthIn(max = 180.dp),
+        )
+    }
+}
+
 @Composable
 private fun AgentTopBar(
     route: AppRoute?,
     scrollBehavior: ScrollBehavior,
     color: Color,
     backdrop: LayerBackdrop? = null,
+    modelPickerState: AgentModelPickerUiState? = null,
+    onModelSelected: (String) -> Unit = {},
     onBack: () -> Unit,
     onOpenConversationPane: () -> Unit,
     onNewConversation: () -> Unit,
@@ -259,10 +372,27 @@ private fun AgentTopBar(
         }
     }
 
-    // 首页聊天舞台与浏览器、终端这类整屏工具页没有可驱动折叠的滚动列表，大标题会一直展开、
-    // 白占一屏顶部；它们使用紧凑标题，其余二级内容页统一使用可折叠大标题。
-    val compactTitle = isHome || route is AppRoute.Browser || route is AppRoute.Terminal
-    if (compactTitle) {
+    // 首页顶栏改为 Aether 式一行三元素：左侧圆钮、中间模型胶囊、右侧圆钮。
+    // 其余整屏工具页仍用紧凑标题，二级内容页用可折叠大标题。
+    if (isHome) {
+        HomeTopBar(
+            backdrop = backdrop,
+            modelPickerState = modelPickerState,
+            onModelSelected = onModelSelected,
+            navigationIcon = {
+                FrostedCircle(backdrop = backdrop) {
+                    IconButton(onClick = onOpenConversationPane) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Outlined.ShortText,
+                            modifier = Modifier.size(20.dp),
+                            contentDescription = stringResource(R.string.action_conversation_history),
+                        )
+                    }
+                }
+            },
+            actions = actions,
+        )
+    } else if (route is AppRoute.Browser || route is AppRoute.Terminal) {
         SmallTopAppBar(
             title = titleForRoute(route),
             color = color,

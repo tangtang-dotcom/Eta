@@ -172,6 +172,35 @@ internal fun AgentModelPickerButton(
     }
 }
 
+// 供输入栏与顶栏胶囊共用的模型底部抽屉。
+@Composable
+internal fun AgentModelPickerModelSheet(
+    state: AgentModelPickerUiState,
+    onDismissRequest: () -> Unit,
+    onModelSelected: (String) -> Unit,
+    reasoningEffort: ReasoningEffort? = null,
+    availableReasoningEfforts: List<ReasoningEffort> = emptyList(),
+    onReasoningEffortChange: ((ReasoningEffort) -> Unit)? = null,
+) {
+    EtaPreferenceTheme {
+        OverlayBottomSheet(
+            show = true,
+            title = stringResource(R.string.model_picker_title),
+            onDismissRequest = onDismissRequest,
+            insideMargin = DpSize(0.dp, 0.dp),
+            backgroundColor = MiuixTheme.colorScheme.background,
+        ) {
+            ModelSheetContent(
+                state = state,
+                onModelSelected = onModelSelected,
+                reasoningEffort = reasoningEffort,
+                availableReasoningEfforts = availableReasoningEfforts,
+                onReasoningEffortChange = onReasoningEffortChange,
+            )
+        }
+    }
+}
+
 @Composable
 private fun ModelQuickList(
     state: AgentModelPickerUiState,

@@ -399,7 +399,6 @@ private fun UserMessageBubble(
             enableUserInput = actionsEnabled,
         ) {
             Column(
-                horizontalAlignment = Alignment.End,
                 modifier = Modifier
                     .widthIn(max = 320.dp)
                     .then(
@@ -432,7 +431,7 @@ private fun UserMessageBubble(
                         end = if (assistantOverlay) 12.dp else 16.dp,
                         top = if (assistantOverlay) 8.dp else 12.dp,
                         // 底部留白交给操作行自己控制，图标才会贴着气泡下沿。
-                        bottom = if (assistantOverlay) 8.dp else 2.dp,
+                        bottom = if (assistantOverlay) 8.dp else 12.dp,
                     ),
             ) {
                 if (message.images.isNotEmpty()) {
@@ -480,25 +479,26 @@ private fun UserMessageBubble(
                         modifier = Modifier.padding(top = 4.dp),
                     )
                 }
-                if (!assistantOverlay) {
-                    UserMessageActionRow(
-                        visible = actionsEnabled &&
-                            appearance.chatUserMessageActions &&
-                            visiblePrompt.request.isNotBlank(),
-                        copied = copied,
-                        onCopy = {
-                            @Suppress("DEPRECATION")
-                            clipboardManager.setText(AnnotatedString(message.content))
-                            haptic.performHapticFeedback(HapticFeedbackType.Confirm)
-                            copied = true
-                        },
-                        onRegenerate = { confirmRegenerate = true },
-                        onEdit = onEdit,
-                        onDelete = onDelete,
-                    )
-                }
             }
         }
+        }
+        if (!assistantOverlay) {
+            Spacer(Modifier.height(2.dp))
+            UserMessageActionRow(
+                visible = actionsEnabled &&
+                    appearance.chatUserMessageActions &&
+                    visiblePrompt.request.isNotBlank(),
+                copied = copied,
+                onCopy = {
+                    @Suppress("DEPRECATION")
+                    clipboardManager.setText(AnnotatedString(message.content))
+                    haptic.performHapticFeedback(HapticFeedbackType.Confirm)
+                    copied = true
+                },
+                onRegenerate = { confirmRegenerate = true },
+                onEdit = onEdit,
+                onDelete = onDelete,
+            )
         }
     }
     if (confirmRegenerate) {
@@ -546,8 +546,7 @@ private fun UserMessageActionRow(
         Row(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.End,
-            // 不撑满宽度，否则短消息的气泡会被操作行拉长；靠右对齐贴住气泡右下角。
-            modifier = Modifier.offset(x = 6.dp, y = 2.dp),
+            modifier = Modifier,
         ) {
             AnswerActionButton(
                 icon = if (copied) Icons.Rounded.Check else Icons.Rounded.ContentCopy,
@@ -776,7 +775,7 @@ private fun AgentMessageBlock(
                         color = bubbleFill,
                         cornerRadius = AssistantBubbleCorner,
                     )
-                    .padding(start = 14.dp, end = 14.dp, top = 12.dp, bottom = 4.dp)
+                    .padding(start = 14.dp, end = 14.dp, top = 12.dp, bottom = 12.dp)
             } else {
                 Modifier.fillMaxWidth()
             },
@@ -829,77 +828,72 @@ private fun AgentMessageBlock(
                 }
             }
 
-            // 回答显现完成后才出现操作行；淡入展开避免贴底滚动时整页突然跳动一行高度。
-            AnimatedVisibility(
-                visible = showCopyAction &&
-                    !message.isStreaming &&
-                    message.content.isNotBlank() &&
-                    revealComplete,
-                enter = fadeIn(tween(160)) + expandVertically(tween(160)),
-                exit = fadeOut(tween(120)) + shrinkVertically(tween(120)),
+        }
+
+        // 回答显现完成后才出现操作行；淡入展开避免贴底滚动时整页突然跳动一行高度。
+        AnimatedVisibility(
+            visible = showCopyAction &&
+                !message.isStreaming &&
+                message.content.isNotBlank() &&
+                revealComplete,
+            enter = fadeIn(tween(160)) + expandVertically(tween(160)),
+            exit = fadeOut(tween(120)) + shrinkVertically(tween(120)),
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    // 与工作过程标题图标共用左侧中心线。
+                    .offset(x = -AnswerActionCenterOffset)
+                    .padding(top = 0.dp),
+                verticalAlignment = Alignment.CenterVertically,
             ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .then(
-                            // 气泡内贴着左下角，无气泡时抵消按钮留白对齐工作过程图标。
-                            if (showBubble) {
-                                Modifier.offset(x = (-6).dp, y = 2.dp)
-                            } else {
-                                Modifier.offset(x = -AnswerActionCenterOffset)
-                            },
+                AnswerActionButton(
+                    icon = if (copied) Icons.Rounded.Check else Icons.Rounded.ContentCopy,
+                    contentDescription = stringResource(
+                        if (copied) R.string.copy_copied else R.string.copy_answer,
+                    ),
+                    onClick = {
+                        @Suppress("DEPRECATION")
+                        clipboardManager.setText(AnnotatedString(message.content))
+                        haptic.performHapticFeedback(HapticFeedbackType.Confirm)
+                        copied = true
+                    },
+                    tint = if (copied) MiuixTheme.colorScheme.primary else null,
+                )
+                if (allowSpeech) SpeechReadAloudButton(message.id, message.content)
+                if (showMessageActions) {
+                    if (message.characterEditable) {
+                        AnswerActionButton(
+                            icon = Icons.Rounded.Edit,
+                            contentDescription = stringResource(R.string.chat_edit_character_reply),
+                            onClick = onEdit,
+                            enabled = messageActionsEnabled,
                         )
-                        .padding(top = 0.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    AnswerActionButton(
-                        icon = if (copied) Icons.Rounded.Check else Icons.Rounded.ContentCopy,
-                        contentDescription = stringResource(
-                            if (copied) R.string.copy_copied else R.string.copy_answer,
-                        ),
-                        onClick = {
-                            @Suppress("DEPRECATION")
-                            clipboardManager.setText(AnnotatedString(message.content))
-                            haptic.performHapticFeedback(HapticFeedbackType.Confirm)
-                            copied = true
-                        },
-                        tint = if (copied) MiuixTheme.colorScheme.primary else null,
-                    )
-                    if (allowSpeech) SpeechReadAloudButton(message.id, message.content)
-                    if (showMessageActions) {
-                        if (message.characterEditable) {
-                            AnswerActionButton(
-                                icon = Icons.Rounded.Edit,
-                                contentDescription = stringResource(R.string.chat_edit_character_reply),
-                                onClick = onEdit,
-                                enabled = messageActionsEnabled,
-                            )
-                        }
-                        TooltipBox(text = stringResource(R.string.ui_regenerate_2e1905), enabled = messageActionsEnabled) {
-                            AnswerActionButton(
-                                icon = Icons.Rounded.Refresh,
-                                contentDescription = stringResource(R.string.ui_regenerate_reply_84a7d9),
-                                onClick = onRegenerate,
-                                enabled = messageActionsEnabled,
-                            )
-                        }
-                        TooltipBox(text = stringResource(R.string.ui_delete_3755f5), enabled = messageActionsEnabled) {
-                            AnswerActionButton(
-                                icon = Icons.Rounded.Delete,
-                                contentDescription = stringResource(R.string.ui_delete_this_conversation_3f351b),
-                                onClick = onDelete,
-                                enabled = messageActionsEnabled,
-                            )
-                        }
-                        if (message.characterEditable && message.candidateCount > 1) {
-                            Spacer(Modifier.weight(1f))
-                            CandidateSwitcher(
-                                selected = message.selectedCandidate,
-                                count = message.candidateCount,
-                                enabled = messageActionsEnabled,
-                                onSelect = onSelectCandidate,
-                            )
-                        }
+                    }
+                    TooltipBox(text = stringResource(R.string.ui_regenerate_2e1905), enabled = messageActionsEnabled) {
+                        AnswerActionButton(
+                            icon = Icons.Rounded.Refresh,
+                            contentDescription = stringResource(R.string.ui_regenerate_reply_84a7d9),
+                            onClick = onRegenerate,
+                            enabled = messageActionsEnabled,
+                        )
+                    }
+                    TooltipBox(text = stringResource(R.string.ui_delete_3755f5), enabled = messageActionsEnabled) {
+                        AnswerActionButton(
+                            icon = Icons.Rounded.Delete,
+                            contentDescription = stringResource(R.string.ui_delete_this_conversation_3f351b),
+                            onClick = onDelete,
+                            enabled = messageActionsEnabled,
+                        )
+                    }
+                    if (message.characterEditable && message.candidateCount > 1) {
+                        Spacer(Modifier.weight(1f))
+                        CandidateSwitcher(
+                            selected = message.selectedCandidate,
+                            count = message.candidateCount,
+                            enabled = messageActionsEnabled,
+                            onSelect = onSelectCandidate,
+                        )
                     }
                 }
             }

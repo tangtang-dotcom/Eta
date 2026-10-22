@@ -276,6 +276,7 @@ internal fun ChatMessageItem(
                     renderMarkdown = false,
                 ),
                 forceBubble = true,
+                model = assistantModel,
                 assistantOverlay = false,
                 retainedStreamingState = null,
                 showCopyAction = showCopyAction,
@@ -763,7 +764,7 @@ private fun AgentMessageBlock(
         if (character != null) {
             CharacterReplyHeader(character = character, isGreeting = isGreeting)
         }
-        if (showBubble && message.renderMarkdown) {
+        if (showBubble) {
             AssistantReplyHeader(model = model)
         }
         // 浅色主题固定纯白，避免莫奈把 surface 染成灰蓝后与页面背景糊在一起；

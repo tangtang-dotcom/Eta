@@ -545,9 +545,9 @@ private fun UserMessageActionRow(
         Row(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.End,
-            // 贴着气泡右下角：横向越过内边距，纵向下压一点。
+            // 不撑满宽度，否则短消息的气泡会被操作行拉长；靠右对齐贴住气泡右下角。
             modifier = Modifier
-                .fillMaxWidth()
+                .align(Alignment.End)
                 .offset(x = 6.dp, y = 2.dp),
         ) {
             AnswerActionButton(

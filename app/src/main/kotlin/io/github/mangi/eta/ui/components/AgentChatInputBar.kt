@@ -3,7 +3,7 @@ package io.github.mangi.eta.ui.components
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
-import androidx.compose.animation.animateDpAsState
+import androidx.compose.animation.animateFloatAsState
 import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.expandHorizontally
@@ -68,6 +68,7 @@ import androidx.compose.ui.graphics.shadow.Shadow
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInWindow
 import androidx.compose.ui.platform.LocalDensity
@@ -155,23 +156,24 @@ internal fun AgentChatInputBar(
     var inputContainerTopPx by remember { mutableIntStateOf(0) }
     // Aether 输入器随焦点与内容变化：圆角 26↔28，外缘留白 30↔18↔14。
     var inputFocused by remember { mutableStateOf(false) }
-    var measuredTextLines by remember { mutableIntStateOf(1) }
+    var textFieldHeightPx by remember { mutableIntStateOf(0) }
     val hasActionTray = pendingImages.isNotEmpty() ||
         pendingFileReferences.isNotEmpty() ||
         queuedMessages.isNotEmpty() ||
         isEditingMessage
-    val isMultilineComposer = measuredTextLines > 1
-    val composerCorner by animateDpAsState(
-        targetValue = if (inputFocused) 28.dp else 26.dp,
+    // 单行正文约 30dp 以内，两行起超过 36dp；直接量文本域高度，避免依赖 onTextLayout 的 API 差异。
+    val isMultilineComposer = with(density) { textFieldHeightPx.toDp() } > 36.dp
+    val composerCorner by animateFloatAsState(
+        targetValue = if (inputFocused) 28f else 26f,
         animationSpec = tween(260, easing = ComposerMotionEasing),
         label = "composer_corner_radius",
     )
-    val composerShape = RoundedCornerShape(composerCorner)
-    val composerHorizontalPadding by animateDpAsState(
+    val composerShape = RoundedCornerShape(composerCorner.dp)
+    val composerHorizontalPaddingDp by animateFloatAsState(
         targetValue = when {
-            hasActionTray && inputFocused -> 14.dp
-            hasActionTray || isMultilineComposer -> 18.dp
-            else -> 30.dp
+            hasActionTray && inputFocused -> 14f
+            hasActionTray || isMultilineComposer -> 18f
+            else -> 30f
         },
         animationSpec = tween(260, easing = ComposerMotionEasing),
         label = "composer_horizontal_padding",
@@ -199,7 +201,7 @@ internal fun AgentChatInputBar(
     Column(
         modifier = modifier
             .fillMaxWidth()
-            .padding(horizontal = composerHorizontalPadding),
+            .padding(horizontal = composerHorizontalPaddingDp.dp),
     ) {
         AnimatedVisibility(
             visible = queuedMessages.isNotEmpty(),
@@ -332,7 +334,8 @@ internal fun AgentChatInputBar(
                         modifier = Modifier
                             .fillMaxWidth()
                             .focusRequester(focusRequester)
-                            .onFocusEvent { state -> inputFocused = state.isFocused },
+                            .onFocusEvent { focusState -> inputFocused = focusState.isFocused }
+                            .onSizeChanged { size -> textFieldHeightPx = size.height },
                         keyboardOptions = KeyboardOptions(imeAction = ImeAction.Default),
                         textStyle = inputTextStyle.copy(color = MiuixTheme.colorScheme.onSurface),
                         cursorBrush = SolidColor(MiuixTheme.colorScheme.primary),
@@ -340,10 +343,6 @@ internal fun AgentChatInputBar(
                             minHeightInLines = 1,
                             maxHeightInLines = 6,
                         ),
-                        onTextLayout = { result ->
-                            val lines = result.lineCount.coerceIn(1, 6)
-                            if (lines != measuredTextLines) measuredTextLines = lines
-                        },
                     )
                 }
 

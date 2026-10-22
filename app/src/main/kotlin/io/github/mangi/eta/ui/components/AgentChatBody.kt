@@ -1,7 +1,7 @@
 package io.github.mangi.eta.ui.components
 
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.animateDpAsState
+import androidx.compose.animation.animateFloatAsState
 import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.spring
@@ -1187,8 +1187,8 @@ private fun AgentChatBottomBar(
         // 键盘弹出时输入器贴近键盘（12dp），收起时回到 18dp 悬浮高度。
         val scrimSurface = MiuixTheme.colorScheme.surface
         val barImeVisible = WindowInsets.ime.getBottom(barDensity) > 0
-        val bottomLift by animateDpAsState(
-            targetValue = if (barImeVisible) 12.dp else 18.dp,
+        val bottomLiftDp by animateFloatAsState(
+            targetValue = if (barImeVisible) 12f else 18f,
             animationSpec = tween(260, easing = ComposerMotionEasing),
             label = "composer_bottom_lift",
         )
@@ -1205,7 +1205,7 @@ private fun AgentChatBottomBar(
                     ),
                 )
                 .navigationBarsPadding()
-                .padding(bottom = bottomLift),
+                .padding(bottom = bottomLiftDp.dp),
         ) {
             AgentChatInputBar(
                 input = input,

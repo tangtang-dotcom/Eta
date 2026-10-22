@@ -138,6 +138,7 @@ internal fun AgentAppShell(
                         // 聊天页正文密集，透出太多会显得脏；设置页维持原本的轻盈感。
                         progressiveAlpha = if (isChat) ChatTopBarProgressiveAlpha else 0.3f,
                         surfaceAlpha = if (isChat) ChatTopBarSurfaceAlpha else 0.8f,
+                        progressiveRadius = if (isChat) ChatTopBarProgressiveRadius else 10f,
                     ) {
                         AgentTopBar(
                             route = currentRoute,
@@ -319,8 +320,9 @@ private fun FrostedCircle(
 }
 
 /** 聊天页顶栏的遮蔽强度：比设置页更强，避免正文透出后看起来发脏。 */
-private const val ChatTopBarProgressiveAlpha = 0.55f
-private const val ChatTopBarSurfaceAlpha = 0.88f
+private const val ChatTopBarProgressiveAlpha = 0.72f
+private const val ChatTopBarSurfaceAlpha = 0.9f
+private const val ChatTopBarProgressiveRadius = 14f
 
 private val TopBarMenuIconSize = 20.dp
 

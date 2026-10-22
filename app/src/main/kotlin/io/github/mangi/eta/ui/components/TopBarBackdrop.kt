@@ -33,9 +33,10 @@ internal fun rememberTopBarBackdrop(): LayerBackdrop? {
 @Composable
 internal fun TopBarBackdrop(
     backdrop: LayerBackdrop?,
-    // 聊天页文字更密，需要的遮蔽比设置页强一些，因此允许调用方覆盖透明度。
+    // 聊天页文字更密，需要的遮蔽比设置页强一些，因此允许调用方覆盖透明度与模糊半径。
     progressiveAlpha: Float = ProgressiveTopBarSurfaceAlpha,
     surfaceAlpha: Float = TopBarSurfaceAlpha,
+    progressiveRadius: Float = ProgressiveTopBarBlurRadius,
     content: @Composable () -> Unit,
 ) {
     val surfaceColor = MiuixTheme.colorScheme.surface
@@ -46,7 +47,7 @@ internal fun TopBarBackdrop(
                 backdrop = backdrop,
                 shape = RectangleShape,
                 gradient = ProgressiveBlur.Top.copy(curve = 2.2f),
-                blurRadius = ProgressiveTopBarBlurRadius,
+                blurRadius = progressiveRadius,
                 colors = BlurColors(
                     blendColors = listOf(
                         BlendColorEntry(surfaceColor.copy(alpha = progressiveAlpha)),

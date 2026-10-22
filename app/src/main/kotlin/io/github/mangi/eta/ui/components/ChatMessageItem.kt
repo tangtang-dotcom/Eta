@@ -324,6 +324,8 @@ private fun UserMessageBubble(
     val haptic = LocalHapticFeedback.current
     var copied by remember(message.id) { mutableStateOf(false) }
     var confirmRegenerate by remember(message.id) { mutableStateOf(false) }
+    // 操作行默认收起，单击气泡再显示，点一下又收起来。
+    var actionsVisible by rememberSaveable(message.id) { mutableStateOf(false) }
     val appearance = LocalAppearanceSettings.current
     LaunchedEffect(copied) {
         if (copied) {
@@ -426,6 +428,9 @@ private fun UserMessageBubble(
                             Modifier
                         }
                     )
+                    .clickable(enabled = actionsEnabled) {
+                        actionsVisible = !actionsVisible
+                    }
                     .padding(
                         start = if (assistantOverlay) 12.dp else 16.dp,
                         end = if (assistantOverlay) 12.dp else 16.dp,
@@ -484,7 +489,8 @@ private fun UserMessageBubble(
         if (!assistantOverlay) {
             Spacer(Modifier.height(2.dp))
             UserMessageActionRow(
-                visible = actionsEnabled &&
+                visible = actionsVisible &&
+                    actionsEnabled &&
                     appearance.chatUserMessageActions &&
                     visiblePrompt.request.isNotBlank(),
                 copied = copied,
@@ -743,6 +749,8 @@ private fun AgentMessageBlock(
     val isGreeting = character != null && message.id.startsWith(GreetingMessagePrefix)
     // 回答气泡：非悬浮窗的正常回答包成描边卡片，并在顶部署名模型。
     val showBubble = !assistantOverlay && (forceBubble || message.renderMarkdown)
+    // 回答气泡同样支持单击切换操作行；无气泡（悬浮窗）时保持原来的常显规则。
+    var replyActionsVisible by rememberSaveable(message.id) { mutableStateOf(false) }
 
     Column(
         modifier = modifier
@@ -775,6 +783,9 @@ private fun AgentMessageBlock(
                         color = bubbleFill,
                         cornerRadius = AssistantBubbleCorner,
                     )
+                    .clickable(enabled = messageActionsEnabled) {
+                        replyActionsVisible = !replyActionsVisible
+                    }
                     .padding(start = 14.dp, end = 14.dp, top = 12.dp, bottom = 12.dp)
             } else {
                 Modifier.fillMaxWidth()
@@ -835,7 +846,8 @@ private fun AgentMessageBlock(
             visible = showCopyAction &&
                 !message.isStreaming &&
                 message.content.isNotBlank() &&
-                revealComplete,
+                revealComplete &&
+                (!showBubble || replyActionsVisible),
             enter = fadeIn(tween(160)) + expandVertically(tween(160)),
             exit = fadeOut(tween(120)) + shrinkVertically(tween(120)),
         ) {

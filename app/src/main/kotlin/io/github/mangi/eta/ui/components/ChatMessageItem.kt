@@ -399,6 +399,7 @@ private fun UserMessageBubble(
             enableUserInput = actionsEnabled,
         ) {
             Column(
+                horizontalAlignment = Alignment.End,
                 modifier = Modifier
                     .widthIn(max = 320.dp)
                     .then(
@@ -546,9 +547,7 @@ private fun UserMessageActionRow(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.End,
             // 不撑满宽度，否则短消息的气泡会被操作行拉长；靠右对齐贴住气泡右下角。
-            modifier = Modifier
-                .align(Alignment.End)
-                .offset(x = 6.dp, y = 2.dp),
+            modifier = Modifier.offset(x = 6.dp, y = 2.dp),
         ) {
             AnswerActionButton(
                 icon = if (copied) Icons.Rounded.Check else Icons.Rounded.ContentCopy,

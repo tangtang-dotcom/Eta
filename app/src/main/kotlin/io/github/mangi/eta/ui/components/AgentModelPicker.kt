@@ -172,7 +172,7 @@ internal fun AgentModelPickerButton(
     }
 }
 
-// 供输入栏与顶栏胶囊共用的模型底部抽屉。
+// 供输入栏与顶栏胶囊共用的模型底部抽屉
 @Composable
 internal fun AgentModelPickerModelSheet(
     state: AgentModelPickerUiState,

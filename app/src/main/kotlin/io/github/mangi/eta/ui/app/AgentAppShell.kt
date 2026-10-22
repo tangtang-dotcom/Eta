@@ -1,11 +1,20 @@
 package io.github.mangi.eta.ui.app
 
 import androidx.compose.foundation.clickable
+import io.github.mangi.eta.ui.model.AgentModelPickerUiState
+import io.github.mangi.eta.ui.components.modelOrProviderBrandLogoRes
+import io.github.mangi.eta.ui.components.AgentModelPickerModelSheet
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.material.icons.rounded.Dns
+import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
@@ -13,13 +22,10 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.statusBarsPadding
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.CircleShape
@@ -32,7 +38,6 @@ import androidx.compose.material.icons.outlined.MoreHoriz
 import androidx.compose.material.icons.rounded.AddComment
 import androidx.compose.material.icons.rounded.Language
 import androidx.compose.material.icons.rounded.Stop
-import androidx.compose.material.icons.rounded.Dns
 import androidx.compose.material.icons.rounded.Terminal
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -43,7 +48,6 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.nestedscroll.nestedScroll
@@ -56,8 +60,6 @@ import io.github.mangi.eta.R
 import io.github.mangi.eta.data.model.TtsProvider
 import io.github.mangi.eta.data.repository.SpeechSettingsRepository
 import io.github.mangi.eta.ui.components.AdaptiveTopAppBar
-import io.github.mangi.eta.ui.components.AgentModelPickerModelSheet
-import io.github.mangi.eta.ui.components.modelOrProviderBrandLogoRes
 import io.github.mangi.eta.ui.components.CharacterAvatar
 import io.github.mangi.eta.ui.components.ConversationSidePaneScaffold
 import io.github.mangi.eta.ui.components.MiuixBackButton
@@ -68,7 +70,6 @@ import io.github.mangi.eta.ui.components.rememberTopBarBackdrop
 import io.github.mangi.eta.ui.components.topBarContainerColor
 import io.github.mangi.eta.ui.model.ConversationPaneUiState
 import io.github.mangi.eta.ui.model.ConversationSummaryUi
-import io.github.mangi.eta.ui.model.AgentModelPickerUiState
 import io.github.mangi.eta.ui.navigation.AppRoute
 import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.basic.DropdownImpl
@@ -215,39 +216,47 @@ internal fun AgentAppShell(
     }
 }
 
-// Aether 式首页顶栏：一行三元素——左圆钮、中间模型胶囊、右圆钮。
+// Aether 式首页顶栏：左圆钮38 + 中间模型胶囊(weight 1f) + 右圆钮38
 @Composable
 private fun HomeTopBar(
     backdrop: LayerBackdrop?,
     modelPickerState: AgentModelPickerUiState?,
     onModelSelected: (String) -> Unit,
-    navigationIcon: @Composable () -> Unit,
+    onOpenConversationPane: () -> Unit,
     actions: @Composable RowScope.() -> Unit,
 ) {
     var showSheet by remember { mutableStateOf(false) }
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .statusBarsPadding()
-            .padding(horizontal = 16.dp, vertical = 8.dp),
-        horizontalArrangement = Arrangement.SpaceBetween,
+            .padding(horizontal = 15.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        navigationIcon()
-        ModelSelectorCapsule(
-            modelPickerState = modelPickerState,
-            onClick = {
-                if (modelPickerState?.providerGroups?.isNotEmpty() == true) {
-                    showSheet = true
-                }
-            },
+        // 左圆钮 38dp
+        HeaderCircle(
+            icon = Icons.AutoMirrored.Outlined.ShortText,
+            contentDescription = stringResource(R.string.action_conversation_history),
+            onClick = onOpenConversationPane,
+            backdrop = backdrop,
         )
-        Row(
-            horizontalArrangement = Arrangement.spacedBy(10.dp),
-            verticalAlignment = Alignment.CenterVertically,
+        // 中间模型胶囊：weight 撑满，点击打开模型抽屉
+        Box(
+            modifier = Modifier
+                .weight(1f)
+                .padding(horizontal = 12.dp),
+            contentAlignment = Alignment.Center,
         ) {
-            actions()
+            ModelSelectorCapsule(
+                modelPickerState = modelPickerState,
+                onClick = {
+                    if (modelPickerState?.providerGroups?.isNotEmpty() == true) {
+                        showSheet = true
+                    }
+                },
+            )
         }
+        // 右圆钮 38dp（更多）
+        actions()
     }
     modelPickerState?.let { state ->
         if (showSheet) {
@@ -263,7 +272,7 @@ private fun HomeTopBar(
     }
 }
 
-// 顶栏中间模型胶囊：模型品牌图标 + 名称，浅白底 + 极淡描边。
+// 顶栏中间模型胶囊：品牌图 + 名称，surface 96% 底 + 极淡描边
 @Composable
 private fun ModelSelectorCapsule(
     modelPickerState: AgentModelPickerUiState?,
@@ -274,15 +283,10 @@ private fun ModelSelectorCapsule(
     Row(
         modifier = Modifier
             .height(38.dp)
-            .clip(RoundedCornerShape(percent = 50))
-            .background(MiuixTheme.colorScheme.surface.copy(alpha = 0.88f))
-            .border(
-                width = 0.5.dp,
-                color = MiuixTheme.colorScheme.outline.copy(alpha = 0.3f),
-                shape = RoundedCornerShape(percent = 50),
-            )
+            .clip(CircleShape)
+            .background(MiuixTheme.colorScheme.surface.copy(alpha = 0.96f))
             .clickable(onClick = onClick)
-            .padding(horizontal = 14.dp),
+            .padding(horizontal = 17.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
@@ -292,7 +296,7 @@ private fun ModelSelectorCapsule(
                 painter = painterResource(logo),
                 contentDescription = null,
                 contentScale = ContentScale.Fit,
-                modifier = Modifier.size(20.dp).clip(CircleShape),
+                modifier = Modifier.size(18.dp).clip(CircleShape),
             )
         } else {
             Icon(
@@ -308,7 +312,46 @@ private fun ModelSelectorCapsule(
             color = MiuixTheme.colorScheme.onSurface,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.widthIn(max = 180.dp),
+        )
+    }
+}
+
+// Aether 顶栏圆钮：38dp，surface 96% 底 + 极淡投影
+@Composable
+private fun HeaderCircle(
+    icon: ImageVector,
+    contentDescription: String?,
+    onClick: () -> Unit,
+    backdrop: LayerBackdrop?,
+) {
+    val surface = MiuixTheme.colorScheme.surface
+    val blurAvailable = backdrop != null && LocalBlurEnabled.current && isRuntimeShaderSupported()
+    Box(
+        modifier = Modifier
+            .size(38.dp)
+            .clip(CircleShape)
+            .then(
+                if (blurAvailable) {
+                    Modifier.textureBlur(
+                        backdrop = backdrop!!,
+                        shape = CircleShape,
+                        blurRadius = 20f,
+                        colors = BlurColors(
+                            blendColors = listOf(BlendColorEntry(surface.copy(alpha = 0.9f))),
+                        ),
+                    )
+                } else {
+                    Modifier.background(surface.copy(alpha = 0.96f))
+                },
+            )
+            .clickable(onClick = onClick),
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = contentDescription,
+            modifier = Modifier.size(19.dp),
+            tint = MiuixTheme.colorScheme.onSurface,
         )
     }
 }
@@ -373,24 +416,13 @@ private fun AgentTopBar(
         }
     }
 
-    // 首页顶栏改为 Aether 式一行三元素：左侧圆钮、中间模型胶囊、右侧圆钮。
-    // 其余整屏工具页仍用紧凑标题，二级内容页用可折叠大标题。
+    // 首页顶栏照 Aether 源码：左圆钮 + 中间模型胶囊(weight 1f) + 右圆钮
     if (isHome) {
         HomeTopBar(
             backdrop = backdrop,
             modelPickerState = modelPickerState,
             onModelSelected = onModelSelected,
-            navigationIcon = {
-                FrostedCircle(backdrop = backdrop) {
-                    IconButton(onClick = onOpenConversationPane) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Outlined.ShortText,
-                            modifier = Modifier.size(20.dp),
-                            contentDescription = stringResource(R.string.action_conversation_history),
-                        )
-                    }
-                }
-            },
+            onOpenConversationPane = onOpenConversationPane,
             actions = actions,
         )
     } else if (route is AppRoute.Browser || route is AppRoute.Terminal) {

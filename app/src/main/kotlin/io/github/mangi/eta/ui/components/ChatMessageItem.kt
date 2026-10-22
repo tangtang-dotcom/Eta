@@ -481,7 +481,6 @@ private fun UserMessageBubble(
                 }
             }
         }
-        }
         if (!assistantOverlay) {
             Spacer(Modifier.height(2.dp))
             UserMessageActionRow(
@@ -499,6 +498,7 @@ private fun UserMessageBubble(
                 onEdit = onEdit,
                 onDelete = onDelete,
             )
+        }
         }
     }
     if (confirmRegenerate) {

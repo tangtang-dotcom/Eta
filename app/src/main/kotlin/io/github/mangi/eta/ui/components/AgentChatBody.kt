@@ -1,6 +1,8 @@
 package io.github.mangi.eta.ui.components
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.animateDpAsState
+import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
@@ -144,17 +146,13 @@ internal fun AgentChatBody(
     isCompacting: Boolean,
     input: String,
     isStreaming: Boolean,
-    reasoningEffort: ReasoningEffort,
-    availableReasoningEfforts: List<ReasoningEffort>,
     pendingImages: List<PendingImageUi>,
     pendingFileReferences: List<PendingFileReferenceUi>,
     queuedMessages: List<QueuedMessageUi> = emptyList(),
     inputSyncVersion: Int = 0,
     messageEdit: MessageEditUiState?,
-    onReasoningEffortChange: (ReasoningEffort) -> Unit,
     onCompactContext: () -> Unit,
     canCompactContext: Boolean,
-    onModelSelected: (String) -> Unit,
     onSubmit: (String) -> Unit,
     onInterruptAndSubmit: (String) -> Unit = onSubmit,
     onSteerQueuedMessage: (String) -> Unit = {},
@@ -247,8 +245,6 @@ internal fun AgentChatBody(
             isCompacting = isCompacting,
             contextUsage = contextUsage,
             isStreaming = isStreaming,
-            reasoningEffort = reasoningEffort,
-            availableReasoningEfforts = availableReasoningEfforts,
             pendingImages = pendingImages,
             pendingFileReferences = pendingFileReferences,
             queuedMessages = queuedMessages,
@@ -275,10 +271,8 @@ internal fun AgentChatBody(
             },
             onRecallQueuedMessage = onRecallQueuedMessage,
             onRemoveQueuedMessage = onRemoveQueuedMessage,
-            onReasoningEffortChange = onReasoningEffortChange,
             onCompactContext = onCompactContext,
             canCompactContext = canCompactContext,
-            onModelSelected = onModelSelected,
             onStop = onStop,
             onAttachImage = onAttachImage,
             onRemoveImage = onRemoveImage,
@@ -316,8 +310,6 @@ private fun AgentChatScaffold(
     isCompacting: Boolean,
     contextUsage: AgentContextUsageUi,
     isStreaming: Boolean,
-    reasoningEffort: ReasoningEffort,
-    availableReasoningEfforts: List<ReasoningEffort>,
     pendingImages: List<PendingImageUi>,
     pendingFileReferences: List<PendingFileReferenceUi>,
     queuedMessages: List<QueuedMessageUi>,
@@ -331,10 +323,8 @@ private fun AgentChatScaffold(
     onSteerQueuedMessage: (String) -> Unit,
     onRecallQueuedMessage: (String, String) -> Unit,
     onRemoveQueuedMessage: (String) -> Unit,
-    onReasoningEffortChange: (ReasoningEffort) -> Unit,
     onCompactContext: () -> Unit,
     canCompactContext: Boolean,
-    onModelSelected: (String) -> Unit,
     onStop: () -> Unit,
     onAttachImage: (String) -> Unit,
     onRemoveImage: (String) -> Unit,
@@ -366,8 +356,17 @@ private fun AgentChatScaffold(
         drawContent()
     }
 
+    val stageBrush = Brush.verticalGradient(
+        listOf(
+            MiuixTheme.colorScheme.surface,
+            MiuixTheme.colorScheme.background,
+            MiuixTheme.colorScheme.background,
+        ),
+    )
     Scaffold(
-        modifier = modifier.fillMaxSize(),
+        modifier = modifier
+            .fillMaxSize()
+            .background(stageBrush),
         containerColor = Color.Transparent,
         contentWindowInsets = WindowInsets(
             left = 0.dp,
@@ -379,13 +378,10 @@ private fun AgentChatScaffold(
             AgentChatBottomBar(
                 messageBackdrop = messageBackdrop.takeIf { frostEnabled },
                 input = input,
-                modelPickerState = modelPickerState,
                 isCompacting = isCompacting,
                 contextUsage = contextUsage,
                 showContextUsage = hasMessages,
                 isStreaming = isStreaming,
-                reasoningEffort = reasoningEffort,
-                availableReasoningEfforts = availableReasoningEfforts,
                 pendingImages = pendingImages,
                 pendingFileReferences = pendingFileReferences,
                 queuedMessages = queuedMessages,
@@ -396,10 +392,8 @@ private fun AgentChatScaffold(
                 onSteerQueuedMessage = onSteerQueuedMessage,
                 onRecallQueuedMessage = onRecallQueuedMessage,
                 onRemoveQueuedMessage = onRemoveQueuedMessage,
-                onReasoningEffortChange = onReasoningEffortChange,
                 onCompactContext = onCompactContext,
                 canCompactContext = canCompactContext,
-                onModelSelected = onModelSelected,
                 onStop = onStop,
                 onAttachImage = onAttachImage,
                 onRemoveImage = onRemoveImage,
@@ -1110,13 +1104,10 @@ internal fun resolveFinalResultMessageIds(
 private fun AgentChatBottomBar(
     messageBackdrop: LayerBackdrop?,
     input: String,
-    modelPickerState: AgentModelPickerUiState,
     isCompacting: Boolean,
     contextUsage: AgentContextUsageUi,
     showContextUsage: Boolean,
     isStreaming: Boolean,
-    reasoningEffort: ReasoningEffort,
-    availableReasoningEfforts: List<ReasoningEffort>,
     pendingImages: List<PendingImageUi>,
     pendingFileReferences: List<PendingFileReferenceUi>,
     queuedMessages: List<QueuedMessageUi>,
@@ -1127,10 +1118,8 @@ private fun AgentChatBottomBar(
     onSteerQueuedMessage: (String) -> Unit,
     onRecallQueuedMessage: (String, String) -> Unit,
     onRemoveQueuedMessage: (String) -> Unit,
-    onReasoningEffortChange: (ReasoningEffort) -> Unit,
     onCompactContext: () -> Unit,
     canCompactContext: Boolean,
-    onModelSelected: (String) -> Unit,
     onStop: () -> Unit,
     onAttachImage: (String) -> Unit,
     onRemoveImage: (String) -> Unit,
@@ -1140,6 +1129,7 @@ private fun AgentChatBottomBar(
     onRemoveFileReference: (String) -> Unit,
     onCancelMessageEdit: () -> Unit,
 ) {
+    val barDensity = LocalDensity.current
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -1191,25 +1181,38 @@ private fun AgentChatBottomBar(
                     ),
             )
         }
-        // 底栏保持实底，磨砂只作用在悬浮的输入胶囊上。
         val composeFrost = LocalAppearanceSettings.current.chatComposerFrost &&
             messageBackdrop != null
+        // Aether 底栏：透明→表面的渐隐代替整条实底，消息在输入器下方柔和消隐；
+        // 键盘弹出时输入器贴近键盘（12dp），收起时回到 18dp 悬浮高度。
+        val scrimSurface = MiuixTheme.colorScheme.surface
+        val barImeVisible = WindowInsets.ime.getBottom(barDensity) > 0
+        val bottomLift by animateDpAsState(
+            targetValue = if (barImeVisible) 12.dp else 18.dp,
+            animationSpec = tween(260, easing = ComposerMotionEasing),
+            label = "composer_bottom_lift",
+        )
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .background(MiuixTheme.colorScheme.surface)
+                .background(
+                    Brush.verticalGradient(
+                        listOf(
+                            Color.Transparent,
+                            scrimSurface.copy(alpha = 0.92f),
+                            scrimSurface,
+                        ),
+                    ),
+                )
                 .navigationBarsPadding()
-                .padding(start = 16.dp, end = 16.dp, bottom = 12.dp),
+                .padding(bottom = bottomLift),
         ) {
             AgentChatInputBar(
                 input = input,
-                modelPickerState = modelPickerState,
                 isCompacting = isCompacting,
                 contextUsage = contextUsage,
                 showContextUsage = showContextUsage,
                 isStreaming = isStreaming,
-                reasoningEffort = reasoningEffort,
-                availableReasoningEfforts = availableReasoningEfforts,
                 pendingImages = pendingImages,
                 pendingFileReferences = pendingFileReferences,
                 queuedMessages = queuedMessages,
@@ -1222,10 +1225,8 @@ private fun AgentChatBottomBar(
                 onSteerQueuedMessage = onSteerQueuedMessage,
                 onRecallQueuedMessage = onRecallQueuedMessage,
                 onRemoveQueuedMessage = onRemoveQueuedMessage,
-                onReasoningEffortChange = onReasoningEffortChange,
                 onCompactContext = onCompactContext,
                 canCompactContext = canCompactContext,
-                onModelSelected = onModelSelected,
                 onStop = onStop,
                 onAttachImage = onAttachImage,
                 onRemoveImage = onRemoveImage,
@@ -1243,6 +1244,7 @@ private fun AgentChatBottomBar(
 }
 
 private val ChatBottomFrostHeight = 24.dp
+private val ComposerMotionEasing = CubicBezierEasing(0.22f, 0.84f, 0.18f, 1f)
 
 private const val BOTTOM_FOLLOW_RESPONSE_SECONDS = 0.085f
 private const val BOTTOM_FOLLOW_MAX_FRAME_SECONDS = 0.05f

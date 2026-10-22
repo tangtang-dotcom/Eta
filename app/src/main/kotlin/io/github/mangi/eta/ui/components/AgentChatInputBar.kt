@@ -3,6 +3,8 @@ package io.github.mangi.eta.ui.components
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.animateDpAsState
+import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.expandHorizontally
 import androidx.compose.animation.fadeIn
@@ -17,6 +19,7 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.border
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -27,6 +30,7 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBars
@@ -57,6 +61,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.dropShadow
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.onFocusEvent
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.shadow.Shadow
@@ -96,7 +101,7 @@ private val SendButtonVisualSize = ChatInputActionIconSize
 private val SendIconSize = 16.dp
 private val StopIconSize = 10.dp
 private val ThinkingIconSize = 21.dp
-private val InputContainerShape = RoundedCornerShape(20.dp)
+private val ComposerMotionEasing = CubicBezierEasing(0.22f, 0.84f, 0.18f, 1f)
 
 /**
  * Agent 输入器始终保持同一空间结构，聚焦、输入和执行过程只改变状态，不搬动操作入口。
@@ -105,13 +110,10 @@ private val InputContainerShape = RoundedCornerShape(20.dp)
 @Composable
 internal fun AgentChatInputBar(
     input: String,
-    modelPickerState: AgentModelPickerUiState,
     isCompacting: Boolean,
     contextUsage: AgentContextUsageUi,
     showContextUsage: Boolean,
     isStreaming: Boolean,
-    reasoningEffort: ReasoningEffort,
-    availableReasoningEfforts: List<ReasoningEffort>,
     pendingImages: List<PendingImageUi>,
     pendingFileReferences: List<PendingFileReferenceUi>,
     queuedMessages: List<QueuedMessageUi> = emptyList(),
@@ -119,10 +121,8 @@ internal fun AgentChatInputBar(
     isEditingMessage: Boolean,
     editHasLaterTurns: Boolean,
     preserveFollowingMessages: Boolean,
-    onReasoningEffortChange: (ReasoningEffort) -> Unit,
     onCompactContext: () -> Unit,
     canCompactContext: Boolean,
-    onModelSelected: (String) -> Unit,
     onSubmit: (String) -> Unit,
     onInterruptAndSubmit: (String) -> Unit = onSubmit,
     onSteerQueuedMessage: (String) -> Unit = {},
@@ -153,6 +153,29 @@ internal fun AgentChatInputBar(
     val density = LocalDensity.current
     val statusBarTopPx = WindowInsets.statusBars.getTop(density)
     var inputContainerTopPx by remember { mutableIntStateOf(0) }
+    // Aether 输入器随焦点与内容变化：圆角 26↔28，外缘留白 30↔18↔14。
+    var inputFocused by remember { mutableStateOf(false) }
+    var measuredTextLines by remember { mutableIntStateOf(1) }
+    val hasActionTray = pendingImages.isNotEmpty() ||
+        pendingFileReferences.isNotEmpty() ||
+        queuedMessages.isNotEmpty() ||
+        isEditingMessage
+    val isMultilineComposer = measuredTextLines > 1
+    val composerCorner by animateDpAsState(
+        targetValue = if (inputFocused) 28.dp else 26.dp,
+        animationSpec = tween(260, easing = ComposerMotionEasing),
+        label = "composer_corner_radius",
+    )
+    val composerShape = RoundedCornerShape(composerCorner)
+    val composerHorizontalPadding by animateDpAsState(
+        targetValue = when {
+            hasActionTray && inputFocused -> 14.dp
+            hasActionTray || isMultilineComposer -> 18.dp
+            else -> 30.dp
+        },
+        animationSpec = tween(260, easing = ComposerMotionEasing),
+        label = "composer_horizontal_padding",
+    )
     val thinkingPopupMaxHeight = with(density) {
         (inputContainerTopPx - statusBarTopPx).coerceAtLeast(0).toDp()
     }.minus(ChatInputPopupMargin * 2)
@@ -175,7 +198,8 @@ internal fun AgentChatInputBar(
 
     Column(
         modifier = modifier
-            .fillMaxWidth(),
+            .fillMaxWidth()
+            .padding(horizontal = composerHorizontalPadding),
     ) {
         AnimatedVisibility(
             visible = queuedMessages.isNotEmpty(),
@@ -246,18 +270,19 @@ internal fun AgentChatInputBar(
                 modifier = Modifier
                     .fillMaxWidth()
                     .dropShadow(
-                        shape = InputContainerShape,
+                        shape = composerShape,
                         shadow = Shadow(
                             radius = 8.dp,
                             color = Color.Black,
                             alpha = 0.08f,
                         ),
                     )
+                    .clip(composerShape)
                     .then(
                         if (frosted && backdrop != null) {
                             Modifier.textureBlur(
                                 backdrop = backdrop,
-                                shape = RoundedCornerShape(20.dp),
+                                shape = composerShape,
                                 blurRadius = 20f,
                                 colors = BlurDefaults.blurColors(
                                     blendColors = listOf(
@@ -268,16 +293,13 @@ internal fun AgentChatInputBar(
                                 ),
                             )
                         } else {
-                            Modifier.squircleSurface(
-                                color = MiuixTheme.colorScheme.surfaceContainer,
-                                cornerRadius = 20.dp,
-                            )
+                            Modifier.background(MiuixTheme.colorScheme.surfaceContainer)
                         },
                     )
-                    .squircleBorder(
+                    .border(
                         width = 0.5.dp,
                         color = MiuixTheme.colorScheme.outline.copy(alpha = 0.55f),
-                        cornerRadius = 20.dp,
+                        shape = composerShape,
                     )
                     .padding(horizontal = 10.dp, vertical = 8.dp),
             ) {
@@ -309,7 +331,8 @@ internal fun AgentChatInputBar(
                         state = textFieldState,
                         modifier = Modifier
                             .fillMaxWidth()
-                            .focusRequester(focusRequester),
+                            .focusRequester(focusRequester)
+                            .onFocusEvent { state -> inputFocused = state.isFocused },
                         keyboardOptions = KeyboardOptions(imeAction = ImeAction.Default),
                         textStyle = inputTextStyle.copy(color = MiuixTheme.colorScheme.onSurface),
                         cursorBrush = SolidColor(MiuixTheme.colorScheme.primary),
@@ -317,6 +340,10 @@ internal fun AgentChatInputBar(
                             minHeightInLines = 1,
                             maxHeightInLines = 6,
                         ),
+                        onTextLayout = { result ->
+                            val lines = result.lineCount.coerceIn(1, 6)
+                            if (lines != measuredTextLines) measuredTextLines = lines
+                        },
                     )
                 }
 
@@ -356,17 +383,6 @@ internal fun AgentChatInputBar(
 
                             Spacer(modifier = Modifier.width(2.dp))
                         }
-
-                        AgentModelPickerButton(
-                            state = modelPickerState,
-                            isStreaming = isStreaming,
-                            popupAnchorTopPx = inputContainerTopPx,
-                            popupMaxHeight = thinkingPopupMaxHeight,
-                            reasoningEffort = reasoningEffort,
-                            availableReasoningEfforts = availableReasoningEfforts,
-                            onReasoningEffortChange = onReasoningEffortChange,
-                            onModelSelected = onModelSelected,
-                        )
 
                         val showStreamingSend = isStreaming && !isCompacting && canSend
                         val submitCurrentDraft: (Boolean) -> Unit = { interrupt ->

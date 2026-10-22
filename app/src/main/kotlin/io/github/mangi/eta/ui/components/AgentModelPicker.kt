@@ -19,7 +19,10 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Check
@@ -37,7 +40,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.BlurredEdgeTreatment
+import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalWindowInfo
@@ -60,8 +66,10 @@ import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
+import top.yukonga.miuix.kmp.basic.ListPopupColumn
 import top.yukonga.miuix.kmp.basic.PopupPositionProvider
 import top.yukonga.miuix.kmp.basic.Text
+import top.yukonga.miuix.kmp.window.WindowListPopup
 import top.yukonga.miuix.kmp.overlay.OverlayBottomSheet
 import top.yukonga.miuix.kmp.overlay.OverlayListPopup
 import top.yukonga.miuix.kmp.theme.MiuixTheme
@@ -450,3 +458,120 @@ private val ModelPopupWidth = 248.dp
 private const val ModelPopupLimit = 8
 
 private const val SelectionConfirmMs = 140L
+
+/**
+ * 聊天页顶栏中央的模型胶囊：品牌图标 + 模型名称，点击后与输入栏入口共用同一套
+ * 轻量弹窗 / 底部面板选择逻辑。
+ *
+ * 尺寸、999dp 圆角与下方 4dp 光晕按 Aether `ConversationModelSelector` 还原；
+ * 光晕必须叠在实体胶囊之前，并让 Row 实际参与测量，否则胶囊宽度会塌成 0。
+ */
+@Composable
+internal fun AgentModelPillButton(
+    state: AgentModelPickerUiState,
+    isStreaming: Boolean,
+    onModelSelected: (String) -> Unit,
+    reasoningEffort: ReasoningEffort? = null,
+    availableReasoningEfforts: List<ReasoningEffort> = emptyList(),
+    onReasoningEffortChange: ((ReasoningEffort) -> Unit)? = null,
+    modifier: Modifier = Modifier,
+) {
+    var showPopup by remember { mutableStateOf(false) }
+    var showSheet by remember { mutableStateOf(false) }
+    var sheetSession by remember { mutableIntStateOf(0) }
+    val selected = state.selectedModel
+    val enabled = !isStreaming && !state.isChanging && state.providerGroups.isNotEmpty()
+    LaunchedEffect(enabled) {
+        if (!enabled) {
+            showPopup = false
+            showSheet = false
+        }
+    }
+    val currentModel = selected?.displayName ?: stringResource(R.string.model_not_selected)
+    val switchModelDescription = stringResource(R.string.model_switch_current, currentModel)
+    Box(modifier = modifier) {
+        Box(
+            modifier = Modifier
+                .matchParentSize()
+                .offset(y = 4.dp)
+                .blur(14.dp, edgeTreatment = BlurredEdgeTreatment.Unbounded)
+                .clip(CircleShape)
+                .background(ModelPillHaloColor),
+        )
+        Row(
+            modifier = Modifier
+                .height(ModelPillHeight)
+                .widthIn(max = ModelPillMaxWidth)
+                .clip(CircleShape)
+                .background(MiuixTheme.colorScheme.surface.copy(alpha = 0.96f))
+                .clickable(enabled = enabled) {
+                    if (state.modelCount <= ModelPopupLimit) {
+                        showPopup = true
+                    } else {
+                        sheetSession += 1
+                        showSheet = true
+                    }
+                }
+                .padding(horizontal = 17.dp)
+                .semantics { contentDescription = switchModelDescription },
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(7.dp),
+        ) {
+            ModelBrandMark(
+                modelId = selected?.modelId,
+                sourceType = selected?.providerSourceType,
+                size = ModelPillIconSize,
+            )
+            Text(
+                text = currentModel,
+                style = MiuixTheme.textStyles.body2.copy(fontWeight = FontWeight.Medium),
+                color = MiuixTheme.colorScheme.onSurface,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+        // 顶栏弹层以父 Box 为锚点在下方展开并右对齐；模型列表固定宽度，End 对齐不会溢出屏幕右侧。
+        WindowListPopup(
+            show = showPopup,
+            alignment = PopupPositionProvider.Align.End,
+            onDismissRequest = { showPopup = false },
+        ) {
+            ListPopupColumn {
+                ModelQuickList(
+                    state = state,
+                    onModelSelected = { modelId ->
+                        showPopup = false
+                        onModelSelected(modelId)
+                    },
+                )
+            }
+        }
+        EtaPreferenceTheme {
+            OverlayBottomSheet(
+                show = showSheet,
+                title = stringResource(R.string.model_picker_title),
+                onDismissRequest = { showSheet = false },
+                insideMargin = DpSize(0.dp, 0.dp),
+                backgroundColor = MiuixTheme.colorScheme.background,
+            ) {
+                key(sheetSession) {
+                    ModelSheetContent(
+                        state = state,
+                        onModelSelected = { modelId ->
+                            showSheet = false
+                            onModelSelected(modelId)
+                        },
+                        reasoningEffort = reasoningEffort,
+                        availableReasoningEfforts = availableReasoningEfforts,
+                        onReasoningEffortChange = onReasoningEffortChange,
+                    )
+                }
+            }
+        }
+    }
+}
+
+private val ModelPillHeight = 38.dp
+private val ModelPillMaxWidth = 264.dp
+private val ModelPillIconSize = 16.dp
+private val ModelPillHaloColor = Color(0x14000000)

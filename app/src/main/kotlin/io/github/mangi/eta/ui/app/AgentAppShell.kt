@@ -4,6 +4,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
@@ -11,10 +12,14 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.CircleShape
@@ -25,6 +30,7 @@ import androidx.compose.material.icons.automirrored.rounded.VolumeOff
 import androidx.compose.material.icons.automirrored.rounded.VolumeUp
 import androidx.compose.material.icons.outlined.MoreHoriz
 import androidx.compose.material.icons.rounded.AddComment
+import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material.icons.rounded.Language
 import androidx.compose.material.icons.rounded.Stop
 import androidx.compose.material.icons.rounded.Terminal
@@ -37,8 +43,12 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.BlurredEdgeTreatment
+import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
@@ -46,6 +56,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import io.github.mangi.eta.R
+import io.github.mangi.eta.data.model.ReasoningEffort
 import io.github.mangi.eta.data.model.TtsProvider
 import io.github.mangi.eta.data.repository.SpeechSettingsRepository
 import io.github.mangi.eta.ui.components.AdaptiveTopAppBar
@@ -53,10 +64,12 @@ import io.github.mangi.eta.ui.components.CharacterAvatar
 import io.github.mangi.eta.ui.components.ConversationSidePaneScaffold
 import io.github.mangi.eta.ui.components.MiuixBackButton
 import io.github.mangi.eta.ui.components.RoleplayChatUi
+import io.github.mangi.eta.ui.components.AgentModelPillButton
 import io.github.mangi.eta.ui.components.TopBarBackdrop
 import io.github.mangi.eta.ui.components.captureForTopBar
 import io.github.mangi.eta.ui.components.rememberTopBarBackdrop
 import io.github.mangi.eta.ui.components.topBarContainerColor
+import io.github.mangi.eta.ui.model.AgentModelPickerUiState
 import io.github.mangi.eta.ui.model.ConversationPaneUiState
 import io.github.mangi.eta.ui.model.ConversationSummaryUi
 import io.github.mangi.eta.ui.navigation.AppRoute
@@ -119,6 +132,13 @@ internal fun AgentAppShell(
     modifier: Modifier = Modifier,
     homeCharacter: RoleplayChatUi? = null,
     onOpenCharacter: () -> Unit = {},
+    // 聊天顶栏的模型胶囊状态；仅在 Home 路由生效，选择逻辑仍走 Agent 侧原有实现。
+    chatModelPickerState: AgentModelPickerUiState? = null,
+    chatIsStreaming: Boolean = false,
+    chatReasoningEffort: ReasoningEffort? = null,
+    chatAvailableReasoningEfforts: List<ReasoningEffort> = emptyList(),
+    onChatReasoningEffortChange: ((ReasoningEffort) -> Unit)? = null,
+    onChatModelSelected: (String) -> Unit = {},
     content: @Composable (PaddingValues) -> Unit,
 ) {
     val scrollBehavior = MiuixScrollBehavior()
@@ -140,24 +160,47 @@ internal fun AgentAppShell(
                         surfaceAlpha = if (isChat) ChatTopBarSurfaceAlpha else 0.8f,
                         progressiveRadius = if (isChat) ChatTopBarProgressiveRadius else 10f,
                     ) {
-                        AgentTopBar(
-                            route = currentRoute,
-                            scrollBehavior = scrollBehavior,
-                            color = topBarColor,
-                            backdrop = backdrop,
-                            onBack = onBack,
-                            onOpenConversationPane = onOpenConversationPane,
-                            onNewConversation = onNewConversation,
-                            onOpenTerminal = onOpenTerminal,
-                            onLaunchKimiWeb = onLaunchKimiWeb,
-                            kimiWebLabel = kimiWebLabel,
-                            canStopKimiWeb = canStopKimiWeb,
-                            onStopKimiWeb = onStopKimiWeb,
-                            onRefreshKimiWeb = onRefreshKimiWeb,
-                            onOpenBrowser = onOpenBrowser,
-                            homeCharacter = homeCharacter,
-                            onOpenCharacter = onOpenCharacter,
-                        )
+                        if (isChat && chatModelPickerState != null) {
+                            // 聊天顶栏整体按 Aether 浮动结构重写：渐变遮罩 + 左右圆形钮 + 中央模型胶囊。
+                            ChatTopBarOverlay(
+                                modelPickerState = chatModelPickerState,
+                                isStreaming = chatIsStreaming,
+                                reasoningEffort = chatReasoningEffort,
+                                availableReasoningEfforts = chatAvailableReasoningEfforts,
+                                onReasoningEffortChange = onChatReasoningEffortChange,
+                                onModelSelected = onChatModelSelected,
+                                onOpenConversationPane = onOpenConversationPane,
+                                onNewConversation = onNewConversation,
+                                onOpenTerminal = onOpenTerminal,
+                                onLaunchKimiWeb = onLaunchKimiWeb,
+                                kimiWebLabel = kimiWebLabel,
+                                canStopKimiWeb = canStopKimiWeb,
+                                onStopKimiWeb = onStopKimiWeb,
+                                onRefreshKimiWeb = onRefreshKimiWeb,
+                                onOpenBrowser = onOpenBrowser,
+                                homeCharacter = homeCharacter,
+                                onOpenCharacter = onOpenCharacter,
+                            )
+                        } else {
+                            AgentTopBar(
+                                route = currentRoute,
+                                scrollBehavior = scrollBehavior,
+                                color = topBarColor,
+                                backdrop = backdrop,
+                                onBack = onBack,
+                                onOpenConversationPane = onOpenConversationPane,
+                                onNewConversation = onNewConversation,
+                                onOpenTerminal = onOpenTerminal,
+                                onLaunchKimiWeb = onLaunchKimiWeb,
+                                kimiWebLabel = kimiWebLabel,
+                                canStopKimiWeb = canStopKimiWeb,
+                                onStopKimiWeb = onStopKimiWeb,
+                                onRefreshKimiWeb = onRefreshKimiWeb,
+                                onOpenBrowser = onOpenBrowser,
+                                homeCharacter = homeCharacter,
+                                onOpenCharacter = onOpenCharacter,
+                            )
+                        }
                     }
                 }
             },
@@ -319,6 +362,214 @@ private fun FrostedCircle(
     }
 }
 
+/**
+ * 聊天页顶栏（结构对齐 Aether ConversationTopOverlay）：
+ * 正文段是背景色渐变遮罩 + 控件行，下方再接 42dp 渐隐尾带让控件融入消息流。
+ */
+@Composable
+private fun ChatTopBarOverlay(
+    modelPickerState: AgentModelPickerUiState,
+    isStreaming: Boolean,
+    reasoningEffort: ReasoningEffort?,
+    availableReasoningEfforts: List<ReasoningEffort>,
+    onReasoningEffortChange: ((ReasoningEffort) -> Unit)?,
+    onModelSelected: (String) -> Unit,
+    onOpenConversationPane: () -> Unit,
+    onNewConversation: () -> Unit,
+    onOpenTerminal: () -> Unit,
+    onLaunchKimiWeb: () -> Unit,
+    kimiWebLabel: String,
+    canStopKimiWeb: Boolean,
+    onStopKimiWeb: () -> Unit,
+    onRefreshKimiWeb: () -> Unit,
+    onOpenBrowser: () -> Unit,
+    homeCharacter: RoleplayChatUi?,
+    onOpenCharacter: () -> Unit,
+) {
+    val base = MiuixTheme.colorScheme.background
+    Column(modifier = Modifier.fillMaxWidth()) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(
+                    Brush.verticalGradient(
+                        colorStops = arrayOf(
+                            0.0f to base.copy(alpha = 0.98f),
+                            0.28f to base.copy(alpha = 0.92f),
+                            0.58f to base.copy(alpha = 0.52f),
+                            0.82f to base.copy(alpha = 0.18f),
+                            1.0f to Color.Transparent,
+                        ),
+                    ),
+                ),
+        ) {
+            ChatTopBarFrame(
+                modelPickerState = modelPickerState,
+                isStreaming = isStreaming,
+                reasoningEffort = reasoningEffort,
+                availableReasoningEfforts = availableReasoningEfforts,
+                onReasoningEffortChange = onReasoningEffortChange,
+                onModelSelected = onModelSelected,
+                onOpenConversationPane = onOpenConversationPane,
+                onNewConversation = onNewConversation,
+                onOpenTerminal = onOpenTerminal,
+                onLaunchKimiWeb = onLaunchKimiWeb,
+                kimiWebLabel = kimiWebLabel,
+                canStopKimiWeb = canStopKimiWeb,
+                onStopKimiWeb = onStopKimiWeb,
+                onRefreshKimiWeb = onRefreshKimiWeb,
+                onOpenBrowser = onOpenBrowser,
+                homeCharacter = homeCharacter,
+                onOpenCharacter = onOpenCharacter,
+            )
+        }
+        Spacer(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(ChatTopBarTailHeight)
+                .background(
+                    Brush.verticalGradient(
+                        colorStops = arrayOf(
+                            0.0f to base.copy(alpha = 0.10f),
+                            0.42f to base.copy(alpha = 0.04f),
+                            1.0f to Color.Transparent,
+                        ),
+                    ),
+                ),
+        )
+    }
+}
+
+/**
+ * 控件行按 AetherConversationTopBarFrame：左右 38dp 圆钮（光晕下移 4dp、模糊 14dp）、
+ * 水平 15dp / 垂直 12dp、中央胶囊区左右各留 12dp。
+ */
+@Composable
+private fun ChatTopBarFrame(
+    modelPickerState: AgentModelPickerUiState,
+    isStreaming: Boolean,
+    reasoningEffort: ReasoningEffort?,
+    availableReasoningEfforts: List<ReasoningEffort>,
+    onReasoningEffortChange: ((ReasoningEffort) -> Unit)?,
+    onModelSelected: (String) -> Unit,
+    onOpenConversationPane: () -> Unit,
+    onNewConversation: () -> Unit,
+    onOpenTerminal: () -> Unit,
+    onLaunchKimiWeb: () -> Unit,
+    kimiWebLabel: String,
+    canStopKimiWeb: Boolean,
+    onStopKimiWeb: () -> Unit,
+    onRefreshKimiWeb: () -> Unit,
+    onOpenBrowser: () -> Unit,
+    homeCharacter: RoleplayChatUi?,
+    onOpenCharacter: () -> Unit,
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .statusBarsPadding()
+            .padding(horizontal = 15.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        ChatHeaderCircle(
+            icon = Icons.AutoMirrored.Outlined.ShortText,
+            contentDescription = stringResource(R.string.action_conversation_history),
+            onClick = onOpenConversationPane,
+        )
+        Box(
+            modifier = Modifier
+                .weight(1f)
+                .padding(start = 12.dp, end = 12.dp),
+            contentAlignment = Alignment.Center,
+        ) {
+            // 角色对话的身份仍贴左侧展示；模型胶囊始终居中，与 Aether 一致。
+            homeCharacter?.let { character ->
+                Box(modifier = Modifier.align(Alignment.CenterStart)) {
+                    CharacterTopBarIdentity(character = character, onClick = onOpenCharacter)
+                }
+            }
+            AgentModelPillButton(
+                state = modelPickerState,
+                isStreaming = isStreaming,
+                reasoningEffort = reasoningEffort,
+                availableReasoningEfforts = availableReasoningEfforts,
+                onReasoningEffortChange = onReasoningEffortChange,
+                onModelSelected = onModelSelected,
+            )
+        }
+        ChatHeaderCircle(
+            icon = Icons.Rounded.Edit,
+            contentDescription = stringResource(R.string.action_new_conversation),
+            onClick = onNewConversation,
+        )
+        Spacer(modifier = Modifier.width(10.dp))
+        Box(modifier = Modifier.size(ChatHeaderButtonSize)) {
+            ChatHeaderHalo()
+            Box(
+                modifier = Modifier
+                    .matchParentSize()
+                    .clip(CircleShape)
+                    .background(MiuixTheme.colorScheme.surface.copy(alpha = 0.96f)),
+                contentAlignment = Alignment.Center,
+            ) {
+                TopBarOverflowMenu(
+                    onNewConversation = onNewConversation,
+                    onOpenTerminal = onOpenTerminal,
+                    onLaunchKimiWeb = onLaunchKimiWeb,
+                    kimiWebLabel = kimiWebLabel,
+                    canStopKimiWeb = canStopKimiWeb,
+                    onStopKimiWeb = onStopKimiWeb,
+                    onRefreshKimiWeb = onRefreshKimiWeb,
+                    onOpenBrowser = onOpenBrowser,
+                )
+            }
+        }
+    }
+}
+
+/** Aether 风格的 38dp 圆形顶栏按钮：光晕垫底 + 96% 表面色实底。 */
+@Composable
+private fun ChatHeaderCircle(
+    icon: ImageVector,
+    contentDescription: String,
+    onClick: () -> Unit,
+) {
+    Box(modifier = Modifier.size(ChatHeaderButtonSize)) {
+        ChatHeaderHalo()
+        Box(
+            modifier = Modifier
+                .matchParentSize()
+                .clip(CircleShape)
+                .background(MiuixTheme.colorScheme.surface.copy(alpha = 0.96f))
+                .clickable(onClick = onClick),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(
+                imageVector = icon,
+                modifier = Modifier.size(ChatHeaderIconSize),
+                contentDescription = contentDescription,
+            )
+        }
+    }
+}
+
+@Composable
+private fun ChatHeaderHalo() {
+    Box(
+        modifier = Modifier
+            .matchParentSize()
+            .offset(y = 4.dp)
+            .blur(14.dp, edgeTreatment = BlurredEdgeTreatment.Unbounded)
+            .clip(CircleShape)
+            .background(ChatHeaderHaloColor),
+    )
+}
+
+private val ChatHeaderButtonSize = 38.dp
+private val ChatHeaderIconSize = 19.dp
+private val ChatTopBarTailHeight = 42.dp
+private val ChatHeaderHaloColor = Color(0x18000000)
+
 /** 聊天页顶栏的遮蔽强度：比设置页更强，避免正文透出后看起来发脏。 */
 private const val ChatTopBarProgressiveAlpha = 0.72f
 private const val ChatTopBarSurfaceAlpha = 0.9f
@@ -347,10 +598,14 @@ private fun TopBarOverflowMenu(
     val hasSpeechPlayback = speechSettings?.let { it.tts != TtsProvider.NONE } == true
     val autoReadEnabled = speechSettings?.chatAutoSpeak == true
     Box {
-        IconButton(onClick = { onRefreshKimiWeb(); showMenu = true }) {
+        IconButton(
+            onClick = { onRefreshKimiWeb(); showMenu = true },
+            minWidth = 38.dp,
+            minHeight = 38.dp,
+        ) {
             Icon(
                 imageVector = Icons.Outlined.MoreHoriz,
-                modifier = Modifier.size(24.dp),
+                modifier = Modifier.size(ChatHeaderIconSize),
                 contentDescription = stringResource(R.string.action_more),
             )
         }

@@ -340,6 +340,12 @@ fun AgentAppRoot(
             onOpenCharacter = {
                 agentState.homeState.roleplay?.let { pushRoute(AppRoute.CharacterDetail(it.characterId)) }
             },
+            chatModelPickerState = if (route is AppRoute.Home) agentState.modelPickerState else null,
+            chatIsStreaming = agentState.homeState.isStreaming,
+            chatReasoningEffort = agentState.homeState.reasoningEffort,
+            chatAvailableReasoningEfforts = agentState.homeState.availableReasoningEfforts,
+            onChatReasoningEffortChange = { effort -> agentState.updateReasoningEffort(effort) },
+            onChatModelSelected = { modelId -> agentState.selectModel(modelId) },
         ) { padding ->
             val homeRoute = route is AppRoute.Home
             val layoutDirection = LocalLayoutDirection.current

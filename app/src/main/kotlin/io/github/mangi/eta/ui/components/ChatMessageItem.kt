@@ -778,7 +778,7 @@ private fun AgentMessageBlock(
         Column(
             modifier = if (showBubble) {
                 Modifier
-                    .fillMaxWidth()
+                    .widthIn(max = AssistantBubbleMaxWidth)
                     .squircleSurface(
                         color = bubbleFill,
                         cornerRadius = AssistantBubbleCorner,
@@ -815,7 +815,6 @@ private fun AgentMessageBlock(
                         isStreaming = message.isStreaming,
                         tone = MarkdownTone.Answer,
                         onRevealCompleteChange = { streamingRevealComplete = it },
-                        modifier = Modifier.fillMaxWidth(),
                     )
                 }
                 message.renderMarkdown -> {
@@ -824,7 +823,6 @@ private fun AgentMessageBlock(
                             content = message.content,
                             tone = MarkdownTone.Answer,
                             parsed = completedDocument,
-                            modifier = Modifier.fillMaxWidth(),
                         )
                     }
                 }
@@ -957,6 +955,9 @@ private fun AssistantWorkBubble(
 
 /** 回答气泡圆角；与思考卡片的 12dp 区分，气泡更圆一些。 */
 private val AssistantBubbleCorner = 18.dp
+
+/** 回答气泡最宽；与用户气泡一致，短回答不再铺满整行。 */
+private val AssistantBubbleMaxWidth = 320.dp
 
 /**
  * 回答气泡顶部的署名行：圆角方块 AI 标识加模型名。

@@ -181,8 +181,8 @@ internal fun AgentAppShell(
                         if (chatFrosted) {
                             TopBarBackdrop(
                                 backdrop = backdrop,
-                                progressiveAlpha = ChatTopBarProgressiveAlpha,
-                                surfaceAlpha = ChatTopBarSurfaceAlpha,
+                                progressiveAlpha = AetherChatColors.topBarProgressiveAlpha(),
+                                surfaceAlpha = AetherChatColors.topBarSurfaceAlpha(),
                                 progressiveRadius = ChatTopBarProgressiveRadius,
                             ) {
                                 chatTopBar()

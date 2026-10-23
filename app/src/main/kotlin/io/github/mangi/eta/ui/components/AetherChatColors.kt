@@ -40,7 +40,9 @@ internal object AetherChatColors {
 
     @Composable
     fun surface(): Color = when {
-        monet -> MiuixTheme.colorScheme.surface
+        // 莫奈下 surface 常与 background 同色，输入卡片会“消失”；
+        // 改用带色调的容器色，保证卡片/胶囊与背景有色差。
+        monet -> MiuixTheme.colorScheme.surfaceContainer
         dark -> Color(0xFF1C1F23)
         else -> Color(0xFFFFFFFF)
     }
@@ -92,6 +94,18 @@ internal object AetherChatColors {
         monet -> MiuixTheme.colorScheme.onPrimary
         else -> Color.White
     }
+
+    /** 磨砂混色不透明度：暗色需要更实一些，否则卡片和背景糊在一起。 */
+    @Composable
+    fun frostBlendAlpha(): Float = if (LocalIsDarkTheme.current) 0.58f else 0.46f
+
+    /** 顶栏磨砂表面不透明度。 */
+    @Composable
+    fun topBarSurfaceAlpha(): Float = if (LocalIsDarkTheme.current) 0.92f else 0.90f
+
+    /** 顶栏磨砂渐变端不透明度。 */
+    @Composable
+    fun topBarProgressiveAlpha(): Float = if (LocalIsDarkTheme.current) 0.82f else 0.72f
 
     /** ChatGptControlShadow */
     val controlShadow: Color = Color(0x14000000)

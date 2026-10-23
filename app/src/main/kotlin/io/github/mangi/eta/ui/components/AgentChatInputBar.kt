@@ -349,7 +349,7 @@ internal fun AgentChatInputBar(
                                     colors = BlurDefaults.blurColors(
                                         blendColors = listOf(
                                             BlendColorEntry(
-                                                AetherChatColors.surface().copy(alpha = 0.4f),
+                                                AetherChatColors.surface().copy(alpha = AetherChatColors.frostBlendAlpha()),
                                             ),
                                         ),
                                     ),
@@ -558,7 +558,7 @@ internal fun AgentChatInputBar(
                                     colors = BlurDefaults.blurColors(
                                         blendColors = listOf(
                                             BlendColorEntry(
-                                                AetherChatColors.surface().copy(alpha = 0.4f),
+                                                AetherChatColors.surface().copy(alpha = AetherChatColors.frostBlendAlpha()),
                                             ),
                                         ),
                                     ),

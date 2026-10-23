@@ -202,10 +202,17 @@ internal fun AgentChatInputBar(
     )
     val fieldTopPaddingDp = if (isMultilineComposer || hasActionTray) 12f else 8f
     val fieldBottomPaddingDp = if (isMultilineComposer || hasActionTray) 12f else 8f
+    // 阴影透明度随分离状态一起动画：收进后 alpha 归零，避免半径为 0 的 dropShadow
+    // 画出实色灰圆。
     val plusShadowElevationDp by animateFloatAsState(
         targetValue = if (plusSeparated) 10f else 0f,
         animationSpec = tween(260, easing = ComposerMotionEasing),
         label = "composer_plus_shadow",
+    )
+    val plusShadowAlpha by animateFloatAsState(
+        targetValue = if (plusSeparated) 0.10f else 0f,
+        animationSpec = tween(260, easing = ComposerMotionEasing),
+        label = "composer_plus_shadow_alpha",
     )
     val plusButtonAlignment = if (isMultilineComposer || hasActionTray) {
         Alignment.BottomStart
@@ -533,7 +540,7 @@ internal fun AgentChatInputBar(
                             shadow = Shadow(
                                 radius = plusShadowElevationDp.dp,
                                 color = Color.Black,
-                                alpha = 0.10f,
+                                alpha = plusShadowAlpha,
                             ),
                         )
                         .clip(CircleShape)

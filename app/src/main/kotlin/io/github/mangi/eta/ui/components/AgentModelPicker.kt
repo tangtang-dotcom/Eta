@@ -508,7 +508,7 @@ internal fun AgentModelPillButton(
             )
             Text(
                 text = currentModel,
-                style = MiuixTheme.textStyles.body1.copy(fontWeight = FontWeight.Medium),
+                style = MiuixTheme.textStyles.body2.copy(fontWeight = FontWeight.Medium),
                 color = AetherChatColors.onSurface(),
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
@@ -539,6 +539,6 @@ internal fun AgentModelPillButton(
     }
 }
 
-private val ModelPillHeight = 44.dp
+private val ModelPillHeight = 40.dp
 private val ModelPillMaxWidth = 264.dp
-private val ModelPillIconSize = 18.dp
+private val ModelPillIconSize = 17.dp

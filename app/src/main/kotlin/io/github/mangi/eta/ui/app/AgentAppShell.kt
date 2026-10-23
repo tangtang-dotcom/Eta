@@ -554,8 +554,8 @@ private fun BoxScope.ChatHeaderHalo() {
     )
 }
 
-private val ChatHeaderButtonSize = 44.dp
-private val ChatHeaderIconSize = 22.dp
+private val ChatHeaderButtonSize = 40.dp
+private val ChatHeaderIconSize = 20.dp
 private val ChatTopBarTailHeight = 42.dp
 
 /** 聊天页顶栏的遮蔽强度：比设置页更强，避免正文透出后看起来发脏。 */

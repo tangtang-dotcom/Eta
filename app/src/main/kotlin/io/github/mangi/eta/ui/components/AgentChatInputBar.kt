@@ -3,6 +3,7 @@ package io.github.mangi.eta.ui.components
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.animation.core.tween
@@ -163,6 +164,10 @@ internal fun AgentChatInputBar(
         isEditingMessage
     // 单行正文约 30dp 以内，两行起超过 36dp；直接量文本域高度，避免依赖 onTextLayout 的 API 差异。
     val isMultilineComposer = with(density) { textFieldHeightPx.toDp() } > 36.dp
+    // Aether 底栏核心交互：输入框聚焦且键盘弹出（或有托盘/草稿）时，
+    // 加号圆钮从卡片内吸附到卡片外左侧，其余动画全部跟随 260ms 同一缓动。
+    val imeVisible = WindowInsets.ime.getBottom(density) > 0
+    val plusSeparated = hasActionTray || (inputFocused && imeVisible)
     val composerCorner by animateFloatAsState(
         targetValue = if (inputFocused) 28f else 26f,
         animationSpec = tween(260, easing = ComposerMotionEasing),
@@ -171,13 +176,42 @@ internal fun AgentChatInputBar(
     val composerShape = RoundedCornerShape(composerCorner.dp)
     val composerHorizontalPaddingDp by animateFloatAsState(
         targetValue = when {
-            hasActionTray && inputFocused -> 14f
+            plusSeparated -> 14f
             hasActionTray || isMultilineComposer -> 18f
             else -> 30f
         },
         animationSpec = tween(260, easing = ComposerMotionEasing),
         label = "composer_horizontal_padding",
     )
+    // 卡片左缘位移：分离时让出 50dp 给加号圆钮。
+    val fieldStartPaddingDp by animateFloatAsState(
+        targetValue = if (plusSeparated) 50f else 0f,
+        animationSpec = tween(260, easing = ComposerMotionEasing),
+        label = "composer_field_start",
+    )
+    // 正文起点：分离时贴卡片左侧（18），否则给卡片内的加号留 52。
+    val fieldContentStartPaddingDp by animateFloatAsState(
+        targetValue = if (plusSeparated) 18f else 52f,
+        animationSpec = tween(260, easing = ComposerMotionEasing),
+        label = "composer_field_content_start",
+    )
+    val fieldMinHeightDp by animateFloatAsState(
+        targetValue = if (plusSeparated) 56f else 50f,
+        animationSpec = tween(260, easing = ComposerMotionEasing),
+        label = "composer_field_min_height",
+    )
+    val fieldTopPaddingDp = if (isMultilineComposer || hasActionTray) 12f else 8f
+    val fieldBottomPaddingDp = if (isMultilineComposer || hasActionTray) 12f else 8f
+    val plusShadowElevationDp by animateFloatAsState(
+        targetValue = if (plusSeparated) 10f else 0f,
+        animationSpec = tween(260, easing = ComposerMotionEasing),
+        label = "composer_plus_shadow",
+    )
+    val plusButtonAlignment = if (isMultilineComposer || hasActionTray) {
+        Alignment.BottomStart
+    } else {
+        Alignment.CenterStart
+    }
     val thinkingPopupMaxHeight = with(density) {
         (inputContainerTopPx - statusBarTopPx).coerceAtLeast(0).toDp()
     }.minus(ChatInputPopupMargin * 2)
@@ -268,74 +302,73 @@ internal fun AgentChatInputBar(
                     inputContainerTopPx = coordinates.positionInWindow().y.roundToInt()
                 },
         ) {
-            Row(
+            // 位移层：分离时整张卡片右移 50dp，加号留在外层左侧（Aether 吸附动画）。
+            Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .dropShadow(
-                        shape = composerShape,
-                        shadow = Shadow(
-                            radius = 8.dp,
-                            color = Color.Black,
-                            alpha = 0.08f,
+                    .padding(start = fieldStartPaddingDp.dp),
+            ) {
+                // 卡片阴影层（Aether 为 blur 光晕，这里用稳定 dropShadow）。
+                Box(
+                    modifier = Modifier
+                        .matchParentSize()
+                        .dropShadow(
+                            shape = composerShape,
+                            shadow = Shadow(
+                                radius = 8.dp,
+                                color = Color.Black,
+                                alpha = 0.08f,
+                            ),
                         ),
-                    )
-                    .clip(composerShape)
-                    .then(
-                        if (frosted && backdrop != null) {
-                            Modifier.textureBlur(
-                                backdrop = backdrop,
-                                shape = composerShape,
-                                blurRadius = 20f,
-                                colors = BlurDefaults.blurColors(
-                                    blendColors = listOf(
-                                        BlendColorEntry(
-                                            MiuixTheme.colorScheme.surfaceContainer.copy(alpha = 0.4f),
+                )
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(min = fieldMinHeightDp.dp)
+                        .animateContentSize(
+                            animationSpec = tween(260, easing = ComposerMotionEasing),
+                        )
+                        .clip(composerShape)
+                        .then(
+                            if (frosted && backdrop != null) {
+                                Modifier.textureBlur(
+                                    backdrop = backdrop,
+                                    shape = composerShape,
+                                    blurRadius = 20f,
+                                    colors = BlurDefaults.blurColors(
+                                        blendColors = listOf(
+                                            BlendColorEntry(
+                                                MiuixTheme.colorScheme.surfaceContainer.copy(alpha = 0.4f),
+                                            ),
                                         ),
                                     ),
-                                ),
-                            )
-                        } else {
-                            Modifier.background(MiuixTheme.colorScheme.surfaceContainer)
-                        },
-                    )
-                    .border(
-                        width = 0.5.dp,
-                        color = MiuixTheme.colorScheme.outline.copy(alpha = 0.55f),
-                        shape = composerShape,
-                    )
-                    .padding(horizontal = 10.dp, vertical = 8.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                        if (isEditingMessage) {
-                            IconButton(
-                                onClick = onCancelMessageEdit,
-                                minWidth = ChatInputActionSize,
-                                minHeight = ChatInputActionSize,
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Rounded.Close,
-                                    contentDescription = stringResource(R.string.ui_cancel_edit_c698df),
-                                    modifier = Modifier.size(ChatInputActionIconSize),
-                                    tint = MiuixTheme.colorScheme.onSurface,
                                 )
-                            }
-                        } else {
-                            AgentAttachmentPickerButton(
-                                popupAnchorTopPx = inputContainerTopPx,
-                                popupMaxHeight = thinkingPopupMaxHeight,
-                                onAttachImage = onAttachImage,
-                                onAttachFiles = onAttachFiles,
-                                onAttachFolder = onAttachFolder,
-                                onAttachFilePath = onAttachFilePath,
-                            )
-
-                        }
+                            } else {
+                                Modifier.background(MiuixTheme.colorScheme.surfaceContainer)
+                            },
+                        )
+                        .border(
+                            width = 0.5.dp,
+                            color = MiuixTheme.colorScheme.outline.copy(alpha = 0.55f),
+                            shape = composerShape,
+                        )
+                        .padding(
+                            start = fieldContentStartPaddingDp.dp,
+                            end = 8.dp,
+                            top = fieldTopPaddingDp.dp,
+                            bottom = fieldBottomPaddingDp.dp,
+                        ),
+                    verticalArrangement = Arrangement.spacedBy(0.dp),
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = if (isMultilineComposer) Alignment.Bottom else Alignment.CenterVertically,
+                    ) {
                 Box(
                     modifier = Modifier
                         .weight(1f)
-                        .defaultMinSize(minHeight = 40.dp)
-                        .padding(horizontal = 8.dp, vertical = 6.dp),
-                    contentAlignment = Alignment.CenterStart,
+                        .defaultMinSize(minHeight = 40.dp),
+                    contentAlignment = if (isMultilineComposer) Alignment.TopStart else Alignment.CenterStart,
                 ) {
                     // 占位文字与输入正文共用同一行高，首字输入时基线不跳动。
                     val inputTextStyle = MiuixTheme.textStyles.body1.copy(lineHeight = 22.sp)
@@ -493,6 +526,55 @@ internal fun AgentChatInputBar(
                                 }
                             }
                         }
+                    }
+                }
+            }
+            Box(modifier = Modifier.align(plusButtonAlignment)) {
+                Box(
+                    modifier = Modifier
+                        .size(48.dp)
+                        .dropShadow(
+                            shape = CircleShape,
+                            shadow = Shadow(
+                                radius = plusShadowElevationDp.dp,
+                                color = Color.Black,
+                                alpha = 0.10f,
+                            ),
+                        )
+                        .clip(CircleShape)
+                        .background(
+                            if (plusSeparated) {
+                                MiuixTheme.colorScheme.surfaceContainer
+                            } else {
+                                Color.Transparent
+                            },
+                        ),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    if (isEditingMessage) {
+                        IconButton(
+                            onClick = onCancelMessageEdit,
+                            minWidth = 48.dp,
+                            minHeight = 48.dp,
+                        ) {
+                            Icon(
+                                imageVector = Icons.Rounded.Close,
+                                contentDescription = stringResource(R.string.ui_cancel_edit_c698df),
+                                modifier = Modifier.size(ChatInputActionIconSize),
+                                tint = MiuixTheme.colorScheme.onSurface,
+                            )
+                        }
+                    } else {
+                        AgentAttachmentPickerButton(
+                            popupAnchorTopPx = inputContainerTopPx,
+                            popupMaxHeight = thinkingPopupMaxHeight,
+                            onAttachImage = onAttachImage,
+                            onAttachFiles = onAttachFiles,
+                            onAttachFolder = onAttachFolder,
+                            onAttachFilePath = onAttachFilePath,
+                        )
+                    }
+                }
             }
         }
     }

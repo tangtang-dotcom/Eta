@@ -476,35 +476,28 @@ internal fun AgentModelPillButton(
     var showSheet by remember { mutableStateOf(false) }
     var sheetSession by remember { mutableIntStateOf(0) }
     val selected = state.selectedModel
-    val enabled = !isStreaming && !state.isChanging && state.providerGroups.isNotEmpty()
-    LaunchedEffect(enabled) {
-        if (!enabled) {
-            showSheet = false
-        }
-    }
+    // 点击始终可响应；无可用模型时面板内会给出空态提示。
     val currentModel = selected?.displayName ?: stringResource(R.string.model_not_selected)
     val switchModelDescription = stringResource(R.string.model_switch_current, currentModel)
-    Box(modifier = modifier) {
-        Box(
-            modifier = Modifier
-                .matchParentSize()
-                .dropShadow(
-                    shape = CircleShape,
-                    shadow = Shadow(radius = 6.dp, color = Color.Black, alpha = 0.12f),
-                ),
-        )
+    Box(
+        modifier = modifier
+            .height(ModelPillHeight)
+            .widthIn(max = ModelPillMaxWidth)
+            .dropShadow(
+                shape = CircleShape,
+                shadow = Shadow(radius = 6.dp, color = Color.Black, alpha = 0.12f),
+            )
+            .clip(CircleShape)
+            .background(MiuixTheme.colorScheme.surface.copy(alpha = 0.96f))
+            .clickable {
+                sheetSession += 1
+                showSheet = true
+            }
+            .semantics { contentDescription = switchModelDescription },
+        contentAlignment = Alignment.Center,
+    ) {
         Row(
-            modifier = Modifier
-                .height(ModelPillHeight)
-                .widthIn(max = ModelPillMaxWidth)
-                .clip(CircleShape)
-                .background(MiuixTheme.colorScheme.surface.copy(alpha = 0.96f))
-                .clickable(enabled = enabled) {
-                    sheetSession += 1
-                    showSheet = true
-                }
-                .padding(horizontal = 17.dp)
-                .semantics { contentDescription = switchModelDescription },
+            modifier = Modifier.padding(horizontal = 17.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(7.dp),
         ) {

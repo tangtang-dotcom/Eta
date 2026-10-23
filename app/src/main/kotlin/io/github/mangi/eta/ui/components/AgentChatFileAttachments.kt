@@ -2,6 +2,11 @@ package io.github.mangi.eta.ui.components
 
 import androidx.compose.runtime.LaunchedEffect
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.draw.dropShadow
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.shadow.Shadow
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.ime
 import androidx.compose.ui.platform.LocalDensity
@@ -88,6 +93,9 @@ internal fun AgentAttachmentPickerButton(
 ) {
     val context = LocalContext.current
     var showPopup by remember { mutableStateOf(false) }
+    // 记录菜单打开时键盘是否可见：只有「打开时有键盘、之后被收起」才自动关菜单，
+    // 否则键盘本来就收起时点加号会立刻被关掉，表现为点不动。
+    var openedWithIme by remember { mutableStateOf(false) }
     var showPathDialog by remember { mutableStateOf(false) }
     var pathInput by remember { mutableStateOf("") }
     val photoPicker = rememberLauncherForActivityResult(
@@ -114,12 +122,17 @@ internal fun AgentAttachmentPickerButton(
         if (uri != null) onAttachFolder(uri.toString())
     }
 
+    val density = LocalDensity.current
+    val imeVisible = WindowInsets.ime.getBottom(density) > 0
     Box(modifier = modifier) {
     Box(
         modifier = modifier
             .size(48.dp)
             .clip(CircleShape)
-            .clickable { showPopup = true },
+            .clickable {
+                openedWithIme = imeVisible
+                showPopup = !showPopup
+            },
         contentAlignment = Alignment.Center,
     ) {
         Icon(
@@ -130,11 +143,9 @@ internal fun AgentAttachmentPickerButton(
         )
     }
         // Aether 用轻量 Popup 而非窗口级 Dialog：弹出时不抢输入焦点，键盘保持。
-        val density = LocalDensity.current
-        val imeVisible = WindowInsets.ime.getBottom(density) > 0
         LaunchedEffect(showPopup, imeVisible) {
-            // 键盘被用户主动收起时同步关闭菜单。
-            if (showPopup && !imeVisible) showPopup = false
+            // 仅在「打开时有键盘、随后被收起」时关闭菜单。
+            if (showPopup && openedWithIme && !imeVisible) showPopup = false
         }
         if (showPopup) {
         Popup(
@@ -153,6 +164,16 @@ internal fun AgentAttachmentPickerButton(
                 stringResource(R.string.attachment_folder),
                 stringResource(R.string.attachment_enter_path),
             )
+            val menuShape = RoundedCornerShape(18.dp)
+            Box(
+                modifier = Modifier
+                    .dropShadow(
+                        shape = menuShape,
+                        shadow = Shadow(radius = 12.dp, color = Color.Black, alpha = 0.12f),
+                    )
+                    .clip(menuShape)
+                    .background(MiuixTheme.colorScheme.surfaceContainerHigh),
+            ) {
             ListPopupColumn {
                 options.forEachIndexed { index, option ->
                     DropdownImpl(
@@ -176,6 +197,7 @@ internal fun AgentAttachmentPickerButton(
                         },
                     )
                 }
+            }
             }
             }
         }

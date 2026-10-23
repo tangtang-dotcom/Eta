@@ -113,7 +113,16 @@ internal object AgentRuntimeConnection {
         if (shouldBind) {
             mainHandler.post { bind() }
         }
-        if (!latch.await(BIND_TIMEOUT_SECONDS, TimeUnit.SECONDS)) return null
+        if (!latch.await(BIND_TIMEOUT_SECONDS, TimeUnit.SECONDS)) {
+            // 绑定超时后必须解除 binding 标记，否则后续调用会继续等待同一个已超时的 latch，
+            // 表现为「一直提示服务绑定失败」，直到服务恰好连上为止。
+            synchronized(lock) {
+                if (messenger == null && binding && connectionLatch === latch) {
+                    binding = false
+                }
+            }
+            return null
+        }
 
         return synchronized(lock) {
             messenger?.let { connected ->

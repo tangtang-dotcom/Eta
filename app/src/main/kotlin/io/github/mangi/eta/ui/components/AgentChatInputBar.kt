@@ -171,8 +171,9 @@ internal fun AgentChatInputBar(
     // 打字后加号保持分离，不会因为键盘收起又缩回卡片。
     val keepPlusSeparated = textFieldState.text.isNotBlank() || hasActionTray
     val plusSeparated = keepPlusSeparated || (inputFocused && imeVisible)
+    // Aether：卡片圆角跟随 plusSeparated（26↔28），不是跟随焦点。
     val composerCorner by animateFloatAsState(
-        targetValue = if (inputFocused) 28f else 26f,
+        targetValue = if (plusSeparated) 28f else 26f,
         animationSpec = tween(260, easing = ComposerMotionEasing),
         label = "composer_corner_radius",
     )

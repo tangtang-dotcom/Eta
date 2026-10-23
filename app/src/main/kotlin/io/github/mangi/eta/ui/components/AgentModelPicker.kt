@@ -497,7 +497,8 @@ internal fun AgentModelPillButton(
         contentAlignment = Alignment.Center,
     ) {
         Row(
-            modifier = Modifier.padding(horizontal = 17.dp),
+            // 图标侧留白略减，让品牌图标整体左移约 2dp。
+            modifier = Modifier.padding(start = 15.dp, end = 17.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(7.dp),
         ) {
@@ -541,4 +542,4 @@ internal fun AgentModelPillButton(
 
 private val ModelPillHeight = 40.dp
 private val ModelPillMaxWidth = 264.dp
-private val ModelPillIconSize = 19.dp
+private val ModelPillIconSize = 21.dp

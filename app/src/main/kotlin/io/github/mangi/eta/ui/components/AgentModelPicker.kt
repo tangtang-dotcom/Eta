@@ -541,4 +541,4 @@ internal fun AgentModelPillButton(
 
 private val ModelPillHeight = 40.dp
 private val ModelPillMaxWidth = 264.dp
-private val ModelPillIconSize = 17.dp
+private val ModelPillIconSize = 19.dp

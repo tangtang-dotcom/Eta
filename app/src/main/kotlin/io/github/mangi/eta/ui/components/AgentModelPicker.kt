@@ -55,6 +55,10 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
+import top.yukonga.miuix.kmp.blur.BlendColorEntry
+import top.yukonga.miuix.kmp.blur.BlurDefaults
+import top.yukonga.miuix.kmp.blur.LayerBackdrop
+import top.yukonga.miuix.kmp.blur.textureBlur
 import io.github.mangi.eta.R
 import io.github.mangi.eta.data.model.ReasoningEffort
 import io.github.mangi.eta.ui.model.AgentModelOptionUi
@@ -471,6 +475,8 @@ internal fun AgentModelPillButton(
     reasoningEffort: ReasoningEffort? = null,
     availableReasoningEfforts: List<ReasoningEffort> = emptyList(),
     onReasoningEffortChange: ((ReasoningEffort) -> Unit)? = null,
+    frosted: Boolean = false,
+    backdrop: LayerBackdrop? = null,
     modifier: Modifier = Modifier,
 ) {
     var showSheet by remember { mutableStateOf(false) }
@@ -488,7 +494,24 @@ internal fun AgentModelPillButton(
                 shadow = Shadow(radius = 6.dp, color = Color.Black, alpha = 0.12f),
             )
             .clip(CircleShape)
-            .background(AetherChatColors.surface().copy(alpha = 0.96f))
+            .then(
+                if (frosted && backdrop != null) {
+                    Modifier.textureBlur(
+                        backdrop = backdrop,
+                        shape = CircleShape,
+                        blurRadius = 20f,
+                        colors = BlurDefaults.blurColors(
+                            blendColors = listOf(
+                                BlendColorEntry(
+                                    AetherChatColors.surface().copy(alpha = AetherChatColors.controlFrostAlpha()),
+                                ),
+                            ),
+                        ),
+                    )
+                } else {
+                    Modifier.background(AetherChatColors.surface())
+                },
+            )
             .clickable {
                 sheetSession += 1
                 showSheet = true
@@ -497,8 +520,8 @@ internal fun AgentModelPillButton(
         contentAlignment = Alignment.Center,
     ) {
         Row(
-            // 图标侧留白略减，让品牌图标整体左移约 2dp。
-            modifier = Modifier.padding(start = 15.dp, end = 17.dp),
+            // 图标侧留白再收 2dp，让品牌图标整体继续左移。
+            modifier = Modifier.padding(start = 13.dp, end = 17.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(7.dp),
         ) {
@@ -542,4 +565,4 @@ internal fun AgentModelPillButton(
 
 private val ModelPillHeight = 40.dp
 private val ModelPillMaxWidth = 264.dp
-private val ModelPillIconSize = 21.dp
+private val ModelPillIconSize = 23.dp

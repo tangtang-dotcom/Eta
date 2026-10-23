@@ -99,6 +99,10 @@ internal object AetherChatColors {
     @Composable
     fun frostBlendAlpha(): Float = if (LocalIsDarkTheme.current) 0.58f else 0.46f
 
+    /** 顶栏圆钮/胶囊的磨砂混色不透明度：小控件略实一些，保证图标与文字清晰。 */
+    @Composable
+    fun controlFrostAlpha(): Float = if (LocalIsDarkTheme.current) 0.66f else 0.58f
+
     /** 顶栏磨砂表面不透明度。 */
     @Composable
     fun topBarSurfaceAlpha(): Float = if (LocalIsDarkTheme.current) 0.92f else 0.90f

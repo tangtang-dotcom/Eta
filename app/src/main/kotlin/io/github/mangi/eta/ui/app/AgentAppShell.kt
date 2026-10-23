@@ -76,6 +76,7 @@ import io.github.mangi.eta.ui.navigation.AppRoute
 import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.basic.DropdownImpl
 import top.yukonga.miuix.kmp.blur.BlendColorEntry
+import top.yukonga.miuix.kmp.blur.BlurDefaults
 import top.yukonga.miuix.kmp.blur.BlurColors
 import top.yukonga.miuix.kmp.blur.LayerBackdrop
 import top.yukonga.miuix.kmp.blur.isRuntimeShaderSupported
@@ -161,6 +162,8 @@ internal fun AgentAppShell(
                         ChatTopBarOverlay(
                                 modelPickerState = chatModelPickerState,
                                 isStreaming = chatIsStreaming,
+                                frosted = chatFrosted,
+                                backdrop = backdrop,
                                 reasoningEffort = chatReasoningEffort,
                                 availableReasoningEfforts = chatAvailableReasoningEfforts,
                                 onReasoningEffortChange = onChatReasoningEffortChange,
@@ -394,6 +397,8 @@ private fun FrostedCircle(
 private fun ChatTopBarOverlay(
     modelPickerState: AgentModelPickerUiState,
     isStreaming: Boolean,
+    frosted: Boolean,
+    backdrop: LayerBackdrop?,
     reasoningEffort: ReasoningEffort?,
     availableReasoningEfforts: List<ReasoningEffort>,
     onReasoningEffortChange: ((ReasoningEffort) -> Unit)?,
@@ -415,6 +420,8 @@ private fun ChatTopBarOverlay(
             ChatTopBarFrame(
                 modelPickerState = modelPickerState,
                 isStreaming = isStreaming,
+                frosted = frosted,
+                backdrop = backdrop,
                 reasoningEffort = reasoningEffort,
                 availableReasoningEfforts = availableReasoningEfforts,
                 onReasoningEffortChange = onReasoningEffortChange,
@@ -443,6 +450,8 @@ private fun ChatTopBarOverlay(
 private fun ChatTopBarFrame(
     modelPickerState: AgentModelPickerUiState,
     isStreaming: Boolean,
+    frosted: Boolean,
+    backdrop: LayerBackdrop?,
     reasoningEffort: ReasoningEffort?,
     availableReasoningEfforts: List<ReasoningEffort>,
     onReasoningEffortChange: ((ReasoningEffort) -> Unit)?,
@@ -469,6 +478,8 @@ private fun ChatTopBarFrame(
         ChatHeaderCircle(
             icon = Icons.AutoMirrored.Outlined.ShortText,
             contentDescription = stringResource(R.string.action_conversation_history),
+            frosted = frosted,
+            backdrop = backdrop,
             onClick = onOpenConversationPane,
         )
         Box(
@@ -485,6 +496,8 @@ private fun ChatTopBarFrame(
                 AgentModelPillButton(
                 state = modelPickerState,
                 isStreaming = isStreaming,
+                frosted = frosted,
+                backdrop = backdrop,
                 reasoningEffort = reasoningEffort,
                 availableReasoningEfforts = availableReasoningEfforts,
                 onReasoningEffortChange = onReasoningEffortChange,
@@ -498,7 +511,7 @@ private fun ChatTopBarFrame(
                 modifier = Modifier
                     .matchParentSize()
                     .clip(CircleShape)
-                    .background(AetherChatColors.surface().copy(alpha = 0.96f)),
+                    .chatHeaderControlSurface(frosted = frosted, backdrop = backdrop),
                 contentAlignment = Alignment.Center,
             ) {
                 TopBarOverflowMenu(
@@ -521,6 +534,8 @@ private fun ChatTopBarFrame(
 private fun ChatHeaderCircle(
     icon: ImageVector,
     contentDescription: String,
+    frosted: Boolean,
+    backdrop: LayerBackdrop?,
     onClick: () -> Unit,
 ) {
     Box(modifier = Modifier.size(ChatHeaderButtonSize)) {
@@ -529,7 +544,7 @@ private fun ChatHeaderCircle(
             modifier = Modifier
                 .matchParentSize()
                 .clip(CircleShape)
-                .background(AetherChatColors.surface().copy(alpha = 0.96f))
+                .chatHeaderControlSurface(frosted = frosted, backdrop = backdrop)
                 .clickable(onClick = onClick),
             contentAlignment = Alignment.Center,
         ) {
@@ -540,6 +555,29 @@ private fun ChatHeaderCircle(
             )
         }
     }
+}
+
+/**
+ * 顶栏控件底：磨砂开启时采样同一份 backdrop 做玻璃块（半透明 + 模糊），
+ * 关闭时用不透明表面色，避免按钮落在消息上显得半透。
+ */
+@Composable
+private fun Modifier.chatHeaderControlSurface(
+    frosted: Boolean,
+    backdrop: LayerBackdrop?,
+): Modifier = if (frosted && backdrop != null) {
+    textureBlur(
+        backdrop = backdrop,
+        shape = CircleShape,
+        blurRadius = 20f,
+        colors = BlurDefaults.blurColors(
+            blendColors = listOf(
+                BlendColorEntry(AetherChatColors.surface().copy(alpha = AetherChatColors.controlFrostAlpha())),
+            ),
+        ),
+    )
+} else {
+    background(AetherChatColors.surface())
 }
 
 @Composable

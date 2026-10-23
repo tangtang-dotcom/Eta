@@ -3,6 +3,7 @@ package io.github.mangi.eta.ui.app
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Column
@@ -508,9 +509,13 @@ private fun ChatTopBarFrame(
             modifier = Modifier
                 .weight(1f)
                 .padding(start = 12.dp, end = 12.dp),
+            contentAlignment = Alignment.Center,
         ) {
-            // 模型胶囊贴近左侧圆钮（Aether 中央区内容从左侧排布）；角色对话时身份标识并排在前。
-            Row(verticalAlignment = Alignment.CenterVertically) {
+            // 胶囊在顶栏水平居中；角色对话时身份标识并排在前，一起居中。
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.Center,
+            ) {
                 homeCharacter?.let { character ->
                     CharacterTopBarIdentity(character = character, onClick = onOpenCharacter)
                     Spacer(modifier = Modifier.width(8.dp))
@@ -623,8 +628,8 @@ private fun BoxScope.ChatHeaderHalo() {
     )
 }
 
-private val ChatHeaderButtonSize = 40.dp
-private val ChatHeaderIconSize = 20.dp
+private val ChatHeaderButtonSize = 50.dp
+private val ChatHeaderIconSize = 25.dp
 private val ChatTopBarTailHeight = 42.dp
 
 /** 聊天页顶栏的遮蔽强度：比设置页更强，避免正文透出后看起来发脏。 */

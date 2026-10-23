@@ -529,10 +529,10 @@ internal fun AgentModelPillButton(
         contentAlignment = Alignment.Center,
     ) {
         Row(
-            // 图标侧留白再收 2dp，让品牌图标整体继续左移。
-            modifier = Modifier.padding(start = 13.dp, end = 17.dp),
+            // 高度放大到 50dp 后，左右留白与图标间距按比例一起放大。
+            modifier = Modifier.padding(start = 16.dp, end = 21.dp),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(7.dp),
+            horizontalArrangement = Arrangement.spacedBy(9.dp),
         ) {
             ModelBrandMark(
                 modelId = selected?.modelId,
@@ -541,7 +541,7 @@ internal fun AgentModelPillButton(
             )
             Text(
                 text = currentModel,
-                style = MiuixTheme.textStyles.body2.copy(fontWeight = FontWeight.Medium),
+                style = MiuixTheme.textStyles.body1.copy(fontWeight = FontWeight.Medium),
                 color = AetherChatColors.onSurface(),
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
@@ -572,6 +572,6 @@ internal fun AgentModelPillButton(
     }
 }
 
-private val ModelPillHeight = 40.dp
+private val ModelPillHeight = 50.dp
 private val ModelPillMaxWidth = 264.dp
-private val ModelPillIconSize = 23.dp
+private val ModelPillIconSize = 29.dp

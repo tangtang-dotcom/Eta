@@ -1,5 +1,15 @@
 package io.github.mangi.eta.ui.components
 
+import androidx.compose.runtime.LaunchedEffect
+
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.ime
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.window.Popup
+import androidx.compose.ui.window.PopupProperties
+import kotlin.math.roundToInt
+
 import android.content.Intent
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
@@ -120,16 +130,24 @@ internal fun AgentAttachmentPickerButton(
             tint = MiuixTheme.colorScheme.onSurface,
         )
     }
-        WindowListPopup(
-            show = showPopup && popupAnchorTopPx > 0,
-            popupPositionProvider = remember(popupAnchorTopPx) {
-                InputPopupPositionProvider(popupAnchorTopPx)
-            },
-            alignment = PopupPositionProvider.Align.TopStart,
+        // Aether 用轻量 Popup 而非窗口级 Dialog：弹出时不抢输入焦点，键盘保持。
+        val density = LocalDensity.current
+        val imeVisible = WindowInsets.ime.getBottom(density) > 0
+        LaunchedEffect(showPopup, imeVisible) {
+            // 键盘被用户主动收起时同步关闭菜单。
+            if (showPopup && !imeVisible) showPopup = false
+        }
+        if (showPopup) {
+        Popup(
+            alignment = Alignment.BottomStart,
+            offset = with(density) { IntOffset(0, -42.dp.roundToPx()) },
             onDismissRequest = { showPopup = false },
-            maxHeight = popupMaxHeight,
+            properties = PopupProperties(
+                focusable = false,
+                dismissOnBackPress = false,
+                dismissOnClickOutside = false,
+            ),
         ) {
-            val dismiss = LocalDismissState.current
             val options = listOf(
                 stringResource(R.string.attachment_image),
                 stringResource(R.string.attachment_file),
@@ -144,7 +162,7 @@ internal fun AgentAttachmentPickerButton(
                         isSelected = false,
                         index = index,
                         onSelectedIndexChange = {
-                            dismiss?.invoke()
+                            showPopup = false
                             when (index) {
                                 0 -> photoPicker.launch(
                                     PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
@@ -159,6 +177,7 @@ internal fun AgentAttachmentPickerButton(
                         },
                     )
                 }
+            }
             }
         }
     }

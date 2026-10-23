@@ -167,7 +167,10 @@ internal fun AgentChatInputBar(
     // Aether 底栏核心交互：输入框聚焦且键盘弹出（或有托盘/草稿）时，
     // 加号圆钮从卡片内吸附到卡片外左侧，其余动画全部跟随 260ms 同一缓动。
     val imeVisible = WindowInsets.ime.getBottom(density) > 0
-    val plusSeparated = hasActionTray || (inputFocused && imeVisible)
+    // Aether：keepPlusSeparated = 文字非空 || 有托盘；再叠加「聚焦且键盘弹出」。
+    // 打字后加号保持分离，不会因为键盘收起又缩回卡片。
+    val keepPlusSeparated = textFieldState.text.isNotBlank() || hasActionTray
+    val plusSeparated = keepPlusSeparated || (inputFocused && imeVisible)
     val composerCorner by animateFloatAsState(
         targetValue = if (inputFocused) 28f else 26f,
         animationSpec = tween(260, easing = ComposerMotionEasing),
@@ -210,7 +213,7 @@ internal fun AgentChatInputBar(
         label = "composer_plus_shadow",
     )
     val plusShadowAlpha by animateFloatAsState(
-        targetValue = if (plusSeparated) 0.10f else 0f,
+        targetValue = if (plusSeparated) 0.08f else 0f,
         animationSpec = tween(260, easing = ComposerMotionEasing),
         label = "composer_plus_shadow_alpha",
     )

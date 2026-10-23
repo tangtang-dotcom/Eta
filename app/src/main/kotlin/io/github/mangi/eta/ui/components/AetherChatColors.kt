@@ -148,6 +148,28 @@ internal object AetherChatColors {
     /** ChatGptControlShadow */
     val controlShadow: Color = Color(0x14000000)
 
+    /**
+     * 柔光玻璃参数（单位 px，运行时按屏幕密度换算）。深浅两套各自独立，
+     * 透明度都比原配置再收一档，让底下的内容透得出来。
+     */
+    @Composable
+    fun glassBackground(): Color = if (LocalIsDarkTheme.current) {
+        Color(0x330D0D0D)
+    } else {
+        Color(0x8CE1E1E1)
+    }
+
+    @Composable
+    fun glassBaseBlurPx(): Float = if (LocalIsDarkTheme.current) 80f else 60f
+
+    /** 边缘光带宽：原配置 30px 在 40dp 圆钮上太宽，会糊成一圈内环，收到 6px。 */
+    @Composable
+    fun glassHighlightWidthPx(): Float = 6f
+
+    /** 玻璃基底不透明度：越低越透，深色比浅色再透一档。 */
+    @Composable
+    fun glassBaseAlpha(): Float = if (LocalIsDarkTheme.current) 0.42f else 0.52f
+
     /** ChatGptComposerShadow */
     val composerShadow: Color = Color(0x18000000)
 }

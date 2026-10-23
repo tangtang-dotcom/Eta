@@ -588,54 +588,34 @@ private fun Modifier.chatHeaderControlSurface(
     backdrop: LayerBackdrop?,
 ): Modifier {
     val dark = LocalIsDarkTheme.current
-    val base = when {
-        // 深色走「柔光玻璃」：半透明黑底 + 大半径模糊 + 边缘光，参数取自用户配置。
-        frosted && backdrop != null && dark -> {
-            val density = LocalDensity.current.density
-            // 先铺一层不透明基底再压暗：否则控件背后是白色气泡还是深色壁纸，
-            // 糊出来一个浅一个黑，同一排控件的材质就对不上了。
-            val glassBase = AetherChatColors.controlSurface().copy(alpha = 0.62f)
-            textureEffect(
-                backdrop = backdrop,
-                shape = CircleShape,
-                blurRadius = ChatGlassBaseBlurPx / density,
-                colors = BlurColors(
-                    blendColors = listOf(
-                        BlendColorEntry(glassBase),
-                        BlendColorEntry(ChatGlassBackground),
-                    ),
-                ),
-                // width 是「从边缘向内的环带宽度」，不是光晕扩散范围：
-                // 之前按 30px 换算成 10dp，在 40dp 的控件里就成了一整圈异物。
-                highlight = Highlight(
-                    width = 1.dp,
-                    alpha = 0.85f,
-                    style = BloomStroke.GlassStrokeSmallDark,
-                ),
-            )
-        }
-        frosted && backdrop != null -> textureBlur(
+    val base = if (frosted && backdrop != null) {
+        val density = LocalDensity.current.density
+        // 柔光玻璃：不透明基底压住背景渗色 + 半透明底色 + 大半径模糊 + 细边缘光。
+        val glassBase = AetherChatColors.controlSurface().copy(alpha = AetherChatColors.glassBaseAlpha())
+        textureEffect(
             backdrop = backdrop,
             shape = CircleShape,
-            blurRadius = 14f,
-            colors = BlurDefaults.blurColors(
+            blurRadius = AetherChatColors.glassBaseBlurPx() / density,
+            colors = BlurColors(
                 blendColors = listOf(
-                    BlendColorEntry(AetherChatColors.controlSurface().copy(alpha = AetherChatColors.controlFrostAlpha())),
+                    BlendColorEntry(glassBase),
+                    BlendColorEntry(AetherChatColors.glassBackground()),
                 ),
             ),
+            // width 是「从边缘向内的环带宽度」，不是光晕扩散范围；
+            // 按 30px 换算成 10dp 会在 40dp 的控件里糊成一整圈异物。
+            highlight = Highlight(
+                width = 1.dp,
+                alpha = 0.85f,
+                style = if (dark) BloomStroke.GlassStrokeSmallDark else BloomStroke.GlassStrokeSmallLight,
+            ),
         )
-        else -> background(AetherChatColors.controlSurface())
+    } else {
+        background(AetherChatColors.controlSurface())
     }
     // 暗色下补一圈极细高光，玻璃边缘才不会糊进壁纸里。
     return base.border(1.dp, AetherChatColors.controlStroke(), CircleShape)
 }
-
-/**
- * 柔光玻璃·深色：用户给的配置（单位 px，运行时按屏幕密度换算成 dp）。
- * 折射相关（折射宽度 32 / 玻璃厚度 80 / 折射率 1.30）需要自定义 AGSL，暂未启用。
- */
-private val ChatGlassBackground = Color(0x400D0D0D)
-private const val ChatGlassBaseBlurPx = 80f
 
 @Composable
 private fun BoxScope.ChatHeaderHalo() {

@@ -502,41 +502,27 @@ internal fun AgentModelPillButton(
             )
             .clip(CircleShape)
             .then(
-                when {
-                    // 深色与顶栏圆钮共用「柔光玻璃」参数，保证同一排控件材质一致。
-                    frosted && backdrop != null && darkTheme -> {
-                        val density = LocalDensity.current.density
-                        val glassBase = AetherChatColors.controlSurface().copy(alpha = 0.62f)
-                        Modifier.textureEffect(
-                            backdrop = backdrop,
-                            shape = CircleShape,
-                            blurRadius = 80f / density,
-                            colors = BlurColors(
-                                blendColors = listOf(
-                                    BlendColorEntry(glassBase),
-                                    BlendColorEntry(Color(0x400D0D0D)),
-                                ),
-                            ),
-                            highlight = Highlight(
-                                width = 1.dp,
-                                alpha = 0.85f,
-                                style = BloomStroke.GlassStrokeSmallDark,
-                            ),
-                        )
-                    }
-                    frosted && backdrop != null -> Modifier.textureBlur(
+                if (frosted && backdrop != null) {
+                    val density = LocalDensity.current.density
+                    val glassBase = AetherChatColors.controlSurface().copy(alpha = AetherChatColors.glassBaseAlpha())
+                    Modifier.textureEffect(
                         backdrop = backdrop,
                         shape = CircleShape,
-                        blurRadius = 14f,
-                        colors = BlurDefaults.blurColors(
+                        blurRadius = AetherChatColors.glassBaseBlurPx() / density,
+                        colors = BlurColors(
                             blendColors = listOf(
-                                BlendColorEntry(
-                                    AetherChatColors.controlSurface().copy(alpha = AetherChatColors.controlFrostAlpha()),
-                                ),
+                                BlendColorEntry(glassBase),
+                                BlendColorEntry(AetherChatColors.glassBackground()),
                             ),
                         ),
+                        highlight = Highlight(
+                            width = 1.dp,
+                            alpha = 0.85f,
+                            style = if (darkTheme) BloomStroke.GlassStrokeSmallDark else BloomStroke.GlassStrokeSmallLight,
+                        ),
                     )
-                    else -> Modifier.background(AetherChatColors.controlSurface())
+                } else {
+                    Modifier.background(AetherChatColors.controlSurface())
                 },
             )
             // 与圆钮同一套玻璃材质：暗色补一圈极细高光描边。

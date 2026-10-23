@@ -518,8 +518,8 @@ internal fun AgentModelPillButton(
                                 ),
                             ),
                             highlight = Highlight(
-                                width = (30f / density).dp,
-                                alpha = 1f,
+                                width = 1.dp,
+                                alpha = 0.85f,
                                 style = BloomStroke.GlassStrokeSmallDark,
                             ),
                         )

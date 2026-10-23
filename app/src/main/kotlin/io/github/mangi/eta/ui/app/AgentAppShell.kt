@@ -605,9 +605,11 @@ private fun Modifier.chatHeaderControlSurface(
                         BlendColorEntry(ChatGlassBackground),
                     ),
                 ),
+                // width 是「从边缘向内的环带宽度」，不是光晕扩散范围：
+                // 之前按 30px 换算成 10dp，在 40dp 的控件里就成了一整圈异物。
                 highlight = Highlight(
-                    width = (ChatGlassHighlightWidthPx / density).dp,
-                    alpha = 1f,
+                    width = 1.dp,
+                    alpha = 0.85f,
                     style = BloomStroke.GlassStrokeSmallDark,
                 ),
             )
@@ -634,7 +636,6 @@ private fun Modifier.chatHeaderControlSurface(
  */
 private val ChatGlassBackground = Color(0x400D0D0D)
 private const val ChatGlassBaseBlurPx = 80f
-private const val ChatGlassHighlightWidthPx = 30f
 
 @Composable
 private fun BoxScope.ChatHeaderHalo() {

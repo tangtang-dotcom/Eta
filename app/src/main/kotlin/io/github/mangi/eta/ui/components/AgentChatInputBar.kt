@@ -20,7 +20,6 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
-import androidx.compose.foundation.border
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -339,19 +338,14 @@ internal fun AgentChatInputBar(
                                     colors = BlurDefaults.blurColors(
                                         blendColors = listOf(
                                             BlendColorEntry(
-                                                MiuixTheme.colorScheme.surfaceContainer.copy(alpha = 0.4f),
+                                                MiuixTheme.colorScheme.surface.copy(alpha = 0.4f),
                                             ),
                                         ),
                                     ),
                                 )
                             } else {
-                                Modifier.background(MiuixTheme.colorScheme.surfaceContainer)
+                                Modifier.background(MiuixTheme.colorScheme.surface)
                             },
-                        )
-                        .border(
-                            width = 0.5.dp,
-                            color = MiuixTheme.colorScheme.outline.copy(alpha = 0.55f),
-                            shape = composerShape,
                         )
                         .padding(
                             start = fieldContentStartPaddingDp.dp,
@@ -431,8 +425,8 @@ internal fun AgentChatInputBar(
                         ) {
                             IconButton(
                                 onClick = onStop,
-                                minWidth = ChatInputActionSize,
-                                minHeight = ChatInputActionSize,
+                                minWidth = 38.dp,
+                                minHeight = 38.dp,
                             ) {
                                 Box(
                                     modifier = Modifier
@@ -463,7 +457,7 @@ internal fun AgentChatInputBar(
                         )
                         Box(
                             modifier = Modifier
-                                .size(ChatInputActionSize)
+                                .size(38.dp)
                                 .clip(CircleShape)
                                 .combinedClickable(
                                     enabled = isStreaming || canSend,
@@ -545,7 +539,7 @@ internal fun AgentChatInputBar(
                         .clip(CircleShape)
                         .background(
                             if (plusSeparated) {
-                                MiuixTheme.colorScheme.surfaceContainer
+                                MiuixTheme.colorScheme.surface
                             } else {
                                 Color.Transparent
                             },

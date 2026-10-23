@@ -460,7 +460,8 @@ internal fun AgentChatInputBar(
                         val sendButtonColor by animateColorAsState(
                             targetValue = when {
                                 showPrimaryStop -> MiuixTheme.colorScheme.onSurface
-                                canSend -> Color(0xFF9B5CFF)
+                                // 发送键跟随莫奈主色，不再写死紫色。
+                                canSend -> MiuixTheme.colorScheme.primary
                                 else -> MiuixTheme.colorScheme.surfaceContainerHigh
                             },
                             animationSpec = tween(durationMillis = 160),
@@ -525,7 +526,7 @@ internal fun AgentChatInputBar(
                                         ),
                                         tint = when {
                                             stopIcon -> MiuixTheme.colorScheme.surface
-                                            canSend -> Color.White
+                                            canSend -> MiuixTheme.colorScheme.onPrimary
                                             else -> MiuixTheme.colorScheme.onSurfaceVariantActions
                                         },
                                     )
@@ -548,11 +549,29 @@ internal fun AgentChatInputBar(
                             ),
                         )
                         .clip(CircleShape)
-                        .background(
-                            if (plusSeparated) {
-                                MiuixTheme.colorScheme.surface
+                        .then(
+                            if (plusSeparated && frosted && backdrop != null) {
+                                // 磨砂开启时，分离出来的加号圆钮同样采样背后消息做虚化。
+                                Modifier.textureBlur(
+                                    backdrop = backdrop,
+                                    shape = CircleShape,
+                                    blurRadius = 20f,
+                                    colors = BlurDefaults.blurColors(
+                                        blendColors = listOf(
+                                            BlendColorEntry(
+                                                MiuixTheme.colorScheme.surface.copy(alpha = 0.4f),
+                                            ),
+                                        ),
+                                    ),
+                                )
                             } else {
-                                Color.Transparent
+                                Modifier.background(
+                                    if (plusSeparated) {
+                                        MiuixTheme.colorScheme.surface
+                                    } else {
+                                        Color.Transparent
+                                    },
+                                )
                             },
                         ),
                     contentAlignment = Alignment.Center,

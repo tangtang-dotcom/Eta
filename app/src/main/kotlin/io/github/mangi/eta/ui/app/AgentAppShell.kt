@@ -153,8 +153,10 @@ internal fun AgentAppShell(
                 if (currentRoute !is AppRoute.Settings) {
                     val isChat = currentRoute is AppRoute.Home
                     if (isChat && chatModelPickerState != null) {
-                        // 聊天顶栏只要悬浮的按钮与胶囊，不铺任何背景：
-                        // 透明区域不拦截触摸，消息可以从下方穿过。
+                        // 顶栏背景跟随「输入框磨砂」开关：开启时整条磨砂（采样背后消息），
+                        // 关闭时完全透明，只保留悬浮按钮与胶囊。
+                        val chatFrosted = LocalAppearanceSettings.current.chatComposerFrost
+                        val chatTopBar: @Composable () -> Unit = {
                         ChatTopBarOverlay(
                                 modelPickerState = chatModelPickerState,
                                 isStreaming = chatIsStreaming,
@@ -174,6 +176,19 @@ internal fun AgentAppShell(
                                 homeCharacter = homeCharacter,
                                 onOpenCharacter = onOpenCharacter,
                         )
+                        }
+                        if (chatFrosted) {
+                            TopBarBackdrop(
+                                backdrop = backdrop,
+                                progressiveAlpha = ChatTopBarProgressiveAlpha,
+                                surfaceAlpha = ChatTopBarSurfaceAlpha,
+                                progressiveRadius = ChatTopBarProgressiveRadius,
+                            ) {
+                                chatTopBar()
+                            }
+                        } else {
+                            chatTopBar()
+                        }
                     } else {
                         TopBarBackdrop(
                             backdrop = backdrop,

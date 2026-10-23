@@ -65,6 +65,7 @@ import androidx.compose.ui.draw.dropShadow
 import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.graphics.graphicsLayer
@@ -82,6 +83,7 @@ import io.github.mangi.eta.agent.browser.AgentBrowserSession
 import io.github.mangi.eta.data.model.ReasoningEffort
 import io.github.mangi.eta.ui.app.AgentConversationRevisionReducer
 import io.github.mangi.eta.ui.app.LocalAppearanceSettings
+import io.github.mangi.eta.ui.app.LocalIsDarkTheme
 import io.github.mangi.eta.ui.app.LocalBlurEnabled
 import io.github.mangi.eta.ui.app.LocalChatTopOverlayInset
 import io.github.mangi.eta.ui.markdown.StreamingMarkdownStateCache
@@ -356,8 +358,24 @@ private fun AgentChatScaffold(
         drawContent()
     }
 
+    // 深色模式按 Aether 的层次做同色系纵向加深（保留莫奈色相）；
+    // 浅色模式维持单一底色，避免色块。
+    val stageBase = MiuixTheme.colorScheme.background
+    val stageBrush = if (LocalIsDarkTheme.current) {
+        Brush.verticalGradient(
+            listOf(
+                stageBase,
+                Color.Black.copy(alpha = 0.18f).compositeOver(stageBase),
+                Color.Black.copy(alpha = 0.30f).compositeOver(stageBase),
+            ),
+        )
+    } else {
+        Brush.verticalGradient(listOf(stageBase, stageBase))
+    }
     Scaffold(
-        modifier = modifier.fillMaxSize(),
+        modifier = modifier
+            .fillMaxSize()
+            .background(stageBrush),
         containerColor = Color.Transparent,
         contentWindowInsets = WindowInsets(
             left = 0.dp,

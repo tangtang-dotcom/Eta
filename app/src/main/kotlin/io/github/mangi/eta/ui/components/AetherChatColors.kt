@@ -1,6 +1,13 @@
 package io.github.mangi.eta.ui.components
 
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.graphics.Color
 import io.github.mangi.eta.ui.app.LocalAppearanceSettings
 import io.github.mangi.eta.ui.app.LocalIsDarkTheme
@@ -170,6 +177,36 @@ internal object AetherChatColors {
     @Composable
     fun glassBaseAlpha(): Float = if (LocalIsDarkTheme.current) 0.34f else 0.12f
 
+    /** 边缘光渐变：顶部亮、底部暗，模拟光从上方打下来。 */
+    @Composable
+    fun glassStrokeTop(): Color = if (LocalIsDarkTheme.current) {
+        Color.White.copy(alpha = 0.16f)
+    } else {
+        Color.White.copy(alpha = 0.95f)
+    }
+
+    @Composable
+    fun glassStrokeBottom(): Color = if (LocalIsDarkTheme.current) {
+        Color.White.copy(alpha = 0.03f)
+    } else {
+        Color.White.copy(alpha = 0.35f)
+    }
+
     /** ChatGptComposerShadow */
     val composerShadow: Color = Color(0x18000000)
 }
+
+/**
+ * 玻璃边缘光：上亮下暗的 1dp 渐变描边。
+ * 用纯绘制代替 Miuix 的 highlight（后者每帧要在整个控件上跑一遍 shader，
+ * 顶栏三个控件叠起来会明显掉帧）。
+ */
+internal fun Modifier.glassEdge(top: Color, bottom: Color, width: Dp = 1.dp): Modifier =
+    drawWithContent {
+        drawContent()
+        drawRoundRect(
+            brush = Brush.verticalGradient(listOf(top, bottom)),
+            cornerRadius = CornerRadius(size.height / 2f, size.height / 2f),
+            style = Stroke(width = width.toPx()),
+        )
+    }

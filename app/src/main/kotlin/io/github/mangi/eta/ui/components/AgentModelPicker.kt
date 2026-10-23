@@ -514,18 +514,13 @@ internal fun AgentModelPillButton(
                                 BlendColorEntry(AetherChatColors.glassBackground()),
                             ),
                         ),
-                        highlight = Highlight(
-                            width = 1.dp,
-                            alpha = 0.85f,
-                            style = if (darkTheme) BloomStroke.GlassStrokeSmallDark else BloomStroke.GlassStrokeSmallLight,
-                        ),
                     )
                 } else {
                     Modifier.background(AetherChatColors.controlSurface())
                 },
             )
-            // 与圆钮同一套玻璃材质：暗色补一圈极细高光描边。
-            .border(1.dp, AetherChatColors.controlStroke(), CircleShape)
+            // 与圆钮同一套玻璃材质：渐变描边代替 highlight shader。
+            .glassEdge(AetherChatColors.glassStrokeTop(), AetherChatColors.glassStrokeBottom())
             .clickable {
                 sheetSession += 1
                 showSheet = true

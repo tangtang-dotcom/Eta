@@ -68,6 +68,7 @@ import io.github.mangi.eta.ui.components.ConversationSidePaneScaffold
 import io.github.mangi.eta.ui.components.MiuixBackButton
 import io.github.mangi.eta.ui.components.RoleplayChatUi
 import io.github.mangi.eta.ui.components.AetherChatColors
+import io.github.mangi.eta.ui.components.glassEdge
 import io.github.mangi.eta.ui.components.AgentModelPillButton
 import io.github.mangi.eta.ui.components.TopBarBackdrop
 import io.github.mangi.eta.ui.components.captureForTopBar
@@ -602,17 +603,12 @@ private fun Modifier.chatHeaderControlSurface(
                     BlendColorEntry(AetherChatColors.glassBackground()),
                 ),
             ),
-            highlight = Highlight(
-                width = 1.dp,
-                alpha = 0.85f,
-                style = if (dark) BloomStroke.GlassStrokeSmallDark else BloomStroke.GlassStrokeSmallLight,
-            ),
         )
     } else {
         background(AetherChatColors.controlSurface())
     }
-    // 暗色下补一圈极细高光，玻璃边缘才不会糊进壁纸里。
-    return base.border(1.dp, AetherChatColors.controlStroke(), CircleShape)
+    // 边缘光改成渐变描边：上亮下暗，纯绘制，不像 highlight shader 那样每帧跑一遍。
+    return base.glassEdge(AetherChatColors.glassStrokeTop(), AetherChatColors.glassStrokeBottom())
 }
 
 @Composable

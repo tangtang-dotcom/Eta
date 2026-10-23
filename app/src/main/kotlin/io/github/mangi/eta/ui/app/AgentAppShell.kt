@@ -204,11 +204,20 @@ internal fun AgentAppShell(
                 }
             },
         ) { padding ->
+            // 聊天页顶栏是固定悬浮结构，不参与折叠；此时若仍挂 ScrollBehavior 的 nestedScroll，
+            // 向上滚动会被它全部消费（用于折叠一个不会折叠的顶栏），表现为上滑滚不动。
+            val attachScrollBehavior = currentRoute !is AppRoute.Home
             Box(
                 modifier = Modifier
                     .fillMaxSize()
                     .captureForTopBar(backdrop)
-                    .nestedScroll(scrollBehavior.nestedScrollConnection),
+                    .then(
+                        if (attachScrollBehavior) {
+                            Modifier.nestedScroll(scrollBehavior.nestedScrollConnection)
+                        } else {
+                            Modifier
+                        },
+                    ),
             ) {
                 content(padding)
             }

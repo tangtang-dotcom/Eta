@@ -105,11 +105,11 @@ internal object AetherChatColors {
 
     /** 顶栏磨砂表面不透明度。 */
     @Composable
-    fun topBarSurfaceAlpha(): Float = if (LocalIsDarkTheme.current) 0.92f else 0.90f
+    fun topBarSurfaceAlpha(): Float = if (LocalIsDarkTheme.current) 0.92f else 0.74f
 
     /** 顶栏磨砂渐变端不透明度。 */
     @Composable
-    fun topBarProgressiveAlpha(): Float = if (LocalIsDarkTheme.current) 0.82f else 0.72f
+    fun topBarProgressiveAlpha(): Float = if (LocalIsDarkTheme.current) 0.82f else 0.56f
 
     /**
      * 用户气泡底色：莫奈开保持原来的主题容器色，关闭时照抄 Aether 的 messageBubble
@@ -156,7 +156,7 @@ internal object AetherChatColors {
     fun glassBackground(): Color = if (LocalIsDarkTheme.current) {
         Color(0x330D0D0D)
     } else {
-        Color(0x8CE1E1E1)
+        Color(0x59E1E1E1)
     }
 
     @Composable
@@ -168,7 +168,7 @@ internal object AetherChatColors {
 
     /** 玻璃基底不透明度：越低越透，深色比浅色再透一档。 */
     @Composable
-    fun glassBaseAlpha(): Float = if (LocalIsDarkTheme.current) 0.42f else 0.52f
+    fun glassBaseAlpha(): Float = if (LocalIsDarkTheme.current) 0.42f else 0.16f
 
     /** ChatGptComposerShadow */
     val composerShadow: Color = Color(0x18000000)

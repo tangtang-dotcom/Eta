@@ -87,6 +87,9 @@ import top.yukonga.miuix.kmp.blur.BlurColors
 import top.yukonga.miuix.kmp.blur.LayerBackdrop
 import top.yukonga.miuix.kmp.blur.isRuntimeShaderSupported
 import top.yukonga.miuix.kmp.blur.textureBlur
+import top.yukonga.miuix.kmp.blur.highlight.BloomStroke
+import top.yukonga.miuix.kmp.blur.highlight.Highlight
+import top.yukonga.miuix.kmp.blur.textureEffect
 import top.yukonga.miuix.kmp.basic.DropdownItem
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
@@ -584,8 +587,26 @@ private fun Modifier.chatHeaderControlSurface(
     frosted: Boolean,
     backdrop: LayerBackdrop?,
 ): Modifier {
-    val base = if (frosted && backdrop != null) {
-        textureBlur(
+    val dark = LocalIsDarkTheme.current
+    val base = when {
+        // 深色走「柔光玻璃」：半透明黑底 + 大半径模糊 + 边缘光，参数取自用户配置。
+        frosted && backdrop != null && dark -> {
+            val density = LocalDensity.current.density
+            textureEffect(
+                backdrop = backdrop,
+                shape = CircleShape,
+                blurRadius = ChatGlassBaseBlurPx / density,
+                colors = BlurColors(
+                    blendColors = listOf(BlendColorEntry(ChatGlassBackground)),
+                ),
+                highlight = Highlight(
+                    width = (ChatGlassHighlightWidthPx / density).dp,
+                    alpha = 1f,
+                    style = BloomStroke.GlassStrokeSmallDark,
+                ),
+            )
+        }
+        frosted && backdrop != null -> textureBlur(
             backdrop = backdrop,
             shape = CircleShape,
             blurRadius = 14f,
@@ -595,12 +616,19 @@ private fun Modifier.chatHeaderControlSurface(
                 ),
             ),
         )
-    } else {
-        background(AetherChatColors.controlSurface())
+        else -> background(AetherChatColors.controlSurface())
     }
     // 暗色下补一圈极细高光，玻璃边缘才不会糊进壁纸里。
     return base.border(1.dp, AetherChatColors.controlStroke(), CircleShape)
 }
+
+/**
+ * 柔光玻璃·深色：用户给的配置（单位 px，运行时按屏幕密度换算成 dp）。
+ * 折射相关（折射宽度 32 / 玻璃厚度 80 / 折射率 1.30）需要自定义 AGSL，暂未启用。
+ */
+private val ChatGlassBackground = Color(0x400D0D0D)
+private const val ChatGlassBaseBlurPx = 80f
+private const val ChatGlassHighlightWidthPx = 30f
 
 @Composable
 private fun BoxScope.ChatHeaderHalo() {

@@ -60,7 +60,12 @@ import top.yukonga.miuix.kmp.blur.BlendColorEntry
 import top.yukonga.miuix.kmp.blur.BlurDefaults
 import top.yukonga.miuix.kmp.blur.LayerBackdrop
 import top.yukonga.miuix.kmp.blur.textureBlur
+import top.yukonga.miuix.kmp.blur.BlurColors
+import top.yukonga.miuix.kmp.blur.highlight.BloomStroke
+import top.yukonga.miuix.kmp.blur.highlight.Highlight
+import top.yukonga.miuix.kmp.blur.textureEffect
 import io.github.mangi.eta.R
+import io.github.mangi.eta.ui.app.LocalIsDarkTheme
 import io.github.mangi.eta.data.model.ReasoningEffort
 import io.github.mangi.eta.ui.model.AgentModelOptionUi
 import io.github.mangi.eta.ui.model.AgentModelPickerUiState
@@ -486,6 +491,7 @@ internal fun AgentModelPillButton(
     // 点击始终可响应；无可用模型时面板内会给出空态提示。
     val currentModel = selected?.displayName ?: stringResource(R.string.model_not_selected)
     val switchModelDescription = stringResource(R.string.model_switch_current, currentModel)
+    val darkTheme = LocalIsDarkTheme.current
     Box(
         modifier = modifier
             .height(ModelPillHeight)
@@ -496,8 +502,25 @@ internal fun AgentModelPillButton(
             )
             .clip(CircleShape)
             .then(
-                if (frosted && backdrop != null) {
-                    Modifier.textureBlur(
+                when {
+                    // 深色与顶栏圆钮共用「柔光玻璃」参数，保证同一排控件材质一致。
+                    frosted && backdrop != null && darkTheme -> {
+                        val density = LocalDensity.current.density
+                        Modifier.textureEffect(
+                            backdrop = backdrop,
+                            shape = CircleShape,
+                            blurRadius = 80f / density,
+                            colors = BlurColors(
+                                blendColors = listOf(BlendColorEntry(Color(0x400D0D0D))),
+                            ),
+                            highlight = Highlight(
+                                width = (30f / density).dp,
+                                alpha = 1f,
+                                style = BloomStroke.GlassStrokeSmallDark,
+                            ),
+                        )
+                    }
+                    frosted && backdrop != null -> Modifier.textureBlur(
                         backdrop = backdrop,
                         shape = CircleShape,
                         blurRadius = 14f,
@@ -509,8 +532,7 @@ internal fun AgentModelPillButton(
                             ),
                         ),
                     )
-                } else {
-                    Modifier.background(AetherChatColors.controlSurface())
+                    else -> Modifier.background(AetherChatColors.controlSurface())
                 },
             )
             // 与圆钮同一套玻璃材质：暗色补一圈极细高光描边。

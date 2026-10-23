@@ -506,12 +506,16 @@ internal fun AgentModelPillButton(
                     // 深色与顶栏圆钮共用「柔光玻璃」参数，保证同一排控件材质一致。
                     frosted && backdrop != null && darkTheme -> {
                         val density = LocalDensity.current.density
+                        val glassBase = AetherChatColors.controlSurface().copy(alpha = 0.62f)
                         Modifier.textureEffect(
                             backdrop = backdrop,
                             shape = CircleShape,
                             blurRadius = 80f / density,
                             colors = BlurColors(
-                                blendColors = listOf(BlendColorEntry(Color(0x400D0D0D))),
+                                blendColors = listOf(
+                                    BlendColorEntry(glassBase),
+                                    BlendColorEntry(Color(0x400D0D0D)),
+                                ),
                             ),
                             highlight = Highlight(
                                 width = (30f / density).dp,

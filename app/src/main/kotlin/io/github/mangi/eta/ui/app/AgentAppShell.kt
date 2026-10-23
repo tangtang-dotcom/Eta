@@ -592,12 +592,18 @@ private fun Modifier.chatHeaderControlSurface(
         // 深色走「柔光玻璃」：半透明黑底 + 大半径模糊 + 边缘光，参数取自用户配置。
         frosted && backdrop != null && dark -> {
             val density = LocalDensity.current.density
+            // 先铺一层不透明基底再压暗：否则控件背后是白色气泡还是深色壁纸，
+            // 糊出来一个浅一个黑，同一排控件的材质就对不上了。
+            val glassBase = AetherChatColors.controlSurface().copy(alpha = 0.62f)
             textureEffect(
                 backdrop = backdrop,
                 shape = CircleShape,
                 blurRadius = ChatGlassBaseBlurPx / density,
                 colors = BlurColors(
-                    blendColors = listOf(BlendColorEntry(ChatGlassBackground)),
+                    blendColors = listOf(
+                        BlendColorEntry(glassBase),
+                        BlendColorEntry(ChatGlassBackground),
+                    ),
                 ),
                 highlight = Highlight(
                     width = (ChatGlassHighlightWidthPx / density).dp,

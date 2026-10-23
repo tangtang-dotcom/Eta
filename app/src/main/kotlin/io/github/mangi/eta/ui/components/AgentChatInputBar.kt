@@ -268,7 +268,7 @@ internal fun AgentChatInputBar(
                     inputContainerTopPx = coordinates.positionInWindow().y.roundToInt()
                 },
         ) {
-            Column(
+            Row(
                 modifier = Modifier
                     .fillMaxWidth()
                     .dropShadow(
@@ -304,13 +304,38 @@ internal fun AgentChatInputBar(
                         shape = composerShape,
                     )
                     .padding(horizontal = 10.dp, vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
             ) {
+                        if (isEditingMessage) {
+                            IconButton(
+                                onClick = onCancelMessageEdit,
+                                minWidth = ChatInputActionSize,
+                                minHeight = ChatInputActionSize,
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Rounded.Close,
+                                    contentDescription = stringResource(R.string.ui_cancel_edit_c698df),
+                                    modifier = Modifier.size(ChatInputActionIconSize),
+                                    tint = MiuixTheme.colorScheme.onSurface,
+                                )
+                            }
+                        } else {
+                            AgentAttachmentPickerButton(
+                                popupAnchorTopPx = inputContainerTopPx,
+                                popupMaxHeight = thinkingPopupMaxHeight,
+                                onAttachImage = onAttachImage,
+                                onAttachFiles = onAttachFiles,
+                                onAttachFolder = onAttachFolder,
+                                onAttachFilePath = onAttachFilePath,
+                            )
+
+                        }
                 Box(
                     modifier = Modifier
-                        .fillMaxWidth()
+                        .weight(1f)
                         .defaultMinSize(minHeight = 40.dp)
                         .padding(horizontal = 8.dp, vertical = 6.dp),
-                    contentAlignment = Alignment.TopStart,
+                    contentAlignment = Alignment.CenterStart,
                 ) {
                     // 占位文字与输入正文共用同一行高，首字输入时基线不跳动。
                     val inputTextStyle = MiuixTheme.textStyles.body1.copy(lineHeight = 22.sp)
@@ -345,37 +370,6 @@ internal fun AgentChatInputBar(
                         ),
                     )
                 }
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                        if (isEditingMessage) {
-                            IconButton(
-                                onClick = onCancelMessageEdit,
-                                minWidth = ChatInputActionSize,
-                                minHeight = ChatInputActionSize,
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Rounded.Close,
-                                    contentDescription = stringResource(R.string.ui_cancel_edit_c698df),
-                                    modifier = Modifier.size(ChatInputActionIconSize),
-                                    tint = MiuixTheme.colorScheme.onSurface,
-                                )
-                            }
-                        } else {
-                            AgentAttachmentPickerButton(
-                                popupAnchorTopPx = inputContainerTopPx,
-                                popupMaxHeight = thinkingPopupMaxHeight,
-                                onAttachImage = onAttachImage,
-                                onAttachFiles = onAttachFiles,
-                                onAttachFolder = onAttachFolder,
-                                onAttachFilePath = onAttachFilePath,
-                            )
-
-                        }
-
-                        Spacer(modifier = Modifier.weight(1f))
 
                         if (showContextUsage) {
                             AgentContextUsageButton(usage = contextUsage, onCompact = onCompactContext, canCompact = canCompactContext && !isStreaming)
@@ -499,7 +493,6 @@ internal fun AgentChatInputBar(
                                 }
                             }
                         }
-                }
             }
         }
     }

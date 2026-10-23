@@ -19,7 +19,6 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -40,10 +39,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.BlurredEdgeTreatment
-import androidx.compose.ui.draw.blur
+import androidx.compose.ui.draw.dropShadow
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.shadow.Shadow
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalWindowInfo
@@ -66,10 +65,8 @@ import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
-import top.yukonga.miuix.kmp.basic.ListPopupColumn
 import top.yukonga.miuix.kmp.basic.PopupPositionProvider
 import top.yukonga.miuix.kmp.basic.Text
-import top.yukonga.miuix.kmp.window.WindowListPopup
 import top.yukonga.miuix.kmp.overlay.OverlayBottomSheet
 import top.yukonga.miuix.kmp.overlay.OverlayListPopup
 import top.yukonga.miuix.kmp.theme.MiuixTheme
@@ -476,14 +473,12 @@ internal fun AgentModelPillButton(
     onReasoningEffortChange: ((ReasoningEffort) -> Unit)? = null,
     modifier: Modifier = Modifier,
 ) {
-    var showPopup by remember { mutableStateOf(false) }
     var showSheet by remember { mutableStateOf(false) }
     var sheetSession by remember { mutableIntStateOf(0) }
     val selected = state.selectedModel
     val enabled = !isStreaming && !state.isChanging && state.providerGroups.isNotEmpty()
     LaunchedEffect(enabled) {
         if (!enabled) {
-            showPopup = false
             showSheet = false
         }
     }
@@ -493,10 +488,10 @@ internal fun AgentModelPillButton(
         Box(
             modifier = Modifier
                 .matchParentSize()
-                .offset(y = 4.dp)
-                .blur(14.dp, edgeTreatment = BlurredEdgeTreatment.Unbounded)
-                .clip(CircleShape)
-                .background(ModelPillHaloColor),
+                .dropShadow(
+                    shape = CircleShape,
+                    shadow = Shadow(radius = 6.dp, color = Color.Black, alpha = 0.12f),
+                ),
         )
         Row(
             modifier = Modifier
@@ -505,12 +500,8 @@ internal fun AgentModelPillButton(
                 .clip(CircleShape)
                 .background(MiuixTheme.colorScheme.surface.copy(alpha = 0.96f))
                 .clickable(enabled = enabled) {
-                    if (state.modelCount <= ModelPopupLimit) {
-                        showPopup = true
-                    } else {
-                        sheetSession += 1
-                        showSheet = true
-                    }
+                    sheetSession += 1
+                    showSheet = true
                 }
                 .padding(horizontal = 17.dp)
                 .semantics { contentDescription = switchModelDescription },
@@ -529,22 +520,6 @@ internal fun AgentModelPillButton(
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
-        }
-        // 顶栏弹层以父 Box 为锚点在下方展开并右对齐；模型列表固定宽度，End 对齐不会溢出屏幕右侧。
-        WindowListPopup(
-            show = showPopup,
-            alignment = PopupPositionProvider.Align.End,
-            onDismissRequest = { showPopup = false },
-        ) {
-            ListPopupColumn {
-                ModelQuickList(
-                    state = state,
-                    onModelSelected = { modelId ->
-                        showPopup = false
-                        onModelSelected(modelId)
-                    },
-                )
-            }
         }
         EtaPreferenceTheme {
             OverlayBottomSheet(
@@ -574,4 +549,3 @@ internal fun AgentModelPillButton(
 private val ModelPillHeight = 38.dp
 private val ModelPillMaxWidth = 264.dp
 private val ModelPillIconSize = 16.dp
-private val ModelPillHaloColor = Color(0x14000000)

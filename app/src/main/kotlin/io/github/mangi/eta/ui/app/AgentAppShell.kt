@@ -15,7 +15,6 @@ import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
@@ -44,11 +43,11 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.BlurredEdgeTreatment
-import androidx.compose.ui.draw.blur
+import androidx.compose.ui.draw.dropShadow
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.shadow.Shadow
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.res.painterResource
@@ -481,22 +480,22 @@ private fun ChatTopBarFrame(
             modifier = Modifier
                 .weight(1f)
                 .padding(start = 12.dp, end = 12.dp),
-            contentAlignment = Alignment.Center,
         ) {
-            // 角色对话的身份仍贴左侧展示；模型胶囊始终居中，与 Aether 一致。
-            homeCharacter?.let { character ->
-                Box(modifier = Modifier.align(Alignment.CenterStart)) {
+            // 模型胶囊贴近左侧圆钮（Aether 中央区内容从左侧排布）；角色对话时身份标识并排在前。
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                homeCharacter?.let { character ->
                     CharacterTopBarIdentity(character = character, onClick = onOpenCharacter)
+                    Spacer(modifier = Modifier.width(8.dp))
                 }
-            }
-            AgentModelPillButton(
+                AgentModelPillButton(
                 state = modelPickerState,
                 isStreaming = isStreaming,
                 reasoningEffort = reasoningEffort,
                 availableReasoningEfforts = availableReasoningEfforts,
                 onReasoningEffortChange = onReasoningEffortChange,
                 onModelSelected = onModelSelected,
-            )
+                )
+            }
         }
         ChatHeaderCircle(
             icon = Icons.Rounded.Edit,
@@ -559,17 +558,16 @@ private fun BoxScope.ChatHeaderHalo() {
     Box(
         modifier = Modifier
             .matchParentSize()
-            .offset(y = 4.dp)
-            .blur(14.dp, edgeTreatment = BlurredEdgeTreatment.Unbounded)
-            .clip(CircleShape)
-            .background(ChatHeaderHaloColor),
+            .dropShadow(
+                shape = CircleShape,
+                shadow = Shadow(radius = 6.dp, color = Color.Black, alpha = 0.12f),
+            ),
     )
 }
 
 private val ChatHeaderButtonSize = 38.dp
 private val ChatHeaderIconSize = 19.dp
 private val ChatTopBarTailHeight = 42.dp
-private val ChatHeaderHaloColor = Color(0x18000000)
 
 /** 聊天页顶栏的遮蔽强度：比设置页更强，避免正文透出后看起来发脏。 */
 private const val ChatTopBarProgressiveAlpha = 0.72f

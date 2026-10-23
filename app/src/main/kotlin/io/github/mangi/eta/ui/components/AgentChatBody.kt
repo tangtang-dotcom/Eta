@@ -356,17 +356,8 @@ private fun AgentChatScaffold(
         drawContent()
     }
 
-    val stageBrush = Brush.verticalGradient(
-        listOf(
-            MiuixTheme.colorScheme.surface,
-            MiuixTheme.colorScheme.background,
-            MiuixTheme.colorScheme.background,
-        ),
-    )
     Scaffold(
-        modifier = modifier
-            .fillMaxSize()
-            .background(stageBrush),
+        modifier = modifier.fillMaxSize(),
         containerColor = Color.Transparent,
         contentWindowInsets = WindowInsets(
             left = 0.dp,
@@ -1135,57 +1126,10 @@ private fun AgentChatBottomBar(
             .fillMaxWidth()
             .imePadding(),
     ) {
-        if (messageBackdrop != null) {
-            val blurColors = BlurDefaults.blurColors(
-                blendColors = listOf(
-                    BlendColorEntry(MiuixTheme.colorScheme.surface.copy(alpha = 0.72f))
-                ),
-            )
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(ChatBottomFrostHeight)
-                    // DstIn 让真实磨砂在顶部透明、靠近输入框时逐渐变实，消除硬裁切线。
-                    .graphicsLayer {
-                        compositingStrategy = CompositingStrategy.Offscreen
-                    }
-                    .drawWithContent {
-                        drawContent()
-                        drawRect(
-                            brush = Brush.verticalGradient(
-                                colors = listOf(Color.Transparent, Color.Black),
-                            ),
-                            blendMode = BlendMode.DstIn,
-                        )
-                    }
-                    .textureBlur(
-                        backdrop = messageBackdrop,
-                        shape = RectangleShape,
-                        blurRadius = 20f,
-                        colors = blurColors,
-                    ),
-            )
-        } else {
-            // 空白主页沿用原来的轻微渐隐，不改变主页视觉。
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(16.dp)
-                    .background(
-                        Brush.verticalGradient(
-                            colors = listOf(
-                                Color.Transparent,
-                                MiuixTheme.colorScheme.surface,
-                            ),
-                        )
-                    ),
-            )
-        }
         val composeFrost = LocalAppearanceSettings.current.chatComposerFrost &&
             messageBackdrop != null
-        // Aether 底栏：透明→表面的渐隐代替整条实底，消息在输入器下方柔和消隐；
-        // 键盘弹出时输入器贴近键盘（12dp），收起时回到 18dp 悬浮高度。
-        val scrimSurface = MiuixTheme.colorScheme.surface
+        // Aether 底栏：完全透明，只有悬浮的输入卡片；键盘弹出时输入器贴近键盘（12dp），
+        // 收起时回到 18dp 悬浮高度。消息会从卡片后方滑过，配合卡片阴影呈现浮层感。
         val barImeVisible = WindowInsets.ime.getBottom(barDensity) > 0
         val bottomLiftDp by animateFloatAsState(
             targetValue = if (barImeVisible) 12f else 18f,
@@ -1195,15 +1139,6 @@ private fun AgentChatBottomBar(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .background(
-                    Brush.verticalGradient(
-                        listOf(
-                            Color.Transparent,
-                            scrimSurface.copy(alpha = 0.92f),
-                            scrimSurface,
-                        ),
-                    ),
-                )
                 .navigationBarsPadding()
                 .padding(bottom = bottomLiftDp.dp),
         ) {

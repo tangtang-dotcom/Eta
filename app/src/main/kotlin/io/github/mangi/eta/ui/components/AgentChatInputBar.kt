@@ -99,8 +99,8 @@ import top.yukonga.miuix.kmp.squircle.squircleSurface
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 private val SendButtonVisualSize = ChatInputActionIconSize
-private val SendIconSize = 16.dp
-private val StopIconSize = 10.dp
+private val SendIconSize = 20.dp
+private val StopIconSize = 12.dp
 private val ThinkingIconSize = 21.dp
 private val ComposerMotionEasing = CubicBezierEasing(0.22f, 0.84f, 0.18f, 1f)
 
@@ -421,7 +421,7 @@ internal fun AgentChatInputBar(
                         val sendButtonColor by animateColorAsState(
                             targetValue = when {
                                 showPrimaryStop -> MiuixTheme.colorScheme.onSurface
-                                canSend -> MiuixTheme.colorScheme.primary
+                                canSend -> Color(0xFF9B5CFF)
                                 else -> MiuixTheme.colorScheme.surfaceContainerHigh
                             },
                             animationSpec = tween(durationMillis = 160),
@@ -486,7 +486,7 @@ internal fun AgentChatInputBar(
                                         ),
                                         tint = when {
                                             stopIcon -> MiuixTheme.colorScheme.surface
-                                            canSend -> MiuixTheme.colorScheme.onPrimary
+                                            canSend -> Color.White
                                             else -> MiuixTheme.colorScheme.onSurfaceVariantActions
                                         },
                                     )

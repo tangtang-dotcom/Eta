@@ -30,7 +30,6 @@ import androidx.compose.material.icons.automirrored.rounded.VolumeOff
 import androidx.compose.material.icons.automirrored.rounded.VolumeUp
 import androidx.compose.material.icons.outlined.MoreHoriz
 import androidx.compose.material.icons.rounded.AddComment
-import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material.icons.rounded.Language
 import androidx.compose.material.icons.rounded.Stop
 import androidx.compose.material.icons.rounded.Terminal
@@ -497,12 +496,6 @@ private fun ChatTopBarFrame(
                 )
             }
         }
-        ChatHeaderCircle(
-            icon = Icons.Rounded.Edit,
-            contentDescription = stringResource(R.string.action_new_conversation),
-            onClick = onNewConversation,
-        )
-        Spacer(modifier = Modifier.width(10.dp))
         Box(modifier = Modifier.size(ChatHeaderButtonSize)) {
             ChatHeaderHalo()
             Box(

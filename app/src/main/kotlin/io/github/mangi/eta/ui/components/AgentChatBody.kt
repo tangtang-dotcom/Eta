@@ -370,7 +370,8 @@ private fun AgentChatScaffold(
             ),
         )
     } else {
-        Brush.verticalGradient(listOf(stageBase, stageBase))
+        // 浅色同样照抄 Aether：backgroundGradientTop / background / surface 均为 #FFFFFF。
+        Brush.verticalGradient(listOf(Color(0xFFFFFFFF), Color(0xFFFFFFFF)))
     }
     Scaffold(
         modifier = modifier

@@ -428,34 +428,9 @@ internal fun AgentChatInputBar(
                             }
                         }
 
-                        AnimatedVisibility(
-                            visible = showStreamingSend,
-                            enter = fadeIn(tween(140)) + scaleIn(tween(160), initialScale = 0.78f) + expandHorizontally(tween(160)),
-                            exit = fadeOut(tween(100)) + scaleOut(tween(120), targetScale = 0.78f) + shrinkHorizontally(tween(140)),
-                        ) {
-                            IconButton(
-                                onClick = onStop,
-                                minWidth = 38.dp,
-                                minHeight = 38.dp,
-                            ) {
-                                Box(
-                                    modifier = Modifier
-                                        .size(SendButtonVisualSize)
-                                        .clip(CircleShape)
-                                        .background(MiuixTheme.colorScheme.surfaceContainerHigh),
-                                    contentAlignment = Alignment.Center,
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Rounded.Stop,
-                                        contentDescription = stringResource(R.string.chat_stop),
-                                        modifier = Modifier.size(StopIconSize),
-                                        tint = MiuixTheme.colorScheme.onSurface,
-                                    )
-                                }
-                            }
-                        }
-
-                        val showPrimaryStop = isStreaming && !showStreamingSend
+                        // 流式中主按钮恒为停止键：点击必定走 onStop，不会因为同时存在草稿
+                        // 而被判成「发送」，避免点了停止却没反应。「发送并中断」走长按。
+                        val showPrimaryStop = isStreaming
                         val sendButtonColor by animateColorAsState(
                             targetValue = when {
                                 showPrimaryStop -> MiuixTheme.colorScheme.onSurface
@@ -474,7 +449,7 @@ internal fun AgentChatInputBar(
                                     onClick = {
                                         if (showPrimaryStop) {
                                             onStop()
-                                        } else {
+                                        } else if (canSend) {
                                             submitCurrentDraft(false)
                                         }
                                     },

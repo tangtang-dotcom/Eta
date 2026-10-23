@@ -1192,7 +1192,8 @@ internal fun resolveKeepBottomAnchored(
     isUserDragging: Boolean,
     isAtBottom: Boolean,
 ): Boolean = when {
-    isUserDragging -> isAtBottom
+    // 用户一旦开始拖动就停止自动跟底，避免上滑时被跟底循环拉回底部。
+    isUserDragging -> false
     isAtBottom -> true
     else -> current
 }

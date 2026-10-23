@@ -488,7 +488,7 @@ internal fun AgentModelPillButton(
                 shadow = Shadow(radius = 6.dp, color = Color.Black, alpha = 0.12f),
             )
             .clip(CircleShape)
-            .background(MiuixTheme.colorScheme.surface.copy(alpha = 0.96f))
+            .background(AetherChatColors.surface().copy(alpha = 0.96f))
             .clickable {
                 sheetSession += 1
                 showSheet = true
@@ -509,7 +509,7 @@ internal fun AgentModelPillButton(
             Text(
                 text = currentModel,
                 style = MiuixTheme.textStyles.body2.copy(fontWeight = FontWeight.Medium),
-                color = MiuixTheme.colorScheme.onSurface,
+                color = AetherChatColors.onSurface(),
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )

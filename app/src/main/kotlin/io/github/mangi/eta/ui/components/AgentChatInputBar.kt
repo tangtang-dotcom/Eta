@@ -300,7 +300,7 @@ internal fun AgentChatInputBar(
                     stringResource(R.string.chat_edit_replace_message)
                 },
                 style = MiuixTheme.textStyles.footnote1,
-                color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                color = AetherChatColors.onSurfaceVariant(),
                 // 与输入框内正文同一起点（容器 10dp + 文本 8dp）。
                 modifier = Modifier.padding(start = 18.dp, end = 18.dp, bottom = 8.dp),
             )
@@ -327,8 +327,8 @@ internal fun AgentChatInputBar(
                             shape = composerShape,
                             shadow = Shadow(
                                 radius = 8.dp,
-                                color = Color.Black,
-                                alpha = 0.08f,
+                                color = AetherChatColors.composerShadow,
+                                alpha = 1f,
                             ),
                         ),
                 )
@@ -349,13 +349,13 @@ internal fun AgentChatInputBar(
                                     colors = BlurDefaults.blurColors(
                                         blendColors = listOf(
                                             BlendColorEntry(
-                                                MiuixTheme.colorScheme.surface.copy(alpha = 0.4f),
+                                                AetherChatColors.surface().copy(alpha = 0.4f),
                                             ),
                                         ),
                                     ),
                                 )
                             } else {
-                                Modifier.background(MiuixTheme.colorScheme.surface)
+                                Modifier.background(AetherChatColors.surface())
                             },
                         )
                         .padding(
@@ -390,7 +390,7 @@ internal fun AgentChatInputBar(
                                 else -> stringResource(R.string.chat_input_hint)
                             },
                             style = inputTextStyle,
-                            color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                            color = AetherChatColors.placeholder(),
                         )
                     }
                     BasicTextField(
@@ -401,7 +401,7 @@ internal fun AgentChatInputBar(
                             .onFocusEvent { focusState -> inputFocused = focusState.isFocused }
                             .onSizeChanged { size -> textFieldHeightPx = size.height },
                         keyboardOptions = KeyboardOptions(imeAction = ImeAction.Default),
-                        textStyle = inputTextStyle.copy(color = MiuixTheme.colorScheme.onSurface),
+                        textStyle = inputTextStyle.copy(color = AetherChatColors.onSurface()),
                         cursorBrush = SolidColor(MiuixTheme.colorScheme.primary),
                         lineLimits = TextFieldLineLimits.MultiLine(
                             minHeightInLines = 1,
@@ -459,10 +459,9 @@ internal fun AgentChatInputBar(
                         val showPrimaryStop = isStreaming && !showStreamingSend
                         val sendButtonColor by animateColorAsState(
                             targetValue = when {
-                                showPrimaryStop -> MiuixTheme.colorScheme.onSurface
-                                // 发送键跟随莫奈主色，不再写死紫色。
-                                canSend -> MiuixTheme.colorScheme.primary
-                                else -> MiuixTheme.colorScheme.surfaceContainerHigh
+                                showPrimaryStop -> AetherChatColors.onSurface()
+                                canSend -> AetherChatColors.sendButton()
+                                else -> AetherChatColors.surfaceHigher()
                             },
                             animationSpec = tween(durationMillis = 160),
                             label = "send_button_color",
@@ -526,7 +525,7 @@ internal fun AgentChatInputBar(
                                         ),
                                         tint = when {
                                             stopIcon -> MiuixTheme.colorScheme.surface
-                                            canSend -> MiuixTheme.colorScheme.onPrimary
+                                            canSend -> AetherChatColors.onSendButton()
                                             else -> MiuixTheme.colorScheme.onSurfaceVariantActions
                                         },
                                     )
@@ -559,7 +558,7 @@ internal fun AgentChatInputBar(
                                     colors = BlurDefaults.blurColors(
                                         blendColors = listOf(
                                             BlendColorEntry(
-                                                MiuixTheme.colorScheme.surface.copy(alpha = 0.4f),
+                                                AetherChatColors.surface().copy(alpha = 0.4f),
                                             ),
                                         ),
                                     ),
@@ -567,7 +566,7 @@ internal fun AgentChatInputBar(
                             } else {
                                 Modifier.background(
                                     if (plusSeparated) {
-                                        MiuixTheme.colorScheme.surface
+                                        AetherChatColors.surface()
                                     } else {
                                         Color.Transparent
                                     },

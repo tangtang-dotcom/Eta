@@ -63,6 +63,7 @@ import io.github.mangi.eta.ui.components.CharacterAvatar
 import io.github.mangi.eta.ui.components.ConversationSidePaneScaffold
 import io.github.mangi.eta.ui.components.MiuixBackButton
 import io.github.mangi.eta.ui.components.RoleplayChatUi
+import io.github.mangi.eta.ui.components.AetherChatColors
 import io.github.mangi.eta.ui.components.AgentModelPillButton
 import io.github.mangi.eta.ui.components.TopBarBackdrop
 import io.github.mangi.eta.ui.components.captureForTopBar
@@ -497,7 +498,7 @@ private fun ChatTopBarFrame(
                 modifier = Modifier
                     .matchParentSize()
                     .clip(CircleShape)
-                    .background(MiuixTheme.colorScheme.surface.copy(alpha = 0.96f)),
+                    .background(AetherChatColors.surface().copy(alpha = 0.96f)),
                 contentAlignment = Alignment.Center,
             ) {
                 TopBarOverflowMenu(
@@ -528,7 +529,7 @@ private fun ChatHeaderCircle(
             modifier = Modifier
                 .matchParentSize()
                 .clip(CircleShape)
-                .background(MiuixTheme.colorScheme.surface.copy(alpha = 0.96f))
+                .background(AetherChatColors.surface().copy(alpha = 0.96f))
                 .clickable(onClick = onClick),
             contentAlignment = Alignment.Center,
         ) {

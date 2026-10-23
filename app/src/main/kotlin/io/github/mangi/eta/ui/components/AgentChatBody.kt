@@ -358,21 +358,15 @@ private fun AgentChatScaffold(
         drawContent()
     }
 
-    // 深色模式直接采用 Aether 的暗色背景渐变（backgroundGradientTop → background → surface）：
-    // #1B1D22 → #151619 → #1C1F23；浅色模式维持单一底色，避免色块。
-    val stageBase = MiuixTheme.colorScheme.background
-    val stageBrush = if (LocalIsDarkTheme.current) {
-        Brush.verticalGradient(
-            listOf(
-                Color(0xFF1B1D22),
-                Color(0xFF151619),
-                Color(0xFF1C1F23),
-            ),
-        )
-    } else {
-        // 浅色同样照抄 Aether：backgroundGradientTop / background / surface 均为 #FFFFFF。
-        Brush.verticalGradient(listOf(Color(0xFFFFFFFF), Color(0xFFFFFFFF)))
-    }
+    // 聊天舞台背景：莫奈开走主题色，关闭时深/浅严格照抄 Aether
+    // （backgroundGradientTop → background → surface）。
+    val stageBrush = Brush.verticalGradient(
+        listOf(
+            AetherChatColors.backgroundGradientTop(),
+            AetherChatColors.background(),
+            AetherChatColors.surface(),
+        ),
+    )
     Scaffold(
         modifier = modifier
             .fillMaxSize()

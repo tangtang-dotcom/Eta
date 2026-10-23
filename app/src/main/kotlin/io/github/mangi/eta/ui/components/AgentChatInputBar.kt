@@ -99,8 +99,8 @@ import top.yukonga.miuix.kmp.squircle.squircleBorder
 import top.yukonga.miuix.kmp.squircle.squircleSurface
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
-private val SendButtonVisualSize = ChatInputActionIconSize
-private val SendIconSize = 20.dp
+private val SendButtonVisualSize = 38.dp
+private val SendIconSize = 21.dp
 private val StopIconSize = 12.dp
 private val ThinkingIconSize = 21.dp
 private val ComposerMotionEasing = CubicBezierEasing(0.22f, 0.84f, 0.18f, 1f)

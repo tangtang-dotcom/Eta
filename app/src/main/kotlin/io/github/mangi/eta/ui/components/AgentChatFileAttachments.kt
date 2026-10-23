@@ -106,18 +106,20 @@ internal fun AgentAttachmentPickerButton(
     }
 
     Box(modifier = modifier) {
-        IconButton(
-            onClick = { showPopup = true },
-            minWidth = ChatInputActionSize,
-            minHeight = ChatInputActionSize,
-        ) {
-            Icon(
-                imageVector = Icons.Rounded.Add,
-                contentDescription = stringResource(R.string.ui_add_attachment_dba9e8),
-                modifier = Modifier.size(ChatInputActionIconSize),
-                tint = MiuixTheme.colorScheme.onSurface,
-            )
-        }
+    Box(
+        modifier = modifier
+            .size(48.dp)
+            .clip(CircleShape)
+            .clickable { showPopup = true },
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(
+            imageVector = Icons.Rounded.Add,
+            contentDescription = stringResource(R.string.ui_add_attachment_dba9e8),
+            modifier = Modifier.size(27.dp),
+            tint = MiuixTheme.colorScheme.onSurface,
+        )
+    }
         WindowListPopup(
             show = showPopup && popupAnchorTopPx > 0,
             popupPositionProvider = remember(popupAnchorTopPx) {

@@ -112,7 +112,9 @@ import kotlin.math.min
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
@@ -1154,6 +1156,16 @@ private fun AgentChatBottomBar(
         // Aether 底栏：完全透明，只有悬浮的输入卡片；键盘弹出时输入器贴近键盘（12dp），
         // 收起时回到 18dp 悬浮高度。消息会从卡片后方滑过，配合卡片阴影呈现浮层感。
         val barImeVisible = WindowInsets.ime.getBottom(barDensity) > 0
+        // 键盘弹出/收起那 300ms 里布局每帧都在变，backdrop 需要逐帧重录，
+        // 再叠加实时模糊就会明显掉帧；动画结束后再把玻璃效果接回来。
+        var imeAnimating by remember { mutableStateOf(false) }
+        LaunchedEffect(Unit) {
+            snapshotFlow { barImeVisible }.drop(1).collect {
+                imeAnimating = true
+                delay(320)
+                imeAnimating = false
+            }
+        }
         val bottomLiftDp by animateFloatAsState(
             targetValue = if (barImeVisible) 12f else 18f,
             animationSpec = tween(260, easing = ComposerMotionEasing),
@@ -1193,7 +1205,7 @@ private fun AgentChatBottomBar(
                 onAttachFilePath = onAttachFilePath,
                 onRemoveFileReference = onRemoveFileReference,
                 onCancelMessageEdit = onCancelMessageEdit,
-                frosted = composeFrost,
+                frosted = composeFrost && !imeAnimating,
                 backdrop = messageBackdrop,
                 modifier = Modifier.fillMaxWidth(),
             )

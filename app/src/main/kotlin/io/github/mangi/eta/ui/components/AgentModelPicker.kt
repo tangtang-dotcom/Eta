@@ -500,7 +500,7 @@ internal fun AgentModelPillButton(
                     Modifier.textureBlur(
                         backdrop = backdrop,
                         shape = CircleShape,
-                        blurRadius = 20f,
+                        blurRadius = 14f,
                         colors = BlurDefaults.blurColors(
                             blendColors = listOf(
                                 BlendColorEntry(

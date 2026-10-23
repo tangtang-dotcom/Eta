@@ -346,7 +346,7 @@ internal fun AgentChatInputBar(
                                 Modifier.textureBlur(
                                     backdrop = backdrop,
                                     shape = composerShape,
-                                    blurRadius = 20f,
+                                    blurRadius = 14f,
                                     colors = BlurDefaults.blurColors(
                                         blendColors = listOf(
                                             BlendColorEntry(
@@ -555,7 +555,7 @@ internal fun AgentChatInputBar(
                                 Modifier.textureBlur(
                                     backdrop = backdrop,
                                     shape = CircleShape,
-                                    blurRadius = 20f,
+                                    blurRadius = 14f,
                                     colors = BlurDefaults.blurColors(
                                         blendColors = listOf(
                                             BlendColorEntry(

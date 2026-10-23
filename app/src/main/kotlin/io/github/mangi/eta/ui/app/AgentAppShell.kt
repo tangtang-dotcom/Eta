@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -34,14 +35,17 @@ import androidx.compose.material.icons.rounded.Language
 import androidx.compose.material.icons.rounded.Stop
 import androidx.compose.material.icons.rounded.Terminal
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.draw.dropShadow
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
@@ -73,6 +77,8 @@ import io.github.mangi.eta.ui.model.AgentModelPickerUiState
 import io.github.mangi.eta.ui.model.ConversationPaneUiState
 import io.github.mangi.eta.ui.model.ConversationSummaryUi
 import io.github.mangi.eta.ui.navigation.AppRoute
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.basic.DropdownImpl
 import top.yukonga.miuix.kmp.blur.BlendColorEntry
@@ -158,11 +164,23 @@ internal fun AgentAppShell(
                         // 顶栏背景跟随「输入框磨砂」开关：开启时整条磨砂（采样背后消息），
                         // 关闭时完全透明，只保留悬浮按钮与胶囊。
                         val chatFrosted = LocalAppearanceSettings.current.chatComposerFrost
+                        // 键盘弹出/收起的那 300ms 里整页内容每帧重排，顶栏的 backdrop 要逐帧重录，
+                        // 再叠 4 层实时模糊会明显掉帧；动画期间先退回实底，结束后自动接回磨砂。
+                        val shellDensity = LocalDensity.current
+                        val imeVisible = WindowInsets.ime.getBottom(shellDensity) > 0
+                        var imeAnimating by remember { mutableStateOf(false) }
+                        LaunchedEffect(Unit) {
+                            snapshotFlow { imeVisible }.drop(1).collect {
+                                imeAnimating = true
+                                delay(320)
+                                imeAnimating = false
+                            }
+                        }
                         val chatTopBar: @Composable () -> Unit = {
                         ChatTopBarOverlay(
                                 modelPickerState = chatModelPickerState,
                                 isStreaming = chatIsStreaming,
-                                frosted = chatFrosted,
+                                frosted = chatFrosted && !imeAnimating,
                                 backdrop = backdrop,
                                 reasoningEffort = chatReasoningEffort,
                                 availableReasoningEfforts = chatAvailableReasoningEfforts,
@@ -183,7 +201,7 @@ internal fun AgentAppShell(
                         }
                         if (chatFrosted) {
                             TopBarBackdrop(
-                                backdrop = backdrop,
+                                backdrop = if (imeAnimating) null else backdrop,
                                 progressiveAlpha = AetherChatColors.topBarProgressiveAlpha(),
                                 surfaceAlpha = AetherChatColors.topBarSurfaceAlpha(),
                                 progressiveRadius = ChatTopBarProgressiveRadius,
@@ -570,7 +588,7 @@ private fun Modifier.chatHeaderControlSurface(
         textureBlur(
             backdrop = backdrop,
             shape = CircleShape,
-            blurRadius = 20f,
+            blurRadius = 14f,
             colors = BlurDefaults.blurColors(
                 blendColors = listOf(
                     BlendColorEntry(AetherChatColors.controlSurface().copy(alpha = AetherChatColors.controlFrostAlpha())),

@@ -27,6 +27,9 @@ import top.yukonga.miuix.kmp.basic.TooltipDefaults
 import top.yukonga.miuix.kmp.basic.rememberTooltipState
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
+/** 上下文占用圆环直径：比原来的 24dp 略大，和缩小后的发送键（34dp）体量更接近。 */
+private val ContextUsageRingSize = 28.dp
+
 @Composable
 internal fun AgentContextUsageButton(
     usage: AgentContextUsageUi,
@@ -115,7 +118,7 @@ internal fun AgentContextUsageButton(
                     backgroundColor = MiuixTheme.colorScheme.secondaryContainer,
                 ),
                 strokeWidth = 2.5.dp,
-                size = ChatInputActionIconSize,
+                size = ContextUsageRingSize,
                 modifier = Modifier.semantics {
                     contentDescription = usageDescription
                 },

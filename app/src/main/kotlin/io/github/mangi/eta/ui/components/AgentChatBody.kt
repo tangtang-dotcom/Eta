@@ -63,6 +63,7 @@ import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.draw.dropShadow
 import androidx.compose.ui.graphics.BlendMode
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.ui.graphics.CompositingStrategy
@@ -357,13 +358,26 @@ private fun AgentChatScaffold(
         drawContent()
     }
 
-    // 聊天舞台背景：直接用设置页的页面底色（Miuix Scaffold 默认 surface），
-    // 不再做 Aether 的三段竖向渐变，避免和设置页出现色差。
-    val stageColor = MiuixTheme.colorScheme.surface
+    // 聊天舞台背景：
+    // - 浅色：跟设置页页面底色一致（Miuix Scaffold 默认 surface）；
+    // - 深色：回到上一版 Aether 三段竖向渐变（backgroundGradientTop → background → surface）。
+    val stageBackground = if (LocalIsDarkTheme.current) {
+        Modifier.background(
+            Brush.verticalGradient(
+                listOf(
+                    AetherChatColors.backgroundGradientTop(),
+                    AetherChatColors.background(),
+                    AetherChatColors.surface(),
+                ),
+            ),
+        )
+    } else {
+        Modifier.background(MiuixTheme.colorScheme.surface)
+    }
     Scaffold(
         modifier = modifier
             .fillMaxSize()
-            .background(stageColor),
+            .then(stageBackground),
         containerColor = Color.Transparent,
         contentWindowInsets = WindowInsets(
             left = 0.dp,

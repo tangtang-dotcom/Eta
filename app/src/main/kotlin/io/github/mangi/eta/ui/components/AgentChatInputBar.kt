@@ -99,9 +99,10 @@ import top.yukonga.miuix.kmp.squircle.squircleBorder
 import top.yukonga.miuix.kmp.squircle.squircleSurface
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
-private val SendButtonVisualSize = 38.dp
-private val SendIconSize = 21.dp
-private val StopIconSize = 12.dp
+private val SendButtonVisualSize = 34.dp
+private val SendButtonTouchSize = 36.dp
+private val SendIconSize = 19.dp
+private val StopIconSize = 11.dp
 private val ThinkingIconSize = 21.dp
 private val ComposerMotionEasing = CubicBezierEasing(0.22f, 0.84f, 0.18f, 1f)
 
@@ -468,7 +469,7 @@ internal fun AgentChatInputBar(
                         )
                         Box(
                             modifier = Modifier
-                                .size(38.dp)
+                                .size(SendButtonTouchSize)
                                 .clip(CircleShape)
                                 .combinedClickable(
                                     enabled = isStreaming || canSend,

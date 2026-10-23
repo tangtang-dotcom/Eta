@@ -554,8 +554,8 @@ private fun BoxScope.ChatHeaderHalo() {
     )
 }
 
-private val ChatHeaderButtonSize = 38.dp
-private val ChatHeaderIconSize = 19.dp
+private val ChatHeaderButtonSize = 44.dp
+private val ChatHeaderIconSize = 22.dp
 private val ChatTopBarTailHeight = 42.dp
 
 /** 聊天页顶栏的遮蔽强度：比设置页更强，避免正文透出后看起来发脏。 */
@@ -588,8 +588,8 @@ private fun TopBarOverflowMenu(
     Box {
         IconButton(
             onClick = { onRefreshKimiWeb(); showMenu = true },
-            minWidth = 38.dp,
-            minHeight = 38.dp,
+            minWidth = ChatHeaderButtonSize,
+            minHeight = ChatHeaderButtonSize,
         ) {
             Icon(
                 imageVector = Icons.Outlined.MoreHoriz,

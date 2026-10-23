@@ -111,6 +111,25 @@ internal object AetherChatColors {
     @Composable
     fun topBarProgressiveAlpha(): Float = if (LocalIsDarkTheme.current) 0.82f else 0.72f
 
+    /**
+     * 用户气泡底色：莫奈开保持原来的主题容器色，关闭时照抄 Aether 的 messageBubble
+     * （dark #32264A / light #F0E3FF）。深浅两套都用 Aether 气泡，不再分叉。
+     */
+    @Composable
+    fun userBubble(): Color = when {
+        monet -> MiuixTheme.colorScheme.surfaceContainerHigh
+        dark -> Color(0xFF32264A)
+        else -> Color(0xFFF0E3FF)
+    }
+
+    /** 用户气泡文字：对应 Aether 的 onPrimaryContainer（dark #F0E9FF / light #4D2F8E）。 */
+    @Composable
+    fun onUserBubble(): Color = when {
+        monet -> MiuixTheme.colorScheme.onSurface
+        dark -> Color(0xFFF0E9FF)
+        else -> Color(0xFF4D2F8E)
+    }
+
     /** ChatGptControlShadow */
     val controlShadow: Color = Color(0x14000000)
 

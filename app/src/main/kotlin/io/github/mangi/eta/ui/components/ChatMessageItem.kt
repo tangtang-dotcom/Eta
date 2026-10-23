@@ -408,22 +408,18 @@ private fun UserMessageBubble(
                         if (assistantOverlay) {
                             Modifier.background(overlayBubbleColor, RoundedCornerShape(10.dp))
                         } else {
-                            Modifier.squircleSurface(
-                                color = MiuixTheme.colorScheme.surfaceContainerHigh,
-                                topStart = 20.dp,
-                                topEnd = 20.dp,
-                                // 描边只支持统一圆角，编辑态收起气泡尾角，让描边与填充贴合。
-                                bottomEnd = if (isEditing) 20.dp else 6.dp,
-                                bottomStart = 20.dp,
-                            )
+                            // Aether 用户气泡：统一 24dp 圆角 + messageBubble 实色，没有尾巴。
+                            Modifier
+                                .clip(RoundedCornerShape(24.dp))
+                                .background(AetherChatColors.userBubble())
                         }
                     )
                     .then(
                         if (isEditing) {
-                            Modifier.squircleBorder(
+                            Modifier.border(
                                 width = 1.dp,
                                 color = MiuixTheme.colorScheme.primary,
-                                cornerRadius = 20.dp,
+                                shape = RoundedCornerShape(24.dp),
                             )
                         } else {
                             Modifier
@@ -433,11 +429,11 @@ private fun UserMessageBubble(
                         actionsVisible = !actionsVisible
                     }
                     .padding(
-                        start = if (assistantOverlay) 12.dp else 16.dp,
-                        end = if (assistantOverlay) 12.dp else 16.dp,
-                        top = if (assistantOverlay) 8.dp else 12.dp,
+                        start = if (assistantOverlay) 12.dp else 18.dp,
+                        end = if (assistantOverlay) 12.dp else 18.dp,
+                        top = if (assistantOverlay) 8.dp else 14.dp,
                         // 底部留白交给操作行自己控制，图标才会贴着气泡下沿。
-                        bottom = if (assistantOverlay) 8.dp else 12.dp,
+                        bottom = if (assistantOverlay) 8.dp else 14.dp,
                     ),
             ) {
                 if (message.images.isNotEmpty()) {
@@ -473,7 +469,11 @@ private fun UserMessageBubble(
                         Text(
                             text = visiblePrompt.request,
                             style = MiuixTheme.textStyles.body1,
-                            color = MiuixTheme.colorScheme.onSurface,
+                            color = if (assistantOverlay) {
+                                MiuixTheme.colorScheme.onSurface
+                            } else {
+                                AetherChatColors.onUserBubble()
+                            },
                         )
                     }
                 }
@@ -481,7 +481,11 @@ private fun UserMessageBubble(
                     Text(
                         text = stringResource(R.string.ui_edited_c36776),
                         style = MiuixTheme.textStyles.body2,
-                        color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                        color = if (assistantOverlay) {
+                            MiuixTheme.colorScheme.onSurfaceVariantSummary
+                        } else {
+                            AetherChatColors.onUserBubble().copy(alpha = 0.72f)
+                        },
                         modifier = Modifier.padding(top = 4.dp),
                     )
                 }

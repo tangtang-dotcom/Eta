@@ -565,19 +565,23 @@ private fun ChatHeaderCircle(
 private fun Modifier.chatHeaderControlSurface(
     frosted: Boolean,
     backdrop: LayerBackdrop?,
-): Modifier = if (frosted && backdrop != null) {
-    textureBlur(
-        backdrop = backdrop,
-        shape = CircleShape,
-        blurRadius = 20f,
-        colors = BlurDefaults.blurColors(
-            blendColors = listOf(
-                BlendColorEntry(AetherChatColors.surface().copy(alpha = AetherChatColors.controlFrostAlpha())),
+): Modifier {
+    val base = if (frosted && backdrop != null) {
+        textureBlur(
+            backdrop = backdrop,
+            shape = CircleShape,
+            blurRadius = 20f,
+            colors = BlurDefaults.blurColors(
+                blendColors = listOf(
+                    BlendColorEntry(AetherChatColors.controlSurface().copy(alpha = AetherChatColors.controlFrostAlpha())),
+                ),
             ),
-        ),
-    )
-} else {
-    background(AetherChatColors.surface())
+        )
+    } else {
+        background(AetherChatColors.controlSurface())
+    }
+    // 暗色下补一圈极细高光，玻璃边缘才不会糊进壁纸里。
+    return base.border(1.dp, AetherChatColors.controlStroke(), CircleShape)
 }
 
 @Composable

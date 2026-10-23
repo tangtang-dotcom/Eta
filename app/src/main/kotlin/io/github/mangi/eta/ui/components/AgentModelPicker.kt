@@ -2,6 +2,7 @@ package io.github.mangi.eta.ui.components
 
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -503,15 +504,17 @@ internal fun AgentModelPillButton(
                         colors = BlurDefaults.blurColors(
                             blendColors = listOf(
                                 BlendColorEntry(
-                                    AetherChatColors.surface().copy(alpha = AetherChatColors.controlFrostAlpha()),
+                                    AetherChatColors.controlSurface().copy(alpha = AetherChatColors.controlFrostAlpha()),
                                 ),
                             ),
                         ),
                     )
                 } else {
-                    Modifier.background(AetherChatColors.surface())
+                    Modifier.background(AetherChatColors.controlSurface())
                 },
             )
+            // 与圆钮同一套玻璃材质：暗色补一圈极细高光描边。
+            .border(1.dp, AetherChatColors.controlStroke(), CircleShape)
             .clickable {
                 sheetSession += 1
                 showSheet = true

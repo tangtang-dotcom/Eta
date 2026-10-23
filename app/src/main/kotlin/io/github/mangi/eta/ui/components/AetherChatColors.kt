@@ -101,7 +101,7 @@ internal object AetherChatColors {
 
     /** 顶栏圆钮/胶囊的磨砂混色不透明度：小控件略实一些，保证图标与文字清晰。 */
     @Composable
-    fun controlFrostAlpha(): Float = if (LocalIsDarkTheme.current) 0.66f else 0.58f
+    fun controlFrostAlpha(): Float = if (LocalIsDarkTheme.current) 0.72f else 0.58f
 
     /** 顶栏磨砂表面不透明度。 */
     @Composable
@@ -129,6 +129,21 @@ internal object AetherChatColors {
         dark -> Color(0xFFF0E9FF)
         else -> Color(0xFF4D2F8E)
     }
+
+    /**
+     * 顶栏玻璃控件（返回圆钮、模型胶囊、更多圆钮）的底色：
+     * 比页面底色亮一档，配合模糊采样形成 TG 那种「深色玻璃」质感。
+     */
+    @Composable
+    fun controlSurface(): Color = when {
+        monet -> MiuixTheme.colorScheme.surfaceContainerHigh
+        dark -> Color(0xFF24282D)
+        else -> Color(0xFFFFFFFF)
+    }
+
+    /** 玻璃控件边缘的高光描边：只有暗色需要，浅色白玻璃上看不出描边。 */
+    @Composable
+    fun controlStroke(): Color = if (dark) Color.White.copy(alpha = 0.07f) else Color.Transparent
 
     /** ChatGptControlShadow */
     val controlShadow: Color = Color(0x14000000)

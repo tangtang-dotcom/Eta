@@ -514,6 +514,11 @@ internal fun AgentModelPillButton(
                                 BlendColorEntry(AetherChatColors.glassBackground()),
                             ),
                         ),
+                        highlight = Highlight(
+                            width = 1.dp,
+                            alpha = 0.85f,
+                            style = if (darkTheme) BloomStroke.GlassStrokeSmallDark else BloomStroke.GlassStrokeSmallLight,
+                        ),
                     )
                 } else {
                     Modifier.background(AetherChatColors.controlSurface())

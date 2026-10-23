@@ -141,9 +141,9 @@ internal object AetherChatColors {
         else -> Color(0xFFFFFFFF)
     }
 
-    /** 玻璃控件边缘的高光描边：只有暗色需要，浅色白玻璃上看不出描边。 */
+    /** 玻璃控件边缘的高光描边：深浅都用白色，浅色提高不透明度才压得住白玻璃。 */
     @Composable
-    fun controlStroke(): Color = if (dark) Color.White.copy(alpha = 0.07f) else Color.Transparent
+    fun controlStroke(): Color = if (dark) Color.White.copy(alpha = 0.07f) else Color.White.copy(alpha = 0.85f)
 
     /** ChatGptControlShadow */
     val controlShadow: Color = Color(0x14000000)
@@ -168,7 +168,7 @@ internal object AetherChatColors {
 
     /** 玻璃基底不透明度：越低越透，深色比浅色再透一档。 */
     @Composable
-    fun glassBaseAlpha(): Float = if (LocalIsDarkTheme.current) 0.42f else 0.16f
+    fun glassBaseAlpha(): Float = if (LocalIsDarkTheme.current) 0.34f else 0.12f
 
     /** ChatGptComposerShadow */
     val composerShadow: Color = Color(0x18000000)

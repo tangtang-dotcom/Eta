@@ -602,6 +602,11 @@ private fun Modifier.chatHeaderControlSurface(
                     BlendColorEntry(AetherChatColors.glassBackground()),
                 ),
             ),
+            highlight = Highlight(
+                width = 1.dp,
+                alpha = 0.85f,
+                style = if (dark) BloomStroke.GlassStrokeSmallDark else BloomStroke.GlassStrokeSmallLight,
+            ),
         )
     } else {
         background(AetherChatColors.controlSurface())

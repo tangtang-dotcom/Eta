@@ -152,16 +152,10 @@ internal fun AgentAppShell(
             topBar = {
                 if (currentRoute !is AppRoute.Settings) {
                     val isChat = currentRoute is AppRoute.Home
-                    TopBarBackdrop(
-                        backdrop = backdrop,
-                        // 聊天页正文密集，透出太多会显得脏；设置页维持原本的轻盈感。
-                        progressiveAlpha = if (isChat) ChatTopBarProgressiveAlpha else 0.3f,
-                        surfaceAlpha = if (isChat) ChatTopBarSurfaceAlpha else 0.8f,
-                        progressiveRadius = if (isChat) ChatTopBarProgressiveRadius else 10f,
-                    ) {
-                        if (isChat && chatModelPickerState != null) {
-                            // 聊天顶栏整体按 Aether 浮动结构重写：渐变遮罩 + 左右圆形钮 + 中央模型胶囊。
-                            ChatTopBarOverlay(
+                    if (isChat && chatModelPickerState != null) {
+                        // 聊天顶栏只要悬浮的按钮与胶囊，不铺任何背景：
+                        // 透明区域不拦截触摸，消息可以从下方穿过。
+                        ChatTopBarOverlay(
                                 modelPickerState = chatModelPickerState,
                                 isStreaming = chatIsStreaming,
                                 reasoningEffort = chatReasoningEffort,
@@ -179,8 +173,14 @@ internal fun AgentAppShell(
                                 onOpenBrowser = onOpenBrowser,
                                 homeCharacter = homeCharacter,
                                 onOpenCharacter = onOpenCharacter,
-                            )
-                        } else {
+                        )
+                    } else {
+                        TopBarBackdrop(
+                            backdrop = backdrop,
+                            progressiveAlpha = 0.3f,
+                            surfaceAlpha = 0.8f,
+                            progressiveRadius = 10f,
+                        ) {
                             AgentTopBar(
                                 route = currentRoute,
                                 scrollBehavior = scrollBehavior,
@@ -385,23 +385,8 @@ private fun ChatTopBarOverlay(
     homeCharacter: RoleplayChatUi?,
     onOpenCharacter: () -> Unit,
 ) {
-    val base = MiuixTheme.colorScheme.background
     Column(modifier = Modifier.fillMaxWidth()) {
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .background(
-                    Brush.verticalGradient(
-                        colorStops = arrayOf(
-                            0.0f to base.copy(alpha = 0.98f),
-                            0.28f to base.copy(alpha = 0.92f),
-                            0.58f to base.copy(alpha = 0.52f),
-                            0.82f to base.copy(alpha = 0.18f),
-                            1.0f to Color.Transparent,
-                        ),
-                    ),
-                ),
-        ) {
+        Box(modifier = Modifier.fillMaxWidth()) {
             ChatTopBarFrame(
                 modelPickerState = modelPickerState,
                 isStreaming = isStreaming,
@@ -422,20 +407,6 @@ private fun ChatTopBarOverlay(
                 onOpenCharacter = onOpenCharacter,
             )
         }
-        Spacer(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(ChatTopBarTailHeight)
-                .background(
-                    Brush.verticalGradient(
-                        colorStops = arrayOf(
-                            0.0f to base.copy(alpha = 0.10f),
-                            0.42f to base.copy(alpha = 0.04f),
-                            1.0f to Color.Transparent,
-                        ),
-                    ),
-                ),
-        )
     }
 }
 

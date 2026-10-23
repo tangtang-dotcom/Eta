@@ -7,6 +7,9 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.draw.dropShadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.shadow.Shadow
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.ime
 import androidx.compose.ui.platform.LocalDensity
@@ -148,6 +151,16 @@ internal fun AgentAttachmentPickerButton(
             if (showPopup && openedWithIme && !imeVisible) showPopup = false
         }
         if (showPopup) {
+        // 全屏透明遮罩：点菜单外任意位置收起（focusable=false，不抢输入焦点、不收键盘）。
+        Popup(properties = PopupProperties(focusable = false)) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .pointerInput(Unit) {
+                        detectTapGestures { showPopup = false }
+                    },
+            )
+        }
         Popup(
             alignment = Alignment.BottomStart,
             offset = with(density) { IntOffset(0, -42.dp.roundToPx()) },

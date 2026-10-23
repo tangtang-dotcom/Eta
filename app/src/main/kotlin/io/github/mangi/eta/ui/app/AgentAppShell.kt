@@ -589,25 +589,18 @@ private fun Modifier.chatHeaderControlSurface(
 ): Modifier {
     val dark = LocalIsDarkTheme.current
     val base = if (frosted && backdrop != null) {
-        val density = LocalDensity.current.density
-        // 柔光玻璃：不透明基底压住背景渗色 + 半透明底色 + 大半径模糊 + 细边缘光。
+        // 只用 textureBlur：textureEffect 的 highlight 每帧要在整个控件上跑一遍 shader，
+        // 三个控件叠起来会明显拖慢整页。边缘光改由 1dp 描边承担。
         val glassBase = AetherChatColors.controlSurface().copy(alpha = AetherChatColors.glassBaseAlpha())
-        textureEffect(
+        textureBlur(
             backdrop = backdrop,
             shape = CircleShape,
-            blurRadius = AetherChatColors.glassBaseBlurPx() / density,
+            blurRadius = if (dark) 24f else 18f,
             colors = BlurColors(
                 blendColors = listOf(
                     BlendColorEntry(glassBase),
                     BlendColorEntry(AetherChatColors.glassBackground()),
                 ),
-            ),
-            // width 是「从边缘向内的环带宽度」，不是光晕扩散范围；
-            // 按 30px 换算成 10dp 会在 40dp 的控件里糊成一整圈异物。
-            highlight = Highlight(
-                width = 1.dp,
-                alpha = 0.85f,
-                style = if (dark) BloomStroke.GlassStrokeSmallDark else BloomStroke.GlassStrokeSmallLight,
             ),
         )
     } else {

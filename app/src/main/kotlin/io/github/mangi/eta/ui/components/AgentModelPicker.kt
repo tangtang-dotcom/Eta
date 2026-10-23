@@ -503,22 +503,16 @@ internal fun AgentModelPillButton(
             .clip(CircleShape)
             .then(
                 if (frosted && backdrop != null) {
-                    val density = LocalDensity.current.density
                     val glassBase = AetherChatColors.controlSurface().copy(alpha = AetherChatColors.glassBaseAlpha())
-                    Modifier.textureEffect(
+                    Modifier.textureBlur(
                         backdrop = backdrop,
                         shape = CircleShape,
-                        blurRadius = AetherChatColors.glassBaseBlurPx() / density,
+                        blurRadius = if (darkTheme) 24f else 18f,
                         colors = BlurColors(
                             blendColors = listOf(
                                 BlendColorEntry(glassBase),
                                 BlendColorEntry(AetherChatColors.glassBackground()),
                             ),
-                        ),
-                        highlight = Highlight(
-                            width = 1.dp,
-                            alpha = 0.85f,
-                            style = if (darkTheme) BloomStroke.GlassStrokeSmallDark else BloomStroke.GlassStrokeSmallLight,
                         ),
                     )
                 } else {

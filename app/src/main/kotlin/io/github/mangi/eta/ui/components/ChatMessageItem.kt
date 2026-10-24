@@ -954,9 +954,18 @@ private fun AssistantWorkBubble(
             retainedStreamingStates = retainedStreamingStates,
             active = active,
             embedded = true,
+            // 子气泡默认只留最后几步：过程往往十几步，全展开会把大气泡又撑长。
+            collapsedVisibleCount = WorkBubbleCollapsedSteps,
         )
     }
 }
+
+/**
+ * 回答气泡内的工作过程收起时保留的步骤数。
+ *
+ * 0 等于只剩一行摘要；这里是 3，让用户不用展开也能看到最近在干什么。
+ */
+private const val WorkBubbleCollapsedSteps = 3
 
 /** 回答气泡圆角；与思考卡片的 12dp 区分，气泡更圆一些。 */
 private val AssistantBubbleCorner = 18.dp

@@ -74,10 +74,11 @@ class AgentChatTimelineEntriesTest {
     }
 
     /**
-     * 一次问答里「正文 → 工具 → 正文」在投影层是多条 [AgentMessageUi]，展示时必须收进同一个气泡。
+     * 一次问答里「正文 → 工具 → 正文」在投影层是多条 [AgentMessageUi]，展示时必须收进同一个气泡；
+     * 且工具之前的正文属于过程旁白，只把最后一组工作过程之后的正文留在外层气泡里。
      */
     @Test
-    fun oneTurnWithToolCallsStaysInASingleBubble() {
+    fun narrationBeforeToolCallsFoldsIntoWorkAndOnlyFinalTextIsTheAnswer() {
         val messages = listOf(
             UserMessageUi("user-1", "帮我看看"),
             AgentMessageUi("assistant-run-1-1-0", "我先看一下", isStreaming = false),
@@ -101,13 +102,45 @@ class AgentChatTimelineEntriesTest {
 
         assertEquals(2, entries.size)
         val turn = entries[1] as AgentTimelineEntry.Turn
-        assertEquals(2, turn.work.size)
-        assertEquals(3, turn.answers.size)
+
+        // 过程：旁白、工具、旁白、工具；回答：只剩最后一段结论。
+        assertEquals(4, turn.work.size)
+        assertEquals(listOf("我先看一下", "找到了"), turn.work.filterIsInstance<AgentMessageUi>().map { it.content })
+        assertEquals(1, turn.answers.size)
 
         val merged = turn.answers.mergeTurnAnswers(turn.key)
-        assertEquals("assistant-run-1-1-0", merged.id)
-        assertEquals("我先看一下\n\n找到了\n\n结论如下", merged.content)
-        assertTrue(merged.renderMarkdown)
+        assertEquals("assistant-run-1-3-0", merged.id)
+        assertEquals("结论如下", merged.content)
+    }
+
+    /** 没有工具调用的纯问答，正文全部是回答，不能被误判成旁白。 */
+    @Test
+    fun plainAnswerWithoutToolCallsStaysInTheBubble() {
+        val messages = listOf(
+            UserMessageUi("user-1", "你好"),
+            AgentMessageUi("assistant-run-1-1-0", "你好，有什么可以帮你", isStreaming = false),
+        )
+
+        val turn = messages.toTimelineEntries()[1] as AgentTimelineEntry.Turn
+
+        assertEquals(0, turn.work.size)
+        assertEquals(1, turn.answers.size)
+        assertEquals("你好，有什么可以帮你", turn.answers.mergeTurnAnswers(turn.key).content)
+    }
+
+    /** 思考之后再出现正文，正文是最终回答。 */
+    @Test
+    fun textAfterThinkingIsTheAnswer() {
+        val messages = listOf(
+            UserMessageUi("user-1", "问"),
+            ThinkingMessageUi("run-1-thinking-1-0", "想一想", isStreaming = false),
+            AgentMessageUi("assistant-run-1-1-0", "答", isStreaming = false),
+        )
+
+        val turn = messages.toTimelineEntries()[1] as AgentTimelineEntry.Turn
+
+        assertEquals(1, turn.work.size)
+        assertEquals(listOf("答"), turn.answers.map { (it as AgentMessageUi).content })
     }
 
     /** 相邻两轮问答不能并进同一个气泡。 */

@@ -1102,36 +1102,55 @@ private fun AgentChatMessageUi.isTurnAnswer(): Boolean = when (this) {
  * 把一整轮问答的工作过程与正文合成同一个 [AgentTimelineEntry.Turn]。
  *
  * 投影层按 round+index 把每次正文都切成独立消息，一轮里「正文→工具→正文」会产出多条
- * [AgentMessageUi]。这里按「两条用户消息之间」重新分组，让它们显示在同一个大气泡里，
- * 思考与工具调用统一收进子气泡；条目 key 仍取首个工作过程（没有工作过程时取首条正文）的
- * id，保证流式刷新期间条目身份稳定、历史分页锚点不跳。
+ * [AgentMessageUi]。这里按「两条用户消息之间」重新分组，让它们显示在同一个大气泡里。
  *
- * 上下文压缩标记不属于任何回答，保留为独立条目。
+ * 正文按位置分成两类，规则与 RikkaHub 的 foldProcessNarration 一致：
+ * - **过程旁白**：后面还跟着思考或工具调用的正文，只是模型在解释自己正在干什么。
+ *   它们并进 [AgentTimelineEntry.Turn.work]，和思考、工具调用一起收在子气泡里。
+ * - **回答**：本轮最后一次工作过程之后的正文，一个都没有就是还没开始回答。
+ *   只有它们留在外层大气泡里，避免把「我先看看」之类的过场话撑满气泡。
+ *
+ * 条目 key 仍取首个工作过程（没有工作过程时取首条正文）的 id，保证流式刷新期间
+ * 条目身份稳定、历史分页锚点不跳。上下文压缩标记不属于任何回答，保留为独立条目。
  */
 private fun List<AgentTimelineEntry>.mergeWorkIntoAnswers(): List<AgentTimelineEntry> = buildList {
     val work = mutableListOf<AgentChatMessageUi>()
     val answers = mutableListOf<AgentChatMessageUi>()
+    // 已收集但尚未定性的正文：只有确定它后面不再有工作过程时才升级为回答。
+    val pendingAnswers = mutableListOf<AgentChatMessageUi>()
 
     fun flushTurn() {
-        if (work.isEmpty() && answers.isEmpty()) return
+        if (work.isEmpty() && answers.isEmpty() && pendingAnswers.isEmpty()) return
         // 与 WorkProcess 的 key 规则保持一致，避免流式刷新时条目身份变化导致锚点跳动。
         val key = work.firstOrNull()?.let { "work-${it.id}" }
             ?: answers.firstOrNull()?.id
+            ?: pendingAnswers.firstOrNull()?.id
             ?: return
         add(
             AgentTimelineEntry.Turn(
                 key = key,
                 work = work.toList(),
-                answers = answers.toList(),
+                answers = (answers + pendingAnswers).toList(),
             ),
         )
         work.clear()
         answers.clear()
+        pendingAnswers.clear()
+    }
+
+    /** 新一段工作过程到来，之前悬着的正文就都成了过程旁白。 */
+    fun demotePendingAsNarration() {
+        if (pendingAnswers.isEmpty()) return
+        work += pendingAnswers
+        pendingAnswers.clear()
     }
 
     for (entry in this@mergeWorkIntoAnswers) {
         when (entry) {
-            is AgentTimelineEntry.WorkProcess -> work += entry.messages
+            is AgentTimelineEntry.WorkProcess -> {
+                demotePendingAsNarration()
+                work += entry.messages
+            }
             is AgentTimelineEntry.Message -> {
                 val message = entry.message
                 when {
@@ -1140,13 +1159,16 @@ private fun List<AgentTimelineEntry>.mergeWorkIntoAnswers(): List<AgentTimelineE
                         flushTurn()
                         add(entry)
                     }
-                    message.isWorkProcessMessage() -> work += message
+                    message.isWorkProcessMessage() -> {
+                        demotePendingAsNarration()
+                        work += message
+                    }
                     message is SystemNoticeMessageUi &&
                         message.code == SystemNoticeCode.ContextCompaction -> {
                         flushTurn()
                         add(entry)
                     }
-                    message.isTurnAnswer() -> answers += message
+                    message.isTurnAnswer() -> pendingAnswers += message
                     else -> {
                         flushTurn()
                         add(entry)
@@ -1160,6 +1182,9 @@ private fun List<AgentTimelineEntry>.mergeWorkIntoAnswers(): List<AgentTimelineE
             }
         }
     }
+    // 收尾时仍悬着的正文后面不会再有工作过程，它们就是这一轮的回答。
+    answers += pendingAnswers
+    pendingAnswers.clear()
     flushTurn()
 }
 

@@ -65,6 +65,7 @@ import androidx.compose.ui.unit.dp
 import io.github.mangi.eta.R
 import io.github.mangi.eta.agent.overlay.toolDisplayName
 import io.github.mangi.eta.ui.markdown.StreamingMarkdownState
+import io.github.mangi.eta.ui.model.AgentMessageUi
 import io.github.mangi.eta.ui.model.AgentChatMessageUi
 import io.github.mangi.eta.ui.model.ThinkingMessageUi
 import io.github.mangi.eta.ui.model.ToolActivityMessageUi
@@ -90,6 +91,8 @@ internal fun AgentWorkProcess(
     active: Boolean = false,
     // 嵌入回答气泡时由外层提供内边距与背景，自身不再横向撑开。
     embedded: Boolean = false,
+    // 收起时尾部保留几步可见；0 表示只留标题行，Int.MAX_VALUE 表示永不收起。
+    collapsedVisibleCount: Int = 0,
 ) {
     val running = messages.any { message ->
         (message is ThinkingMessageUi && message.isStreaming) ||
@@ -102,7 +105,20 @@ internal fun AgentWorkProcess(
     // 以“是否仍是本轮末尾的工作过程”判定收起，而不是 running：思考结束到工具开始之间
     // running 会短暂为 false，按它收起会造成反复开合。展开态在组合期同步推导，与正文
     // 条目插入落在同一帧，不经 LaunchedEffect 晚一帧收起。语音浮层空间有限，自动模式不展开。
-    val bodyVisible = manualExpanded ?: (active && !assistantOverlay)
+    val autoExpanded = active && !assistantOverlay
+    val bodyVisible = manualExpanded ?: (autoExpanded || collapsedVisibleCount > 0)
+
+    // 收起态只展示尾部若干步，其余收进标题行；流式进行中至少留一步，
+    // 否则模型跑工具时界面上看不到任何进展，容易误以为卡死。
+    val visibleSteps = remember(steps, bodyVisible, manualExpanded, autoExpanded, collapsedVisibleCount) {
+        if (bodyVisible && (manualExpanded == true || autoExpanded)) {
+            steps
+        } else {
+            val keep = collapsedVisibleCount.coerceAtLeast(if (active) 1 else 0)
+            if (keep >= steps.size) steps else steps.takeLast(keep)
+        }
+    }
+    val hiddenStepCount = steps.size - visibleSteps.size
 
     Column(
         modifier = modifier
@@ -121,6 +137,7 @@ internal fun AgentWorkProcess(
             working = active || running,
             expanded = bodyVisible,
             compact = embedded,
+            hiddenStepCount = hiddenStepCount,
             onClick = { manualExpanded = !bodyVisible },
         )
         AnimatedVisibility(
@@ -139,11 +156,11 @@ internal fun AgentWorkProcess(
             ),
         ) {
             Column(modifier = Modifier.padding(bottom = 6.dp)) {
-                steps.forEachIndexed { index, step ->
+                visibleSteps.forEachIndexed { index, step ->
                     key(step.key) {
                         AgentWorkStepNode(
                             step = step,
-                            isLast = index == steps.lastIndex,
+                            isLast = index == visibleSteps.lastIndex,
                             quoted = embedded,
                             onOpenBrowser = onOpenBrowser,
                             currentBrowserMessageId = currentBrowserMessageId,
@@ -162,13 +179,15 @@ private fun AgentWorkHeader(
     working: Boolean,
     expanded: Boolean,
     compact: Boolean = false,
+    // 收起态下被折进标题行的步骤数，展开后为 0。
+    hiddenStepCount: Int = 0,
     onClick: () -> Unit,
 ) {
     val runningTool = messages.lastOrNull { message ->
         message is ToolActivityMessageUi && message.status == ToolActivityStatusUi.Running
     } as? ToolActivityMessageUi
     val summary = remember(messages) { messages.workSummary() }
-    val text = when {
+    val base = when {
         runningTool != null -> pluralStringResource(
             R.plurals.work_processing_step,
             summary.toolCount,
@@ -176,6 +195,12 @@ private fun AgentWorkHeader(
         ) + " · " + runningTool.argumentsSummary.ifBlank { toolDisplayName(runningTool.toolName) }
         working -> stringResource(R.string.work_analyzing)
         else -> workSummaryText(summary)
+    }
+    // 收起态还有步骤被折在下面时给出可见提示，否则用户不知道上面还藏着内容。
+    val text = if (!expanded && hiddenStepCount > 0) {
+        "$base · +$hiddenStepCount"
+    } else {
+        base
     }
     Row(
         modifier = Modifier
@@ -306,10 +331,43 @@ private fun AgentWorkStepNode(
                 )
             }
 
+            // 过程旁白：夹在工具/思考之间的正文。它不是结论，只是模型在说明正在做什么，
+            // 因此收进工作过程里按次级文字呈现，不占外层气泡的回答位置。
+            is AgentMessageUi -> WorkStep(
+                icon = Icons.Rounded.Checklist,
+                tone = WorkNodeTone.Done,
+                isLast = isLast,
+                quoted = quoted,
+            ) {
+                WorkNarrationRow(message = message)
+            }
+
             else -> Unit
         }
     }
 }
+
+/**
+ * 过程旁白：模型在两次工具调用之间说明自己在做什么。
+ *
+ * 它属于工作过程而不是本轮回答，所以用次级文字色、限制行数，避免和真正的结论抢注意力。
+ */
+@Composable
+private fun WorkNarrationRow(message: AgentMessageUi) {
+    Text(
+        text = message.content,
+        style = MiuixTheme.textStyles.footnote1,
+        color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+        maxLines = if (message.isStreaming) Int.MAX_VALUE else NARRATION_MAX_LINES,
+        overflow = TextOverflow.Ellipsis,
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(start = 2.dp, top = 4.dp, bottom = 4.dp),
+    )
+}
+
+/** 收起态下旁白最多显示几行；展开全部过程时仍受此限制，避免子气泡本身又变得很长。 */
+private const val NARRATION_MAX_LINES = 3
 
 /** 时间线节点与纯内容两种排布的切换点，正文内容完全一致。 */
 @Composable

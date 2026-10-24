@@ -70,6 +70,7 @@ import io.github.mangi.eta.ui.components.MiuixBackButton
 import io.github.mangi.eta.ui.components.RoleplayChatUi
 import io.github.mangi.eta.ui.components.AetherChatColors
 import io.github.mangi.eta.ui.components.glassEdge
+import io.github.mangi.eta.ui.components.liquidGlassSurface
 import io.github.mangi.eta.ui.components.AgentModelPillButton
 import io.github.mangi.eta.ui.components.TopBarBackdrop
 import io.github.mangi.eta.ui.components.captureForTopBar
@@ -585,35 +586,24 @@ private fun ChatHeaderCircle(
 }
 
 /**
- * 顶栏控件底：磨砂开启时采样同一份 backdrop 做玻璃块（半透明 + 模糊），
- * 关闭时用不透明表面色，避免按钮落在消息上显得半透。
+ * 顶栏控件底：磨砂开启时用液态玻璃（KernelSU 同款：提饱和 + 轻模糊 + 圆角折射 +
+ * BloomStroke 高光 + 半透明容器色），关闭时退回不透明表面色。
+ * 深浅色都由 AetherChatColors.controlSurface() 决定。
  */
 @Composable
 private fun Modifier.chatHeaderControlSurface(
     frosted: Boolean,
     backdrop: LayerBackdrop?,
 ): Modifier {
-    val dark = LocalIsDarkTheme.current
-    val base = if (frosted && backdrop != null) {
-        // 只用 textureBlur：textureEffect 的 highlight 每帧要在整个控件上跑一遍 shader，
-        // 三个控件叠起来会明显拖慢整页。边缘光改由 1dp 描边承担。
-        val glassBase = AetherChatColors.controlSurface().copy(alpha = AetherChatColors.glassBaseAlpha())
-        textureBlur(
+    if (frosted && backdrop != null) {
+        return liquidGlassSurface(
             backdrop = backdrop,
             shape = CircleShape,
-            blurRadius = if (dark) 24f else 18f,
-            colors = BlurColors(
-                blendColors = listOf(
-                    BlendColorEntry(glassBase),
-                    BlendColorEntry(AetherChatColors.glassBackground()),
-                ),
-            ),
+            containerColor = AetherChatColors.controlSurface()
+                .copy(alpha = AetherChatColors.glassBaseAlpha()),
         )
-    } else {
-        background(AetherChatColors.controlSurface())
     }
-    // 边缘光改成渐变描边：上亮下暗，纯绘制，不像 highlight shader 那样每帧跑一遍。
-    return base.glassEdge(AetherChatColors.glassStrokeTop(), AetherChatColors.glassStrokeBottom())
+    return background(AetherChatColors.controlSurface())
 }
 
 @Composable

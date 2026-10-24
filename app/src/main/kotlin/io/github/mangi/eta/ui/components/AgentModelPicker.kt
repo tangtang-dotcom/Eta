@@ -56,16 +56,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
-import top.yukonga.miuix.kmp.blur.BlendColorEntry
-import top.yukonga.miuix.kmp.blur.BlurDefaults
 import top.yukonga.miuix.kmp.blur.LayerBackdrop
-import top.yukonga.miuix.kmp.blur.textureBlur
-import top.yukonga.miuix.kmp.blur.BlurColors
-import top.yukonga.miuix.kmp.blur.highlight.BloomStroke
-import top.yukonga.miuix.kmp.blur.highlight.Highlight
-import top.yukonga.miuix.kmp.blur.textureEffect
 import io.github.mangi.eta.R
-import io.github.mangi.eta.ui.app.LocalIsDarkTheme
 import io.github.mangi.eta.data.model.ReasoningEffort
 import io.github.mangi.eta.ui.model.AgentModelOptionUi
 import io.github.mangi.eta.ui.model.AgentModelPickerUiState
@@ -491,7 +483,6 @@ internal fun AgentModelPillButton(
     // 点击始终可响应；无可用模型时面板内会给出空态提示。
     val currentModel = selected?.displayName ?: stringResource(R.string.model_not_selected)
     val switchModelDescription = stringResource(R.string.model_switch_current, currentModel)
-    val darkTheme = LocalIsDarkTheme.current
     Box(
         modifier = modifier
             .height(ModelPillHeight)
@@ -503,24 +494,16 @@ internal fun AgentModelPillButton(
             .clip(CircleShape)
             .then(
                 if (frosted && backdrop != null) {
-                    val glassBase = AetherChatColors.controlSurface().copy(alpha = AetherChatColors.glassBaseAlpha())
-                    Modifier.textureBlur(
+                    liquidGlassSurface(
                         backdrop = backdrop,
                         shape = CircleShape,
-                        blurRadius = if (darkTheme) 24f else 18f,
-                        colors = BlurColors(
-                            blendColors = listOf(
-                                BlendColorEntry(glassBase),
-                                BlendColorEntry(AetherChatColors.glassBackground()),
-                            ),
-                        ),
+                        containerColor = AetherChatColors.controlSurface()
+                            .copy(alpha = AetherChatColors.glassBaseAlpha()),
                     )
                 } else {
                     Modifier.background(AetherChatColors.controlSurface())
                 },
             )
-            // 与圆钮同一套玻璃材质：渐变描边代替 highlight shader。
-            .glassEdge(AetherChatColors.glassStrokeTop(), AetherChatColors.glassStrokeBottom())
             .clickable {
                 sheetSession += 1
                 showSheet = true

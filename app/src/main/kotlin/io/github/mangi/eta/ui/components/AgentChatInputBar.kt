@@ -341,13 +341,12 @@ internal fun AgentChatInputBar(
                         .then(
                             if (frosted && backdrop != null) {
                                 // 与顶栏同款液态玻璃：提饱和 + 轻模糊 + 圆角折射 + BloomStroke 高光。
-                                // 底色与顶栏按钮同一套：controlSurface + glassBaseAlpha，
-                                // 深浅色观感一致，避免输入框比顶栏按钮更黑更实。
+                                // KernelSU 同款容器底色：surfaceContainer @ 0.4f。
                                 Modifier.liquidGlassSurface(
                                     backdrop = backdrop,
                                     shape = composerShape,
-                                    containerColor = AetherChatColors.controlSurface()
-                                        .copy(alpha = AetherChatColors.glassBaseAlpha()),
+                                    containerColor = MiuixTheme.colorScheme.surfaceContainer
+                                        .copy(alpha = 0.4f),
                                 )
                             } else {
                                 Modifier.background(AetherChatColors.surface())
@@ -545,12 +544,12 @@ internal fun AgentChatInputBar(
                         .clip(CircleShape)
                         .then(
                             if (plusSeparated && frosted && backdrop != null) {
-                                // 分离出来的加号圆钮同样用顶栏液态玻璃材质与底色。
+                                // 分离出来的加号圆钮同样用 KernelSU 同款底色。
                                 Modifier.liquidGlassSurface(
                                     backdrop = backdrop,
                                     shape = CircleShape,
-                                    containerColor = AetherChatColors.controlSurface()
-                                        .copy(alpha = AetherChatColors.glassBaseAlpha()),
+                                    containerColor = MiuixTheme.colorScheme.surfaceContainer
+                                        .copy(alpha = 0.4f),
                                 )
                             } else {
                                 Modifier.background(

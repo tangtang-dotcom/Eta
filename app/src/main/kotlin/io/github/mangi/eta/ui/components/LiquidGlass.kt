@@ -1,19 +1,25 @@
 /*
- * 液态玻璃材质 —— 移植自 KernelSU (tiann/KernelSU) FloatingBottomBar：
+ * 液态玻璃材质 —— 1:1 移植自 KernelSU (tiann/KernelSU) FloatingBottomBar：
  *   https://github.com/tiann/KernelSU (Apache 2.0)
  * 上游来源 Kyant0/AndroidLiquidGlass — https://github.com/Kyant0/AndroidLiquidGlass (Apache 2.0)。
  *
- * 与 KernelSU 使用同一 miuix 0.9.4，因此 drawBackdrop / runtimeShaderEffect /
- * colorControls / BloomStroke 全部可用。
- *
- * 核心：vibrancy(提饱和) + blur(轻模糊) + lens(AGSL 折射 shader) + BloomStroke 高光，
- * 半透明容器色打底，形成 iOS 液态玻璃质感。
+ * 与 KernelSU 使用同一 miuix 0.9.4。参数逐项对齐 KernelSU FloatingBottomBar 主栏：
+ *   - vibrancy: brightness 0 / contrast 1 / saturation 1.5
+ *   - blur: 4dp x 4dp
+ *   - lens: refractionHeight 24dp / refractionAmount 24dp（AGSL shader 逐字一致）
+ *   - highlight: iosIndicatorSpecular BloomStroke + 重力旋转(-45°) + alpha 0.75
+ *   - 容器底色由调用方传 MiuixTheme.colorScheme.surfaceContainer @ 0.4f（KernelSU 同款）
+ *   - 折射预留 padding 40dp
  */
 
 package io.github.mangi.eta.ui.components
 
 import androidx.compose.foundation.shape.CornerBasedShape
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.State
+import androidx.compose.runtime.derivedStateOf
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
@@ -21,6 +27,11 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.util.fastCoerceAtMost
+import kotlin.math.PI
+import kotlin.math.atan2
+import kotlin.math.cos
+import kotlin.math.roundToInt
+import kotlin.math.sin
 import top.yukonga.miuix.kmp.blur.Backdrop
 import top.yukonga.miuix.kmp.blur.BackdropEffectScope
 import top.yukonga.miuix.kmp.blur.blur
@@ -32,6 +43,7 @@ import top.yukonga.miuix.kmp.blur.highlight.LightPosition
 import top.yukonga.miuix.kmp.blur.highlight.LightSource
 import top.yukonga.miuix.kmp.blur.isRuntimeShaderSupported
 import top.yukonga.miuix.kmp.blur.runtimeShaderEffect
+import top.yukonga.miuix.kmp.blur.sensor.rememberDeviceTilt
 
 /** 提高背景饱和度，让玻璃下的内容更鲜活（KernelSU / AndroidLiquidGlass 的做法）。 */
 private fun BackdropEffectScope.vibrancy() {
@@ -44,7 +56,7 @@ private fun BackdropEffectScope.vibrancy() {
 
 /**
  * 液态玻璃折射：圆角边缘按 SDF 距离做径向偏移采样，模拟内容被玻璃透镜弯曲。
- * 可选色散（chromaticAberration > 0 时启用 RGB 分离）。
+ * 可选色散（chromaticAberration > 0 时启用 RGB 分离）。与 KernelSU 完全一致（含 shader key）。
  */
 private fun BackdropEffectScope.lens(
     refractionHeight: Float,
@@ -68,7 +80,7 @@ private fun BackdropEffectScope.lens(
         } else {
             ROUNDED_RECT_REFRACTION_SHADER
         }
-    val key = if (dispersionEnabled) "EtaLiquidGlassLensDispersion" else "EtaLiquidGlassLens"
+    val key = if (dispersionEnabled) "LiquidGlassLensDispersion" else "LiquidGlassLens"
 
     val sf = downscaleFactor.coerceAtLeast(1).toFloat()
     val scaledSizeW = size.width / sf
@@ -112,8 +124,8 @@ private fun BackdropEffectScope.roundedRectCornerRadii(): FloatArray? {
     )
 }
 
-/** 顶栏按钮/胶囊的液态玻璃高光：上亮下暗的 BloomStroke，白色。 */
-private fun liquidGlassHighlight(): Highlight = Highlight(
+/** KernelSU FloatingBottomBar 的 iosIndicatorSpecular —— 参数逐字一致。 */
+private val IosIndicatorSpecular: Highlight = Highlight(
     width = 1.dp,
     alpha = 1f,
     style = BloomStroke(
@@ -133,17 +145,68 @@ private fun liquidGlassHighlight(): Highlight = Highlight(
     ),
 )
 
+// Mirrors miuix-blur HighlightStyle's LIGHT_REF — keep in sync.
+private const val LIGHT_REF_X = 0.5f
+private const val LIGHT_REF_Y = 0.7f
+private const val GRAVITY_DIR_THRESHOLD_SQ = 0.01f // |g_xy| > 0.1, ≈ 6° tilt
+private const val GRAVITY_ANGLE_STEP_RAD = (3.0 * PI / 180.0).toFloat()
+
+/** 跟踪重力方向，供 dualPeak 高光的主光源旋转（KernelSU 同款）。 */
+@Composable
+private fun rememberQuantizedGravityAngle(): State<Float> {
+    val tiltState = rememberDeviceTilt()
+    return remember(tiltState) {
+        derivedStateOf {
+            val tilt = tiltState.value
+            val magnitudeSquared = tilt.gravityX * tilt.gravityX + tilt.gravityY * tilt.gravityY
+            if (magnitudeSquared > GRAVITY_DIR_THRESHOLD_SQ) {
+                (atan2(tilt.gravityY, tilt.gravityX) / GRAVITY_ANGLE_STEP_RAD).roundToInt() * GRAVITY_ANGLE_STEP_RAD
+            } else {
+                (-PI / 2).toFloat()
+            }
+        }
+    }
+}
+
+/** KernelSU 同款：按设备倾斜旋转 BloomStroke 主光源。 */
+@Composable
+private fun rememberGravityRotatedHighlight(
+    base: Highlight,
+    extraDegrees: Float = 0f,
+): State<Highlight> {
+    val baseStyle = base.style as BloomStroke
+    val angle = rememberQuantizedGravityAngle()
+    return remember(angle, base, extraDegrees) {
+        derivedStateOf {
+            val basePrimary = baseStyle.primaryLight
+            val rad = angle.value + (extraDegrees * PI / 180.0).toFloat()
+            base.copy(
+                style = baseStyle.copy(
+                    primaryLight = basePrimary.copy(
+                        position = LightPosition(
+                            x = LIGHT_REF_X + cos(rad),
+                            y = LIGHT_REF_Y + sin(rad),
+                            z = basePrimary.position.z,
+                        ),
+                    ),
+                ),
+            )
+        }
+    }
+}
+
 /**
- * 顶栏液态玻璃控件：采样 backdrop，先提饱和、轻模糊，再做圆角折射，
- * 最后叠加白色 BloomStroke 高光与半透明容器色（深浅色走 AetherChatColors）。
+ * 液态玻璃控件（KernelSU FloatingBottomBar 主栏 1:1 参数）：
+ * 采样 backdrop，先提饱和、轻模糊，再做圆角折射，最后叠加重力旋转的
+ * BloomStroke 高光（alpha 0.75）与半透明容器色。
  *
- * @param backdrop 采样层（顶栏 backdrop，录制按钮之下的内容）
+ * @param backdrop 采样层（录制控件之下的内容）
  * @param shape 控件形状（圆形/胶囊）
- * @param containerColor 半透明容器底色，盖在模糊与折射之上
- * @param blurRadius 模糊半径，KernelSU 用 4dp（很轻），顶栏可略大
- * @param refractionHeight 折射高度（px），越大弯曲范围越宽
- * @param refractionAmount 折射强度（px），越大偏移越明显
- * @param highlight 是否叠加白色高光描边
+ * @param containerColor 半透明容器底色，KernelSU 用 surfaceContainer @ 0.4f
+ * @param blurRadius 模糊半径，KernelSU 用 4dp
+ * @param refractionHeight 折射高度（px）
+ * @param refractionAmount 折射强度（px）
+ * @param highlight 是否叠加高光描边
  */
 @Composable
 fun Modifier.liquidGlassSurface(
@@ -157,11 +220,14 @@ fun Modifier.liquidGlassSurface(
 ): Modifier {
     if (backdrop == null) return this
     val mask = this
+    // 与 KernelSU 主栏一致：重力旋转后的 iOS specular 高光，alpha 0.75。
+    val baseHighlight = rememberGravityRotatedHighlight(IosIndicatorSpecular, extraDegrees = -45f)
     return mask.drawBackdrop(
         backdrop = backdrop,
         shape = { shape },
         effects = {
-            padding = maxOf(padding, refractionAmount.toPx() + 8f)
+            // KernelSU 主栏用 40dp 预留折射边缘。
+            padding = maxOf(padding, 40.dp.toPx())
             vibrancy()
             blur(blurRadius.toPx(), blurRadius.toPx())
             lens(
@@ -169,7 +235,7 @@ fun Modifier.liquidGlassSurface(
                 refractionAmount = refractionAmount.toPx(),
             )
         },
-        highlight = if (highlight) { { liquidGlassHighlight() } } else null,
+        highlight = if (highlight) { { baseHighlight.value.copy(alpha = 0.75f) } } else null,
         onDrawSurface = { drawRect(containerColor) },
     )
 }

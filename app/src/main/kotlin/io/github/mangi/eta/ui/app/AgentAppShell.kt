@@ -602,8 +602,8 @@ private fun Modifier.chatHeaderControlSurface(
         return liquidGlassSurface(
             backdrop = backdrop,
             shape = CircleShape,
-            containerColor = AetherChatColors.controlSurface()
-                .copy(alpha = AetherChatColors.glassBaseAlpha()),
+            // KernelSU 同款容器底色：surfaceContainer @ 0.4f。
+            containerColor = MiuixTheme.colorScheme.surfaceContainer.copy(alpha = 0.4f),
         )
     }
     return background(AetherChatColors.controlSurface())

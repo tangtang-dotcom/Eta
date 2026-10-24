@@ -898,9 +898,8 @@ internal fun AgentConversationMessages(
             // 玻璃圆钮：与顶栏两大按钮完全同一套液态玻璃材质（提饱和 + 轻模糊 + 折射 + BloomStroke 高光）。
             // 采样 buttonBackdrop（只录 LazyColumn 消息内容、不含按钮自身），因此不会产生采样自引用。
             val bottomBlurAvailable = frosted && isRuntimeShaderSupported()
-            val bottomGlassBase = AetherChatColors.controlSurface().copy(
-                alpha = AetherChatColors.glassBaseAlpha(),
-            )
+            // KernelSU 同款容器底色：surfaceContainer @ 0.4f。
+            val bottomGlassBase = MiuixTheme.colorScheme.surfaceContainer.copy(alpha = 0.4f)
             Box(
                 modifier = Modifier
                     .size(40.dp)

@@ -1162,8 +1162,10 @@ private fun List<AgentTimelineEntry>.mergeWorkIntoAnswers(): List<AgentTimelineE
     for (entry in this@mergeWorkIntoAnswers) {
         when (entry) {
             is AgentTimelineEntry.WorkProcess -> {
-                // 过程紧跟在已有过程后面就并进同一段，中间夹过正文才另起一段，
-                // 这样「思考 → 工具 → 思考」仍是一个子气泡。
+                // 当前段已经说出过正文，说明新一轮过程开始了：先把上一段收口，
+                // 「过程 → 正文 → 过程 → 正文」才能切成两段而不是挤成一段。
+                if (sectionAnswers.isNotEmpty()) flushSection()
+                // 连续的过程之间没有夹正文，仍然并进同一个子气泡。
                 sectionWork += entry.messages
             }
             is AgentTimelineEntry.Message -> {
@@ -1174,7 +1176,10 @@ private fun List<AgentTimelineEntry>.mergeWorkIntoAnswers(): List<AgentTimelineE
                         flushTurn()
                         add(entry)
                     }
-                    message.isWorkProcessMessage() -> sectionWork += message
+                    message.isWorkProcessMessage() -> {
+                        if (sectionAnswers.isNotEmpty()) flushSection()
+                        sectionWork += message
+                    }
                     message is SystemNoticeMessageUi &&
                         message.code == SystemNoticeCode.ContextCompaction -> {
                         flushTurn()

@@ -89,6 +89,29 @@ class AgentChatTimelineEntriesTest {
         assertEquals("看到三个模块\n\n结论如下", turn.answers.mergeTurnAnswers(turn.key).content)
     }
 
+    /**
+     * 回归：早期实现只在轮次边界切段，导致「过程 → 正文 → 过程 → 正文」全挤成一段，
+     * 界面上退化成「所有工具和思考堆在顶部、正文在下面」。这里锁定真正的交替切分。
+     */
+    @Test
+    fun newWorkProcessAfterAnswersStartsANewSection() {
+        val messages = listOf(
+            UserMessageUi("user-1", "问题"),
+            ThinkingMessageUi("run-1-thinking-1-0", "思考一", isStreaming = false),
+            AgentMessageUi("assistant-run-1-1-0", "正文一", isStreaming = false),
+            ThinkingMessageUi("run-1-thinking-2-0", "思考二", isStreaming = false),
+            AgentMessageUi("assistant-run-1-2-0", "正文二", isStreaming = false),
+        )
+
+        val turn = messages.toTimelineEntries()[1] as AgentTimelineEntry.Turn
+
+        assertEquals(2, turn.sections.size)
+        assertEquals(1, turn.sections[0].work.size)
+        assertEquals(listOf("正文一"), turn.sections[0].answers.map { (it as AgentMessageUi).content })
+        assertEquals(1, turn.sections[1].work.size)
+        assertEquals(listOf("正文二"), turn.sections[1].answers.map { (it as AgentMessageUi).content })
+    }
+
     /** 连续多个过程步骤之间没有正文，必须并进同一个子气泡。 */
     @Test
     fun consecutiveWorkStepsShareOneSection() {

@@ -1105,9 +1105,50 @@ internal fun List<AgentChatMessageUi>.toTimelineEntries(
         }
     }
     flushWorkProcess()
-}.mergeWorkIntoAnswers()
+}.mergeWorkIntoAnswers().foldNarrationIntoSections()
 
-/** 能作为一轮收尾的消息：模型回答，或不带上下文压缩标记的系统提示。 */
+/**
+ * 中间步骤的正文：后面还有工具或思考接着发生，它只是在说明"接下来要做什么"，不是结论。
+ *
+ * 这类正文收进过程子气泡，问题里的最终回答才是气泡正文。反过来，没被任何过程打断的
+ * 正文就是结论——哪怕它只是一句"好的"。
+ */
+internal fun AgentChatMessageUi.isProcessNarration(): Boolean =
+    this is AgentMessageUi && content.isNotBlank()
+
+/**
+ * 把每轮最后一段正文之外的正文（过程旁白）折进所在的子气泡。
+ *
+ * 旁白由「后面是否还有正文」判定，纯问答、以思考或工具收尾的回答都不会被误折。
+ * 每一段的 work 都在该段正文之前发生，因此把旁白追加到段尾就是正确的时间顺序。
+ */
+private fun List<AgentTimelineEntry>.foldNarrationIntoSections(): List<AgentTimelineEntry> =
+    map { entry ->
+        if (entry !is AgentTimelineEntry.Turn) return@map entry
+        val lastAnswerIndex = entry.sections.indexOfLast { section -> section.answers.isNotEmpty() }
+        fun collectNarrations(section: AgentTimelineEntry.TurnSection): List<AgentChatMessageUi> =
+            if (section.answers.isEmpty()) {
+                emptyList()
+            } else {
+                section.answers.filter { it.isProcessNarration() }
+            }
+
+        val narrations = entry.sections.map(::collectNarrations).flatten()
+        if (narrations.isEmpty()) return@map entry
+        entry.copy(
+            sections = entry.sections.mapIndexed { index, section ->
+                if (index == lastAnswerIndex) {
+                    section
+                } else {
+                    section.copy(
+                        work = section.work + collectNarrations(section),
+                        answers = section.answers.filterNot { it.isProcessNarration() },
+                    )
+                }
+            },
+        )
+    }
+
 private fun AgentChatMessageUi.isTurnAnswer(): Boolean = when (this) {
     is AgentMessageUi -> true
     is SystemNoticeMessageUi -> code != SystemNoticeCode.ContextCompaction

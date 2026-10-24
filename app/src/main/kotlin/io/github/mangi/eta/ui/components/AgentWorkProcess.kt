@@ -91,6 +91,8 @@ internal fun AgentWorkProcess(
     active: Boolean = false,
     // 嵌入回答气泡时由外层提供内边距与背景，自身不再横向撑开。
     embedded: Boolean = false,
+    // 生成中是否自动展开；回答气泡内传 false，进出过程都只剩一行摘要。
+    autoExpandWhileActive: Boolean = true,
     // 收起时尾部保留几步可见；0 表示只留标题行，Int.MAX_VALUE 表示永不收起。
     collapsedVisibleCount: Int = 0,
 ) {
@@ -105,16 +107,25 @@ internal fun AgentWorkProcess(
     // 以“是否仍是本轮末尾的工作过程”判定收起，而不是 running：思考结束到工具开始之间
     // running 会短暂为 false，按它收起会造成反复开合。展开态在组合期同步推导，与正文
     // 条目插入落在同一帧，不经 LaunchedEffect 晚一帧收起。语音浮层空间有限，自动模式不展开。
-    val autoExpanded = active && !assistantOverlay
+    val autoExpanded = active && !assistantOverlay && autoExpandWhileActive
     val bodyVisible = manualExpanded ?: (autoExpanded || collapsedVisibleCount > 0)
 
     // 收起态只展示尾部若干步，其余收进标题行；流式进行中至少留一步，
     // 否则模型跑工具时界面上看不到任何进展，容易误以为卡死。
-    val visibleSteps = remember(steps, bodyVisible, manualExpanded, autoExpanded, collapsedVisibleCount) {
+    val visibleSteps = remember(
+        steps,
+        bodyVisible,
+        manualExpanded,
+        autoExpanded,
+        autoExpandWhileActive,
+        collapsedVisibleCount,
+    ) {
         if (bodyVisible && (manualExpanded == true || autoExpanded)) {
             steps
         } else {
-            val keep = collapsedVisibleCount.coerceAtLeast(if (active) 1 else 0)
+            val keep = collapsedVisibleCount.coerceAtLeast(
+                if (active && autoExpandWhileActive) 1 else 0,
+            )
             if (keep >= steps.size) steps else steps.takeLast(keep)
         }
     }
@@ -162,6 +173,7 @@ internal fun AgentWorkProcess(
                             step = step,
                             isLast = index == visibleSteps.lastIndex,
                             quoted = embedded,
+                            folded = !bodyVisible,
                             onOpenBrowser = onOpenBrowser,
                             currentBrowserMessageId = currentBrowserMessageId,
                             retainedStreamingStates = retainedStreamingStates,
@@ -198,7 +210,12 @@ private fun AgentWorkHeader(
     }
     // 收起态还有步骤被折在下面时给出可见提示，否则用户不知道上面还藏着内容。
     val text = if (!expanded && hiddenStepCount > 0) {
-        "$base · +$hiddenStepCount"
+        val hidden = pluralStringResource(
+            R.plurals.work_completed_steps,
+            hiddenStepCount,
+            hiddenStepCount,
+        )
+        "$base · $hidden"
     } else {
         base
     }
@@ -273,6 +290,8 @@ private fun AgentWorkStepNode(
     retainedStreamingStates: Map<String, StreamingMarkdownState>,
     // 嵌进回答气泡时改画成引用块样式的小卡片，不再走左侧时间线。
     quoted: Boolean = false,
+    // 所在子气泡处于收起态：所有步骤都折在标题行之后，旁白也只留一行。
+    folded: Boolean = false,
 ) {
     when (step) {
         is AgentWorkStep.ToolGroup -> WorkStep(
@@ -339,7 +358,7 @@ private fun AgentWorkStepNode(
                 isLast = isLast,
                 quoted = quoted,
             ) {
-                WorkNarrationRow(message = message)
+                WorkNarrationRow(message = message, folded = folded)
             }
 
             else -> Unit
@@ -353,12 +372,17 @@ private fun AgentWorkStepNode(
  * 它属于工作过程而不是本轮回答，所以用次级文字色、限制行数，避免和真正的结论抢注意力。
  */
 @Composable
-private fun WorkNarrationRow(message: AgentMessageUi) {
+private fun WorkNarrationRow(message: AgentMessageUi, folded: Boolean) {
+    val maxLines = when {
+        message.isStreaming -> Int.MAX_VALUE
+        folded -> NARRATION_COLLAPSED_MAX_LINES
+        else -> NARRATION_MAX_LINES
+    }
     Text(
         text = message.content,
         style = MiuixTheme.textStyles.footnote1,
         color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-        maxLines = if (message.isStreaming) Int.MAX_VALUE else NARRATION_MAX_LINES,
+        maxLines = maxLines,
         overflow = TextOverflow.Ellipsis,
         modifier = Modifier
             .fillMaxWidth()
@@ -366,7 +390,12 @@ private fun WorkNarrationRow(message: AgentMessageUi) {
     )
 }
 
-/** 收起态下旁白最多显示几行；展开全部过程时仍受此限制，避免子气泡本身又变得很长。 */
+/**
+ * 旁白最多显示几行。
+ *
+ * 折叠时一行——它只是过程摘要的一部分，展开后才给几行上下文，避免子气泡被旁白撑长。
+ */
+private const val NARRATION_COLLAPSED_MAX_LINES = 1
 private const val NARRATION_MAX_LINES = 3
 
 /** 时间线节点与纯内容两种排布的切换点，正文内容完全一致。 */

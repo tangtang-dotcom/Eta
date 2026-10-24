@@ -818,7 +818,9 @@ private fun AgentMessageBlock(
                             modifier = Modifier.padding(bottom = if (section.answers.isEmpty()) 0.dp else 10.dp),
                         )
                     }
-                    section.answers.forEach { answer ->
+                    // 该段正文已作为旁白折进子气泡时不再渲染空正文，否则会多出一个光标。
+                    val visibleAnswers = section.answers.filterNot { it.content.isBlank() }
+                    visibleAnswers.forEach { answer ->
                         val answerAgent = answer as? AgentMessageUi
                         AgentAnswerText(
                             answer = answerAgent,
@@ -834,7 +836,7 @@ private fun AgentMessageBlock(
                             },
                             onRevealCompleteChange = { streamingRevealComplete = it },
                             modifier = Modifier.padding(
-                                bottom = if (section.answers.lastOrNull() === answer) 0.dp else 10.dp,
+                                bottom = if (visibleAnswers.lastOrNull() === answer) 0.dp else 10.dp,
                             ),
                         )
                     }
@@ -1030,7 +1032,9 @@ private fun AssistantWorkBubble(
             retainedStreamingStates = retainedStreamingStates,
             active = active,
             embedded = true,
-            // 子气泡默认整组收起：过程往往十几步，全展开会把大气泡又撑长。
+            // 生成中也保持收起：十几步过程全摊开会把气泡撑得很长，
+            // 进行中的进度交给那一行摘要播报。
+            autoExpandWhileActive = false,
             collapsedVisibleCount = WorkBubbleCollapsedSteps,
         )
     }
@@ -1048,7 +1052,7 @@ private const val WorkBubbleCollapsedSteps = 0
 private val AssistantBubbleCorner = 18.dp
 
 /** 回答气泡最宽；与用户气泡一致，短回答不再铺满整行。 */
-private val AssistantBubbleMaxWidth = 320.dp
+private val AssistantBubbleMaxWidth = 360.dp
 
 /**
  * 回答气泡顶部的署名行：圆角方块 AI 标识加模型名。

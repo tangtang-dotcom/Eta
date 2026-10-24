@@ -77,16 +77,18 @@ class AgentChatTimelineEntriesTest {
         // 两段：每段都是「一组过程 + 紧跟其后的正文」。
         assertEquals(2, turn.sections.size)
 
+        // 第一段的过程里还带着它的旁白「看到三个模块」，它是过程说明而不是结论。
         val first = turn.sections[0]
-        assertEquals(2, first.work.size)
-        assertEquals(listOf("看到三个模块"), first.answers.map { (it as AgentMessageUi).content })
+        assertEquals(3, first.work.size)
+        assertTrue(first.work.last() is AgentMessageUi)
+        assertEquals(emptyList<String>(), first.answers.map { (it as AgentMessageUi).content })
 
         val second = turn.sections[1]
         assertEquals(2, second.work.size)
         assertEquals(listOf("结论如下"), second.answers.map { (it as AgentMessageUi).content })
 
-        // 整轮正文合并后仍是完整的答复顺序。
-        assertEquals("看到三个模块\n\n结论如下", turn.answers.mergeTurnAnswers(turn.key).content)
+        // 整轮正文合并后只剩最终结论，不会被过程旁白稀释。
+        assertEquals("结论如下", turn.answers.mergeTurnAnswers(turn.key).content)
     }
 
     /**
@@ -106,8 +108,9 @@ class AgentChatTimelineEntriesTest {
         val turn = messages.toTimelineEntries()[1] as AgentTimelineEntry.Turn
 
         assertEquals(2, turn.sections.size)
-        assertEquals(1, turn.sections[0].work.size)
-        assertEquals(listOf("正文一"), turn.sections[0].answers.map { (it as AgentMessageUi).content })
+        // 「正文一」后面还跟着思考，属于过程旁白，折进第一段的子气泡。
+        assertEquals(2, turn.sections[0].work.size)
+        assertEquals(emptyList<String>(), turn.sections[0].answers.map { (it as AgentMessageUi).content })
         assertEquals(1, turn.sections[1].work.size)
         assertEquals(listOf("正文二"), turn.sections[1].answers.map { (it as AgentMessageUi).content })
     }
@@ -181,6 +184,49 @@ class AgentChatTimelineEntriesTest {
         assertEquals(turn.key, merged.id)
         assertEquals("", merged.content)
         assertTrue(merged.isStreaming)
+    }
+
+    /**
+     * 旁白判定只看"后面还有没有正文"：以思考或工具收尾的回答照样是结论，
+     * 不能因为最后一步是过程就把它折进子气泡。
+     */
+    @Test
+    fun answerStaysInBubbleWhenTurnEndsWithWork() {
+        val messages = listOf(
+            UserMessageUi("user-1", "帮我查一下"),
+            AgentMessageUi("assistant-run-1-1-0", "查到了，是 42", isStreaming = false),
+            ThinkingMessageUi("run-1-thinking-2-0", "再确认一下", isStreaming = false),
+        )
+
+        val turn = messages.toTimelineEntries()[1] as AgentTimelineEntry.Turn
+
+        assertEquals(2, turn.sections.size)
+        assertEquals(listOf("查到了，是 42"), turn.sections[0].answers.map { (it as AgentMessageUi).content })
+        assertEquals(1, turn.sections[1].work.size)
+    }
+
+    /** 生成中的空正文不能被当成旁白，也不能挡住上一段旁白的折叠。 */
+    @Test
+    fun streamingEmptyAnswerIsNotNarration() {
+        val messages = listOf(
+            UserMessageUi("user-1", "开始"),
+            ThinkingMessageUi("run-1-thinking-1-0", "先看看", isStreaming = false),
+            AgentMessageUi("assistant-run-1-1-0", "我查一下", isStreaming = false),
+            ToolActivityMessageUi(
+                id = "run-1-tool-1-call-a",
+                toolName = "terminal",
+                status = ToolActivityStatusUi.Running,
+                argumentsSummary = "ls",
+            ),
+            AgentMessageUi("assistant-run-1-2-0", "", isStreaming = true),
+        )
+
+        val turn = messages.toTimelineEntries()[1] as AgentTimelineEntry.Turn
+
+        assertEquals(2, turn.sections.size)
+        assertEquals(2, turn.sections[0].work.size)
+        assertEquals(emptyList<String>(), turn.sections[0].answers.map { (it as AgentMessageUi).content })
+        assertEquals(listOf(""), turn.sections[1].answers.map { (it as AgentMessageUi).content })
     }
 
     /** 合并后只要还有一段在流式，整轮就按流式渲染，避免正文闪烁。 */

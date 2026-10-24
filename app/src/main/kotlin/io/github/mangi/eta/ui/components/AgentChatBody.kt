@@ -630,7 +630,7 @@ internal fun AgentConversationMessages(
     // contentPadding 变大本身不会移动列表位置，底部消息会直接被键盘盖住，
     // 所以这里把留白的增量同步补进滚动位置，让内容跟着键盘逐帧上移。
     // 用每帧跟随而不是定时补滚，手感才跟得上键盘动画。
-    val followImeInset by rememberUpdatedState(composerBottomInset)
+    val followImeInset by rememberUpdatedState(bottomInset)
     // 跟随条件用 rememberUpdatedState 取实时值，否则 LaunchedEffect 会抓住启动时的旧值。
     val followAnchor by rememberUpdatedState(keepBottomAnchored)
     val followDragging by rememberUpdatedState(isUserDragging)

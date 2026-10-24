@@ -94,6 +94,7 @@ import io.github.mangi.eta.agent.model.AgentFileReferencePromptCodec
 import io.github.mangi.eta.agent.overlay.toolDisplayName
 import io.github.mangi.eta.ui.app.LocalAppearanceSettings
 import io.github.mangi.eta.ui.app.LocalIsDarkTheme
+import io.github.mangi.eta.ui.markdown.MarkdownDocument
 import io.github.mangi.eta.ui.markdown.MarkdownTone
 import io.github.mangi.eta.ui.markdown.StaticMarkdown
 import io.github.mangi.eta.ui.markdown.StreamingMarkdown
@@ -210,6 +211,8 @@ internal fun ChatMessageItem(
     workMessages: List<AgentChatMessageUi> = emptyList(),
     workActive: Boolean = false,
     workStreamingStates: Map<String, StreamingMarkdownState> = emptyMap(),
+    // 轮内分段：过程子气泡与正文按发生顺序交替，多段时优先于 workMessages。
+    turnSections: List<AgentTimelineEntry.TurnSection> = emptyList(),
     currentBrowserMessageId: String? = null,
     messageActionsEnabled: Boolean = true,
     isEditing: Boolean = false,
@@ -236,6 +239,7 @@ internal fun ChatMessageItem(
             workMessages = workMessages,
             workActive = workActive,
             workStreamingStates = workStreamingStates,
+            turnSections = turnSections,
             currentBrowserMessageId = currentBrowserMessageId,
             onOpenBrowser = onOpenBrowser,
             assistantOverlay = assistantOverlay,
@@ -688,6 +692,8 @@ private fun AgentMessageBlock(
     workMessages: List<AgentChatMessageUi> = emptyList(),
     workActive: Boolean = false,
     workStreamingStates: Map<String, StreamingMarkdownState> = emptyMap(),
+    // 轮内分段：过程子气泡与正文按发生顺序交替，多段时优先于 workMessages。
+    turnSections: List<AgentTimelineEntry.TurnSection> = emptyList(),
     currentBrowserMessageId: String? = null,
     onOpenBrowser: () -> Unit = {},
     // 系统提示（已停止、任务中断等）也要落在气泡里，但它没有正文可渲染。
@@ -796,50 +802,64 @@ private fun AgentMessageBlock(
                 Modifier.fillMaxWidth()
             },
         ) {
-            if (showBubble && workMessages.isNotEmpty()) {
-                AssistantWorkBubble(
-                    messages = workMessages,
-                    active = workActive,
-                    assistantOverlay = assistantOverlay,
-                    onOpenBrowser = onOpenBrowser,
-                    currentBrowserMessageId = currentBrowserMessageId,
-                    retainedStreamingStates = workStreamingStates,
-                    modifier = Modifier.padding(bottom = 10.dp),
+            if (showBubble && turnSections.isNotEmpty()) {
+                // 按发生顺序交替渲染：子气泡（思考/工具）紧跟着它之后说出的正文，
+                // 形成「子气泡 → 正文 → 子气泡 → 正文」的节奏，而不是把过程全堆在顶部。
+                turnSections.forEachIndexed { index, section ->
+                    val isLastSection = index == turnSections.lastIndex
+                    if (section.work.isNotEmpty()) {
+                        AssistantWorkBubble(
+                            messages = section.work,
+                            active = workActive && isLastSection,
+                            assistantOverlay = assistantOverlay,
+                            onOpenBrowser = onOpenBrowser,
+                            currentBrowserMessageId = currentBrowserMessageId,
+                            retainedStreamingStates = workStreamingStates,
+                            modifier = Modifier.padding(bottom = if (section.answers.isEmpty()) 0.dp else 10.dp),
+                        )
+                    }
+                    section.answers.forEach { answer ->
+                        val answerAgent = answer as? AgentMessageUi
+                        AgentAnswerText(
+                            answer = answerAgent,
+                            fallbackContent = if (answerAgent == null) message.content else null,
+                            streamingState = if (answerAgent != null && answerAgent.id == message.id) streamingState else null,
+                            message = message,
+                            revealComplete = revealComplete,
+                            // 缓存文档只对当前这条流式消息有效，其余段落自行解析。
+                            completedDocument = if (answerAgent == null || answerAgent.id == message.id) {
+                                completedDocument
+                            } else {
+                                null
+                            },
+                            onRevealCompleteChange = { streamingRevealComplete = it },
+                            modifier = Modifier.padding(
+                                bottom = if (section.answers.lastOrNull() === answer) 0.dp else 10.dp,
+                            ),
+                        )
+                    }
+                }
+            } else {
+                if (showBubble && workMessages.isNotEmpty()) {
+                    AssistantWorkBubble(
+                        messages = workMessages,
+                        active = workActive,
+                        assistantOverlay = assistantOverlay,
+                        onOpenBrowser = onOpenBrowser,
+                        currentBrowserMessageId = currentBrowserMessageId,
+                        retainedStreamingStates = workStreamingStates,
+                        modifier = Modifier.padding(bottom = 10.dp),
+                    )
+                }
+                AgentAnswerText(
+                    answer = message,
+                    fallbackContent = null,
+                    streamingState = streamingState,
+                    message = message,
+                    revealComplete = revealComplete,
+                    completedDocument = completedDocument,
+                    onRevealCompleteChange = { streamingRevealComplete = it },
                 )
-            }
-            when {
-                message.content.isBlank() && message.isStreaming -> {
-                    AITypingIndicator(
-                        modifier = Modifier.padding(top = 4.dp)
-                    )
-                }
-                streamingState != null && !revealComplete -> {
-                    StreamingMarkdown(
-                        state = streamingState,
-                        content = message.content,
-                        isStreaming = message.isStreaming,
-                        tone = MarkdownTone.Answer,
-                        onRevealCompleteChange = { streamingRevealComplete = it },
-                    )
-                }
-                message.renderMarkdown -> {
-                    SelectionContainer {
-                        StaticMarkdown(
-                            content = message.content,
-                            tone = MarkdownTone.Answer,
-                            parsed = completedDocument,
-                        )
-                    }
-                }
-                message.content.isNotBlank() -> {
-                    SelectionContainer {
-                        Text(
-                            text = message.content,
-                            style = MiuixTheme.textStyles.body1,
-                            color = MiuixTheme.colorScheme.onSurface,
-                        )
-                    }
-                }
             }
 
         }
@@ -910,6 +930,62 @@ private fun AgentMessageBlock(
                             onSelect = onSelectCandidate,
                         )
                     }
+                }
+            }
+        }
+    }
+}
+
+/**
+ * 回答气泡里的一段正文。
+ *
+ * 一轮对话可能有多段正文，中间被工具调用隔开；每段都按同样的方式渲染，
+ * 只有末尾那段仍处于流式状态时才走流式视图。
+ */
+@Composable
+private fun AgentAnswerText(
+    answer: AgentMessageUi?,
+    fallbackContent: String?,
+    streamingState: StreamingMarkdownState?,
+    message: AgentMessageUi,
+    revealComplete: Boolean,
+    completedDocument: MarkdownDocument?,
+    onRevealCompleteChange: (Boolean) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val content = answer?.content ?: fallbackContent.orEmpty()
+    val streaming = answer?.isStreaming ?: message.isStreaming
+    val useStreamingView = streamingState != null && answer?.id == message.id && !revealComplete
+    Column(modifier = modifier.fillMaxWidth()) {
+        when {
+            content.isBlank() && streaming -> {
+                AITypingIndicator(modifier = Modifier.padding(top = 4.dp))
+            }
+            useStreamingView -> {
+                StreamingMarkdown(
+                    state = streamingState,
+                    content = content,
+                    isStreaming = streaming,
+                    tone = MarkdownTone.Answer,
+                    onRevealCompleteChange = onRevealCompleteChange,
+                )
+            }
+            answer?.renderMarkdown == true || (answer == null && message.renderMarkdown) -> {
+                SelectionContainer {
+                    StaticMarkdown(
+                        content = content,
+                        tone = MarkdownTone.Answer,
+                        parsed = completedDocument,
+                    )
+                }
+            }
+            content.isNotBlank() -> {
+                SelectionContainer {
+                    Text(
+                        text = content,
+                        style = MiuixTheme.textStyles.body1,
+                        color = MiuixTheme.colorScheme.onSurface,
+                    )
                 }
             }
         }

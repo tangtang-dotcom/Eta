@@ -419,7 +419,6 @@ private fun AgentChatScaffold(
                 EmptyChatState(
                     showSuggestions = showEmptySuggestions,
                     onSuggestionClick = onSuggestionClick,
-                    backdrop = pageBackdrop.takeIf { blurSupported },
                     modifier = Modifier
                         .fillMaxSize()
                         .padding(bottom = composerBottomInset),
@@ -1400,7 +1399,6 @@ private fun EmptyChatState(
                             rowItems.forEach { item ->
                                 SuggestionCard(
                                     item = item,
-                                    backdrop = backdrop,
                                     onClick = { onSuggestionClick(item.prompt) },
                                     modifier = Modifier.weight(1f),
                                 )
@@ -1418,24 +1416,17 @@ private fun SuggestionCard(
     item: SuggestionItem,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
-    backdrop: top.yukonga.miuix.kmp.blur.Backdrop? = null,
 ) {
-    // 推荐卡采用与顶栏按钮一致的液态玻璃材质（提饱和 + 轻模糊 + 折射 + BloomStroke 高光），
-    // 采样页面级 backdrop，背景与顶栏按钮统一，不再用气泡实色。
-    val bubbleShape = RoundedCornerShape(16.dp)
-    val bubbleModifier = if (backdrop != null) {
-        Modifier.liquidGlassSurface(
-            backdrop = backdrop,
-            shape = bubbleShape,
-            containerColor = MiuixTheme.colorScheme.surfaceContainer.copy(alpha = 0.4f),
-        )
-    } else {
-        Modifier.background(MiuixTheme.colorScheme.surfaceContainer)
-    }
+    // 推荐卡位于 EmptyChatState 内，而 EmptyChatState 处于 pageBackdrop 录制层内部；
+    // 若在这里采样 pageBackdrop 会把卡片自身录进去形成采样自引用，
+    // 滑动/渲染时 RenderThread 无限递归导致栈溢出闪退（与回到底部按钮曾出现的问题相同）。
+    // 因此这里不做实时模糊采样，改用半透明玻璃底 + 渐变描边（与顶栏按钮磨砂关闭分支一致）。
+    val cardShape = RoundedCornerShape(16.dp)
     Column(
         modifier = modifier
-            .clip(bubbleShape)
-            .then(bubbleModifier)
+            .clip(cardShape)
+            .background(MiuixTheme.colorScheme.surfaceContainer.copy(alpha = 0.4f))
+            .glassEdge(AetherChatColors.glassStrokeTop(), AetherChatColors.glassStrokeBottom())
             .clickable(onClick = onClick)
             .padding(horizontal = 14.dp, vertical = 14.dp),
     ) {

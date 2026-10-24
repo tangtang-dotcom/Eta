@@ -129,6 +129,25 @@ internal object AetherChatColors {
         else -> Color(0xFFF0E3FF)
     }
 
+    /**
+     * 模型气泡底色：在页面底色里掺一层用户气泡的紫，
+     * 两个气泡同属一个色相，同时保持明显的明度层级：
+     * 模型气泡一直比用户气泡浅得多，不会抢走“我说的话”的强调。
+     */
+    @Composable
+    fun assistantBubble(): Color = when {
+        // 莫奈下 surface 常与 background 同色，沿用带色调的容器色。
+        monet -> MiuixTheme.colorScheme.surfaceContainer
+        // 0.45 的掺比对应 #221D2F：与旧版中性灰 #262629 亮度相当，
+        // 只把灰换成紫，不改层级感。再低就与页面底分不开了。
+        dark -> deepPurpleTint(Color(0xFF151619), 0.45f)
+        else -> Color.White
+    }
+
+    /** 把一个近黑色向用户气泡的紫推过去。 */
+    private fun deepPurpleTint(base: Color, amount: Float): Color =
+        androidx.compose.ui.graphics.lerp(base, Color(0xFF32264A), amount)
+
     /** 用户气泡文字：对应 Aether 的 onPrimaryContainer（dark #F0E9FF / light #4D2F8E）。 */
     @Composable
     fun onUserBubble(): Color = when {

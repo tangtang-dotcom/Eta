@@ -72,7 +72,6 @@ import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
@@ -93,7 +92,6 @@ import io.github.mangi.eta.R
 import io.github.mangi.eta.agent.model.AgentFileReferencePromptCodec
 import io.github.mangi.eta.agent.overlay.toolDisplayName
 import io.github.mangi.eta.ui.app.LocalAppearanceSettings
-import io.github.mangi.eta.ui.app.LocalIsDarkTheme
 import io.github.mangi.eta.ui.markdown.MarkdownDocument
 import io.github.mangi.eta.ui.markdown.MarkdownTone
 import io.github.mangi.eta.ui.markdown.StaticMarkdown
@@ -414,7 +412,7 @@ private fun UserMessageBubble(
                         } else {
                             // Aether 用户气泡：统一 24dp 圆角 + messageBubble 实色，没有尾巴。
                             Modifier
-                                .clip(RoundedCornerShape(24.dp))
+                                .clip(RoundedCornerShape(UserBubbleCorner))
                                 .background(AetherChatColors.userBubble())
                         }
                     )
@@ -423,7 +421,7 @@ private fun UserMessageBubble(
                             Modifier.border(
                                 width = 1.dp,
                                 color = MiuixTheme.colorScheme.primary,
-                                shape = RoundedCornerShape(24.dp),
+                                shape = RoundedCornerShape(UserBubbleCorner),
                             )
                         } else {
                             Modifier
@@ -777,15 +775,9 @@ private fun AgentMessageBlock(
         if (showBubble) {
             AssistantReplyHeader(model = model)
         }
-        // 浅色主题固定纯白，避免莫奈把 surface 染成灰蓝后与页面背景糊在一起；
-        // 深色主题的 surface 与 background 常常同色，改用 background 掺 8% onBackground，
-        // 在纯黑与深灰底上都能看出一层卡片。
-        val darkBubble = LocalIsDarkTheme.current
-        val bubbleFill = if (darkBubble) {
-            lerp(MiuixTheme.colorScheme.background, MiuixTheme.colorScheme.onBackground, 0.08f)
-        } else {
-            Color.White
-        }
+        // 气泡底色交给 AetherChatColors：深色下是页面底掺一层用户气泡的紫，
+        // 与用户气泡同色相但明显更浅，不再是一块中性灰。
+        val bubbleFill = AetherChatColors.assistantBubble()
         Column(
             modifier = if (showBubble) {
                 Modifier
@@ -1042,8 +1034,11 @@ private fun AssistantWorkBubble(
  */
 private const val WorkBubbleCollapsedSteps = 2
 
-/** 回答气泡圆角；与思考卡片的 12dp 区分，气泡更圆一些。 */
-private val AssistantBubbleCorner = 18.dp
+/** 回答气泡圆角：与用户气泡保持一致，两边气泡形状才对得上。 */
+private val AssistantBubbleCorner = 24.dp
+
+/** 用户气泡圆角：模型气泡同步这个值，两边圆角才对得上。 */
+private val UserBubbleCorner = 24.dp
 
 /** 回答气泡最宽；与用户气泡一致，短回答不再铺满整行。 */
 private val AssistantBubbleMaxWidth = 360.dp

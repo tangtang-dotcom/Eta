@@ -110,6 +110,10 @@ internal fun AgentWorkProcess(
     val autoExpanded = active && !assistantOverlay && autoExpandWhileActive
     val bodyVisible = manualExpanded ?: (autoExpanded || collapsedVisibleCount > 0)
 
+    // 竖条颜色在组合期取一次：drawBehind 的 lambda 不是 @Composable 上下文，
+    // 不能在绘制阶段读主题色。
+    val barColor = MiuixTheme.colorScheme.primary.copy(alpha = 0.45f)
+
     // 收起态只展示尾部若干步，其余收进标题行；流式进行中至少留一步，
     // 否则模型跑工具时界面上看不到任何进展，容易误以为卡死。
     val visibleSteps = remember(
@@ -178,7 +182,7 @@ internal fun AgentWorkProcess(
                                 .drawBehind {
                                     val barWidth = WorkQuoteBarWidth.toPx()
                                     drawLine(
-                                        color = quoteBarColor(),
+                                        color = barColor,
                                         start = Offset(barWidth / 2f, 2.dp.toPx()),
                                         end = Offset(barWidth / 2f, size.height - 2.dp.toPx()),
                                         strokeWidth = barWidth,
@@ -415,9 +419,6 @@ private val WorkQuoteBarWidth = 3.dp
 /** 竖条到步骤内容之间留出的间距。 */
 private val WorkQuoteBarInset = 11.dp
 
-/** 竖条颜色：跟随主题色，而不是灰色分隔线，让过程块有引用块那样的存在感。 */
-@Composable
-private fun quoteBarColor(): Color = MiuixTheme.colorScheme.primary.copy(alpha = 0.45f)
 
 internal enum class WorkNodeTone { Running, Done, Failed }
 

@@ -626,20 +626,26 @@ internal fun AgentConversationMessages(
     }
     var isBottomSettling by remember { mutableStateOf(isStreaming) }
 
-    // 键盘弹出/收起会改变消息区的可见高度，但不属于流式输出，
-    // resolveBottomFollowEnabled 在这种时候是 false，跟底逻辑不会生效。
-    // 用户本来就停在底部时，这里主动把最后一条消息带回可见区，
-    // 否则键盘会把底部消息盖住。用户不在底部时不干预。
-    val chatImeVisible = WindowInsets.ime.getBottom(LocalDensity.current) > 0
-    LaunchedEffect(chatImeVisible) {
-        if (!keepBottomAnchored || isUserDragging) return@LaunchedEffect
-        // 键盘动画有 ~300ms，等布局真正稳定再补滚动；
-        // 在旧视口下提前滚动，位置会被随后的重布局覆盖。
-        delay(320)
-        // 滚到列表末尾（底部哨兵），而不是定位到某条消息：
-        // scrollToItem 会把目标项顶部对齐屏幕顶部，那样反而会把最后一条顶走。
-        if (scrollState.canScrollForward && scrollState.layoutInfo.totalItemsCount > 0) {
-            scrollState.animateScrollToItem(scrollState.layoutInfo.totalItemsCount - 1)
+    // 键盘弹出/收起时底部留白（bottomInset）会随 imePadding 逐帧变化。
+    // contentPadding 变大本身不会移动列表位置，底部消息会直接被键盘盖住，
+    // 所以这里把留白的增量同步补进滚动位置，让内容跟着键盘逐帧上移。
+    // 用每帧跟随而不是定时补滚，手感才跟得上键盘动画。
+    val followImeInset by rememberUpdatedState(composerBottomInset)
+    // 跟随条件用 rememberUpdatedState 取实时值，否则 LaunchedEffect 会抓住启动时的旧值。
+    val followAnchor by rememberUpdatedState(keepBottomAnchored)
+    val followDragging by rememberUpdatedState(isUserDragging)
+    val chatDensity = LocalDensity.current
+    LaunchedEffect(scrollState) {
+        var previousInsetPx = 0
+        snapshotFlow { followImeInset }.collect { inset ->
+            val insetPx = with(chatDensity) { inset.roundToPx() }
+            val delta = insetPx - previousInsetPx
+            previousInsetPx = insetPx
+            // 缩小（键盘收起）时不补：那时内容已在可见区，
+            // 强行回滚会把用户手动滑动的位置打乱。
+            if (delta > 0 && followAnchor && !followDragging) {
+                scrollState.scrollBy(delta.toFloat())
+            }
         }
     }
 

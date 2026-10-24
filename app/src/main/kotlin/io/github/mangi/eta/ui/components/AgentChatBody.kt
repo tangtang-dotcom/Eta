@@ -436,7 +436,7 @@ private fun AgentChatScaffold(
             modifier = Modifier
                 .fillMaxWidth()
                 .align(Alignment.BottomCenter)
-                .onSizeChanged { composerHeightPx = it.height },
+                .onSizeChanged { composerHeightPx = it.height.toFloat() },
         ) {
             AgentChatBottomBar(
                 // 输入卡片采样页面级 backdrop：真实背景 + 消息区，覆盖全屏，

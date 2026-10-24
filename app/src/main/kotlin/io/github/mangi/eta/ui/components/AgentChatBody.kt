@@ -125,8 +125,11 @@ import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.IconButtonDefaults
 import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.basic.Text
+import top.yukonga.miuix.kmp.blur.BlendColorEntry
+import top.yukonga.miuix.kmp.blur.BlurColors
 import top.yukonga.miuix.kmp.blur.LayerBackdrop
 import top.yukonga.miuix.kmp.blur.isRuntimeShaderSupported
+import top.yukonga.miuix.kmp.blur.textureBlur
 import top.yukonga.miuix.kmp.blur.layerBackdrop
 import top.yukonga.miuix.kmp.blur.rememberLayerBackdrop
 import top.yukonga.miuix.kmp.squircle.squircleBorder
@@ -451,6 +454,7 @@ private fun AgentChatScaffold(
                 onLoadEarlierMessages = onLoadEarlierMessages,
                 onHistoryViewportChanged = onHistoryViewportChanged,
                 topInset = LocalChatTopOverlayInset.current,
+                frosted = frostEnabled,
                 modifier = Modifier
                     .fillMaxSize()
                     .then(if (frostEnabled) Modifier.layerBackdrop(messageBackdrop) else Modifier),
@@ -487,8 +491,18 @@ internal fun AgentConversationMessages(
     onHistoryViewportChanged: (Boolean) -> Unit = {},
     // 首页顶栏悬浮在内容之上，列表用这个值补回首条消息的顶部留白。
     topInset: Dp = 0.dp,
+    // 是否启用消息区实时模糊（由上层根据 输入框磨砂 开关与运行时 shader 支持决定）。
+    frosted: Boolean = false,
     modifier: Modifier = Modifier,
 ) {
+    // 「回到底部」圆钮专用的实时模糊采样层：只挂在消息列表（LazyColumn）上录制，
+    // 按钮本身是列表的兄弟节点、不在录制范围内，因此可以安全采样做 textureBlur，
+    // 不会像复用 messageBackdrop 那样把按钮自己录进去造成采样自引用。
+    val buttonBackdrop = rememberLayerBackdrop {
+        drawRect(MiuixTheme.colorScheme.surface)
+        drawContent()
+    }
+
     // 上一版条目只作复用比对，不参与组合观察。
     val previousTimelineEntries = remember { arrayOf(emptyList<AgentTimelineEntry>()) }
     val timelineEntries = remember(visibleMessages) {
@@ -746,6 +760,7 @@ internal fun AgentConversationMessages(
             verticalArrangement = Arrangement.Top,
             modifier = Modifier
                 .fillMaxSize()
+                .then(if (frosted) Modifier.layerBackdrop(buttonBackdrop) else Modifier)
                 .scrollEndHaptic()
                 .nestedScroll(historyPaging.scrollConnection)
                 .overScrollVertical(),
@@ -882,10 +897,10 @@ internal fun AgentConversationMessages(
             enter = fadeIn(tween(160)) + scaleIn(tween(180), initialScale = 0.82f),
             exit = fadeOut(tween(100)) + scaleOut(tween(120), targetScale = 0.86f),
         ) {
-            // 玻璃圆钮：沿用顶栏两大按钮的材质组合（控制底面 + 玻璃底色 + 上亮下暗渐变描边）。
-            // 这里刻意不做 textureBlur 实时采样：该按钮位于消息列表的 layerBackdrop 录制区内部，
-            // 若再采样同一份 backdrop 会形成采样自引用，滑动时在 RenderThread 上无限递归导致栈溢出闪退。
-            // 因此改用与顶栏「磨砂不可用」分支一致的半透明玻璃底，深浅色都走 AetherChatColors。
+            // 玻璃圆钮：与顶栏两大按钮完全同一套材质参数。
+            // 采样 buttonBackdrop（只录 LazyColumn 消息内容、不含按钮自身），
+            // 因此可以做真实 textureBlur 而不产生采样自引用。
+            val bottomBlurAvailable = frosted && isRuntimeShaderSupported()
             val bottomGlassBase = AetherChatColors.controlSurface().copy(
                 alpha = AetherChatColors.glassBaseAlpha(),
             )
@@ -897,8 +912,23 @@ internal fun AgentConversationMessages(
                         shadow = Shadow(radius = 8.dp, color = Color.Black, alpha = 0.08f),
                     )
                     .clip(CircleShape)
-                    .background(bottomGlassBase)
-                    .background(AetherChatColors.glassBackground())
+                    .then(
+                        if (bottomBlurAvailable) {
+                            Modifier.textureBlur(
+                                backdrop = buttonBackdrop,
+                                shape = CircleShape,
+                                blurRadius = if (LocalIsDarkTheme.current) 24f else 18f,
+                                colors = BlurColors(
+                                    blendColors = listOf(
+                                        BlendColorEntry(bottomGlassBase),
+                                        BlendColorEntry(AetherChatColors.glassBackground()),
+                                    ),
+                                ),
+                            )
+                        } else {
+                            Modifier.background(AetherChatColors.controlSurface())
+                        },
+                    )
                     .glassEdge(
                         AetherChatColors.glassStrokeTop(),
                         AetherChatColors.glassStrokeBottom(),

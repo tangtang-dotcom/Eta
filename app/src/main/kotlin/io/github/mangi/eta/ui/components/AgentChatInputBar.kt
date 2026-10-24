@@ -341,11 +341,13 @@ internal fun AgentChatInputBar(
                         .then(
                             if (frosted && backdrop != null) {
                                 // 与顶栏同款液态玻璃：提饱和 + 轻模糊 + 圆角折射 + BloomStroke 高光。
+                                // 底色与顶栏按钮同一套：controlSurface + glassBaseAlpha，
+                                // 深浅色观感一致，避免输入框比顶栏按钮更黑更实。
                                 Modifier.liquidGlassSurface(
                                     backdrop = backdrop,
                                     shape = composerShape,
-                                    containerColor = AetherChatColors.surface()
-                                        .copy(alpha = AetherChatColors.frostBlendAlpha()),
+                                    containerColor = AetherChatColors.controlSurface()
+                                        .copy(alpha = AetherChatColors.glassBaseAlpha()),
                                 )
                             } else {
                                 Modifier.background(AetherChatColors.surface())
@@ -543,12 +545,12 @@ internal fun AgentChatInputBar(
                         .clip(CircleShape)
                         .then(
                             if (plusSeparated && frosted && backdrop != null) {
-                                // 分离出来的加号圆钮同样用顶栏液态玻璃材质。
+                                // 分离出来的加号圆钮同样用顶栏液态玻璃材质与底色。
                                 Modifier.liquidGlassSurface(
                                     backdrop = backdrop,
                                     shape = CircleShape,
-                                    containerColor = AetherChatColors.surface()
-                                        .copy(alpha = AetherChatColors.frostBlendAlpha()),
+                                    containerColor = AetherChatColors.controlSurface()
+                                        .copy(alpha = AetherChatColors.glassBaseAlpha()),
                                 )
                             } else {
                                 Modifier.background(

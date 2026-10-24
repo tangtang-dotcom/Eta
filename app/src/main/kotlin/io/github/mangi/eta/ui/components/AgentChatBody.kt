@@ -626,6 +626,23 @@ internal fun AgentConversationMessages(
     }
     var isBottomSettling by remember { mutableStateOf(isStreaming) }
 
+    // 键盘弹出/收起会改变消息区的可见高度，但不属于流式输出，
+    // resolveBottomFollowEnabled 在这种时候是 false，跟底逻辑不会生效。
+    // 用户本来就停在底部时，这里主动把最后一条消息带回可见区，
+    // 否则键盘会把底部消息盖住。用户不在底部时不干预。
+    val chatImeVisible = WindowInsets.ime.getBottom(LocalDensity.current) > 0
+    LaunchedEffect(chatImeVisible) {
+        if (!keepBottomAnchored || isUserDragging) return@LaunchedEffect
+        // 键盘动画有 ~300ms，等布局真正稳定再补滚动；
+        // 在旧视口下提前滚动，位置会被随后的重布局覆盖。
+        delay(320)
+        // 滚到列表末尾（底部哨兵），而不是定位到某条消息：
+        // scrollToItem 会把目标项顶部对齐屏幕顶部，那样反而会把最后一条顶走。
+        if (scrollState.canScrollForward && scrollState.layoutInfo.totalItemsCount > 0) {
+            scrollState.animateScrollToItem(scrollState.layoutInfo.totalItemsCount - 1)
+        }
+    }
+
     LaunchedEffect(isStreaming, isTailRendering, keepBottomAnchored, isUserDragging) {
         if (!keepBottomAnchored || isUserDragging) {
             isBottomSettling = false
@@ -696,9 +713,10 @@ internal fun AgentConversationMessages(
                 enabled = shouldFollowBottom,
                 bottomItemIndex = currentBottomItemIndex,
                 sentinelBottom = sentinel?.let { it.offset + it.size },
-                // 输入器高度属于滚动内容的 bottom inset，而不是滚动容器高度。
-                // 跟底目标应是 afterContentPadding 之前的正文边界。
-                viewportEnd = layoutInfo.viewportEndOffset - layoutInfo.afterContentPadding,
+                // 目标是让底部哨兵进入可见区，应拿真实的滚动容器下边界。
+                // 不能减 afterContentPadding：它同时包含了键盘高度，键盘弹起时两边一起变大，
+                // 相减后 overflow 恒为 0，底部消息就不会跟着键盘上移。
+                viewportEnd = layoutInfo.viewportEndOffset,
                 lastVisibleIndex = layoutInfo.visibleItemsInfo.lastOrNull()?.index,
             )
         }

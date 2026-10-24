@@ -1415,12 +1415,19 @@ private fun SuggestionCard(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    // 推荐卡配色跟随用户主气泡（userBubble / onUserBubble），
+    // 深浅模式下背景、图标、文字统一为气泡紫调，与消息主气泡呼应。
+    val bubbleColor = AetherChatColors.userBubble()
+    val onBubbleColor = AetherChatColors.onUserBubble()
     Column(
         modifier = modifier
-            .squircleSurface(color = MiuixTheme.colorScheme.surface, cornerRadius = 16.dp)
+            .squircleSurface(
+                color = bubbleColor.copy(alpha = if (LocalIsDarkTheme.current) 0.55f else 0.65f),
+                cornerRadius = 16.dp,
+            )
             .squircleBorder(
                 width = 0.5.dp,
-                color = MiuixTheme.colorScheme.outline.copy(alpha = 0.5f),
+                color = onBubbleColor.copy(alpha = 0.35f),
                 cornerRadius = 16.dp,
             )
             .clickable(onClick = onClick)
@@ -1430,13 +1437,13 @@ private fun SuggestionCard(
             imageVector = item.icon,
             contentDescription = null,
             modifier = Modifier.size(18.dp),
-            tint = MiuixTheme.colorScheme.primary,
+            tint = onBubbleColor,
         )
         Spacer(modifier = Modifier.height(10.dp))
         Text(
             text = item.title,
             style = MiuixTheme.textStyles.body2,
-            color = MiuixTheme.colorScheme.onSurface,
+            color = onBubbleColor,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
         )

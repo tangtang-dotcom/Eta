@@ -125,14 +125,10 @@ import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.IconButtonDefaults
 import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.basic.Text
-import top.yukonga.miuix.kmp.blur.BlendColorEntry
-import top.yukonga.miuix.kmp.blur.BlurColors
-import top.yukonga.miuix.kmp.blur.BlurDefaults
 import top.yukonga.miuix.kmp.blur.LayerBackdrop
 import top.yukonga.miuix.kmp.blur.isRuntimeShaderSupported
 import top.yukonga.miuix.kmp.blur.layerBackdrop
 import top.yukonga.miuix.kmp.blur.rememberLayerBackdrop
-import top.yukonga.miuix.kmp.blur.textureBlur
 import top.yukonga.miuix.kmp.squircle.squircleBorder
 import top.yukonga.miuix.kmp.squircle.squircleSurface
 import top.yukonga.miuix.kmp.theme.MiuixTheme
@@ -455,7 +451,6 @@ private fun AgentChatScaffold(
                 onLoadEarlierMessages = onLoadEarlierMessages,
                 onHistoryViewportChanged = onHistoryViewportChanged,
                 topInset = LocalChatTopOverlayInset.current,
-                backdrop = messageBackdrop,
                 modifier = Modifier
                     .fillMaxSize()
                     .then(if (frostEnabled) Modifier.layerBackdrop(messageBackdrop) else Modifier),
@@ -492,8 +487,6 @@ internal fun AgentConversationMessages(
     onHistoryViewportChanged: (Boolean) -> Unit = {},
     // 首页顶栏悬浮在内容之上，列表用这个值补回首条消息的顶部留白。
     topInset: Dp = 0.dp,
-    // 输入区之上的「回到底部」圆钮采样消息列表的实时模糊采样层，材质对齐顶栏玻璃按钮。
-    backdrop: LayerBackdrop? = null,
     modifier: Modifier = Modifier,
 ) {
     // 上一版条目只作复用比对，不参与组合观察。
@@ -889,10 +882,10 @@ internal fun AgentConversationMessages(
             enter = fadeIn(tween(160)) + scaleIn(tween(180), initialScale = 0.82f),
             exit = fadeOut(tween(100)) + scaleOut(tween(120), targetScale = 0.86f),
         ) {
-            // 玻璃圆钮：材质与顶栏两大按钮一致（半透明玻璃底 + 渐变描边 + 实时模糊采样）。
-            // 深浅色都走 AetherChatColors，莫奈开启时自动跟随主题色。
-            val bottomBlurAvailable = backdrop != null &&
-                LocalBlurEnabled.current && isRuntimeShaderSupported()
+            // 玻璃圆钮：沿用顶栏两大按钮的材质组合（控制底面 + 玻璃底色 + 上亮下暗渐变描边）。
+            // 这里刻意不做 textureBlur 实时采样：该按钮位于消息列表的 layerBackdrop 录制区内部，
+            // 若再采样同一份 backdrop 会形成采样自引用，滑动时在 RenderThread 上无限递归导致栈溢出闪退。
+            // 因此改用与顶栏「磨砂不可用」分支一致的半透明玻璃底，深浅色都走 AetherChatColors。
             val bottomGlassBase = AetherChatColors.controlSurface().copy(
                 alpha = AetherChatColors.glassBaseAlpha(),
             )
@@ -904,23 +897,8 @@ internal fun AgentConversationMessages(
                         shadow = Shadow(radius = 8.dp, color = Color.Black, alpha = 0.08f),
                     )
                     .clip(CircleShape)
-                    .then(
-                        if (bottomBlurAvailable) {
-                            Modifier.textureBlur(
-                                backdrop = backdrop!!,
-                                shape = CircleShape,
-                                blurRadius = if (LocalIsDarkTheme.current) 24f else 18f,
-                                colors = BlurColors(
-                                    blendColors = listOf(
-                                        BlendColorEntry(bottomGlassBase),
-                                        BlendColorEntry(AetherChatColors.glassBackground()),
-                                    ),
-                                ),
-                            )
-                        } else {
-                            Modifier.background(AetherChatColors.controlSurface())
-                        },
-                    )
+                    .background(bottomGlassBase)
+                    .background(AetherChatColors.glassBackground())
                     .glassEdge(
                         AetherChatColors.glassStrokeTop(),
                         AetherChatColors.glassStrokeBottom(),

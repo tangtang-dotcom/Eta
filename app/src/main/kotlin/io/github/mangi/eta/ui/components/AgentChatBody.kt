@@ -390,9 +390,9 @@ private fun AgentChatScaffold(
         ),
         bottomBar = {
             AgentChatBottomBar(
-                // 输入卡片的 backdrop 不因「无消息」而失效：空聊天时录到的是纯表面色，
-                // 液态玻璃观感与顶栏按钮一致；消息区模糊仍由 frosted=frostEnabled 控制。
-                messageBackdrop = messageBackdrop.takeIf { blurSupported },
+                // 输入卡片使用独立采样层（composerBackdrop），不依赖消息区 backdrop，
+                // 空聊天、有消息时颜色都与顶栏按钮一致；消息区模糊仍由 frosted=frostEnabled 控制。
+                blurSupported = blurSupported,
                 input = input,
                 isCompacting = isCompacting,
                 contextUsage = contextUsage,
@@ -1146,7 +1146,7 @@ internal fun resolveFinalResultMessageIds(
 
 @Composable
 private fun AgentChatBottomBar(
-    messageBackdrop: LayerBackdrop?,
+    blurSupported: Boolean,
     input: String,
     isCompacting: Boolean,
     contextUsage: AgentContextUsageUi,
@@ -1174,6 +1174,14 @@ private fun AgentChatBottomBar(
     onCancelMessageEdit: () -> Unit,
 ) {
     val barDensity = LocalDensity.current
+    // 输入卡片/加号的专属采样层：只画舞台表面色打底，覆盖整条输入栏区域。
+    // 不使用 messageBackdrop —— 它只录制 Scaffold content（消息区）到输入栏上沿，
+    // 输入卡片在其下方采样会越界采到黑，导致卡片颜色比顶栏按钮深很多。
+    // 采样层不含输入卡片自身，避免采样自引用。
+    val composerSurface = MiuixTheme.colorScheme.surface
+    val composerBackdrop = rememberLayerBackdrop {
+        drawRect(composerSurface)
+    }
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -1182,7 +1190,7 @@ private fun AgentChatBottomBar(
         // 深浅色都给输入卡片做液态玻璃（提饱和 + 轻模糊 + 折射 + 高光），
         // 统一按「输入框磨砂」开关走；深色容器色与混色透明度由 AetherChatColors 适配。
         val composeFrost = LocalAppearanceSettings.current.chatComposerFrost &&
-            messageBackdrop != null
+            blurSupported
         // Aether 底栏：完全透明，只有悬浮的输入卡片；键盘弹出时输入器贴近键盘（12dp），
         // 收起时回到 18dp 悬浮高度。消息会从卡片后方滑过，配合卡片阴影呈现浮层感。
         val barImeVisible = WindowInsets.ime.getBottom(barDensity) > 0
@@ -1207,7 +1215,18 @@ private fun AgentChatBottomBar(
                 .navigationBarsPadding()
                 .padding(bottom = bottomLiftDp.dp),
         ) {
-            AgentChatInputBar(
+            Box(
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                if (blurSupported) {
+                    // 采样层：与输入栏同尺寸、只录表面色，兄弟节点不参与录制。
+                    Box(
+                        modifier = Modifier
+                            .matchParentSize()
+                            .layerBackdrop(composerBackdrop),
+                    )
+                }
+                AgentChatInputBar(
                 input = input,
                 isCompacting = isCompacting,
                 contextUsage = contextUsage,
@@ -1236,9 +1255,10 @@ private fun AgentChatBottomBar(
                 onRemoveFileReference = onRemoveFileReference,
                 onCancelMessageEdit = onCancelMessageEdit,
                 frosted = composeFrost && !imeAnimating,
-                backdrop = messageBackdrop,
+                backdrop = if (blurSupported) composerBackdrop else null,
                 modifier = Modifier.fillMaxWidth(),
             )
+            }
         }
     }
 }

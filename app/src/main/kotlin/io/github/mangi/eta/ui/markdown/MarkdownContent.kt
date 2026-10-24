@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.CheckBox
@@ -255,7 +256,9 @@ private fun MarkdownQuoteBlock(block: MarkdownQuote, scope: MarkdownRenderScope)
         compact = false,
         modifier = Modifier
             .fillMaxWidth()
-            .squircleSurface(color = scope.style.quoteBackground, cornerRadius = 10.dp)
+            // 引用块可能在流式输出时逐字变大，用普通圆角背景而不是着色器 mask，
+            // 避免每次尺寸变化都重跑一遍 runtime shader。
+            .background(scope.style.quoteBackground, RoundedCornerShape(10.dp))
             .drawBehind {
                 val width = 3.dp.toPx()
                 drawLine(

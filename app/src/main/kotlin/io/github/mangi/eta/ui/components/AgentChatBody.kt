@@ -1174,11 +1174,10 @@ private fun AgentChatBottomBar(
             .fillMaxWidth()
             .imePadding(),
     ) {
-        // 深色（含莫奈取色下的深色）不再给输入卡片做磨砂透明，只保留顶栏磨砂；
-        // 浅色仍按「输入框磨砂」开关走。
+        // 深浅色都给输入卡片做液态玻璃（提饱和 + 轻模糊 + 折射 + 高光），
+        // 统一按「输入框磨砂」开关走；深色容器色与混色透明度由 AetherChatColors 适配。
         val composeFrost = LocalAppearanceSettings.current.chatComposerFrost &&
-            messageBackdrop != null &&
-            !LocalIsDarkTheme.current
+            messageBackdrop != null
         // Aether 底栏：完全透明，只有悬浮的输入卡片；键盘弹出时输入器贴近键盘（12dp），
         // 收起时回到 18dp 悬浮高度。消息会从卡片后方滑过，配合卡片阴影呈现浮层感。
         val barImeVisible = WindowInsets.ime.getBottom(barDensity) > 0

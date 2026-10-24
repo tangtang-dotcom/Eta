@@ -88,6 +88,7 @@ import top.yukonga.miuix.kmp.blur.BlendColorEntry
 import top.yukonga.miuix.kmp.blur.BlurDefaults
 import top.yukonga.miuix.kmp.blur.BlurColors
 import top.yukonga.miuix.kmp.blur.LayerBackdrop
+import top.yukonga.miuix.kmp.blur.ProgressiveBlur
 import top.yukonga.miuix.kmp.blur.isRuntimeShaderSupported
 import top.yukonga.miuix.kmp.blur.textureBlur
 import top.yukonga.miuix.kmp.blur.highlight.BloomStroke
@@ -211,6 +212,8 @@ internal fun AgentAppShell(
                                 progressiveAlpha = AetherChatColors.topBarProgressiveAlpha(),
                                 surfaceAlpha = AetherChatColors.topBarSurfaceAlpha(),
                                 progressiveRadius = ChatTopBarProgressiveRadius,
+                                // 状态栏正下方一小段几乎不模糊，越往下越重（KernelSU 顶栏风格）。
+                                gradient = ChatTopBarProgressiveGradient,
                             ) {
                                 chatTopBar()
                             }
@@ -626,6 +629,10 @@ private val ChatTopBarTailHeight = 42.dp
 private const val ChatTopBarProgressiveAlpha = 0.72f
 private const val ChatTopBarSurfaceAlpha = 0.9f
 private const val ChatTopBarProgressiveRadius = 14f
+
+// 渐进模糊曲线：curve 越高顶部越轻，startFraction 让最顶部一段完全不模糊。
+private val ChatTopBarProgressiveGradient =
+    ProgressiveBlur.Top.copy(curve = 3.2f, startFraction = 0.1f)
 
 private val TopBarMenuIconSize = 20.dp
 

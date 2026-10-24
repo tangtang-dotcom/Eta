@@ -37,6 +37,9 @@ internal fun TopBarBackdrop(
     progressiveAlpha: Float = ProgressiveTopBarSurfaceAlpha,
     surfaceAlpha: Float = TopBarSurfaceAlpha,
     progressiveRadius: Float = ProgressiveTopBarBlurRadius,
+    // 渐进曲线：默认与以前一致（顶部轻、向下渐重）。聊天页可传更「晚开始」的曲线，
+    // 让状态栏正下方几乎不模糊。
+    gradient: ProgressiveBlur = ProgressiveBlur.Top.copy(curve = 2.2f),
     content: @Composable () -> Unit,
 ) {
     val surfaceColor = MiuixTheme.colorScheme.surface
@@ -46,7 +49,7 @@ internal fun TopBarBackdrop(
             Modifier.progressiveTextureBlur(
                 backdrop = backdrop,
                 shape = RectangleShape,
-                gradient = ProgressiveBlur.Top.copy(curve = 2.2f),
+                gradient = gradient,
                 blurRadius = progressiveRadius,
                 colors = BlurColors(
                     blendColors = listOf(

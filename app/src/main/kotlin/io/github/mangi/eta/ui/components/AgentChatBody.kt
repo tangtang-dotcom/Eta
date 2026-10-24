@@ -498,8 +498,9 @@ internal fun AgentConversationMessages(
     // 「回到底部」圆钮专用的实时模糊采样层：只挂在消息列表（LazyColumn）上录制，
     // 按钮本身是列表的兄弟节点、不在录制范围内，因此可以安全采样做 textureBlur，
     // 不会像复用 messageBackdrop 那样把按钮自己录进去造成采样自引用。
+    val buttonSurfaceColor = MiuixTheme.colorScheme.surface
     val buttonBackdrop = rememberLayerBackdrop {
-        drawRect(MiuixTheme.colorScheme.surface)
+        drawRect(buttonSurfaceColor)
         drawContent()
     }
 

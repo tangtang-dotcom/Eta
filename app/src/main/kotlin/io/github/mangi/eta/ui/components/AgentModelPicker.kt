@@ -494,7 +494,7 @@ internal fun AgentModelPillButton(
             .clip(CircleShape)
             .then(
                 if (frosted && backdrop != null) {
-                    liquidGlassSurface(
+                    Modifier.liquidGlassSurface(
                         backdrop = backdrop,
                         shape = CircleShape,
                         containerColor = AetherChatColors.controlSurface()

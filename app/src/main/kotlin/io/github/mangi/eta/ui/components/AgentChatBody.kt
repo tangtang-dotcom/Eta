@@ -408,22 +408,14 @@ private fun AgentChatScaffold(
     var composerHeightPx by remember { mutableFloatStateOf(0f) }
     val composerBottomInset = with(LocalDensity.current) { composerHeightPx.toDp() }
     Box(modifier = modifier.fillMaxSize()) {
-        // 录制层：真实背景 + 消息区（不含输入栏），覆盖全屏供输入卡片采样。
+        // 录制层：真实背景 + 消息区/空态（不含输入栏与推荐卡），覆盖全屏供输入卡片与推荐卡采样。
         Box(
             modifier = Modifier
                 .fillMaxSize()
                 .then(stageBackground)
                 .then(if (blurSupported) Modifier.layerBackdrop(pageBackdrop) else Modifier),
         ) {
-            if (!hasMessages) {
-                EmptyChatState(
-                    showSuggestions = showEmptySuggestions,
-                    onSuggestionClick = onSuggestionClick,
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(bottom = composerBottomInset),
-                )
-            } else {
+            if (hasMessages) {
                 AgentConversationMessages(
                     visibleMessages = visibleMessages,
                     scrollState = scrollState,
@@ -451,7 +443,17 @@ private fun AgentChatScaffold(
                     frosted = frostEnabled,
                     modifier = Modifier.fillMaxSize(),
                 )
-            }
+        }
+        }
+        if (!hasMessages) {
+            EmptyChatState(
+                showSuggestions = showEmptySuggestions,
+                onSuggestionClick = onSuggestionClick,
+                backdrop = pageBackdrop.takeIf { blurSupported },
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(bottom = composerBottomInset),
+            )
         }
         // 输入栏：录制层外的兄弟节点，采样 pageBackdrop 无自引用。
         Column(
@@ -1400,6 +1402,7 @@ private fun EmptyChatState(
                                 SuggestionCard(
                                     item = item,
                                     onClick = { onSuggestionClick(item.prompt) },
+                                    backdrop = backdrop,
                                     modifier = Modifier.weight(1f),
                                 )
                             }
@@ -1416,17 +1419,26 @@ private fun SuggestionCard(
     item: SuggestionItem,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
+    backdrop: top.yukonga.miuix.kmp.blur.Backdrop? = null,
 ) {
-    // 推荐卡位于 EmptyChatState 内，而 EmptyChatState 处于 pageBackdrop 录制层内部；
-    // 若在这里采样 pageBackdrop 会把卡片自身录进去形成采样自引用，
-    // 滑动/渲染时 RenderThread 无限递归导致栈溢出闪退（与回到底部按钮曾出现的问题相同）。
-    // 因此这里不做实时模糊采样，改用半透明玻璃底 + 渐变描边（与顶栏按钮磨砂关闭分支一致）。
+    // 推荐卡与顶栏两大按钮同一套液态玻璃材质（提饱和+轻模糊+圆角折射+BloomStroke 高光），
+    // 容器底色同为 surfaceContainer@0.4f；推荐卡在录制层外（EmptyChatState 已移出），
+    // 采样无自引用，可安全实时模糊。
     val cardShape = RoundedCornerShape(16.dp)
     Column(
         modifier = modifier
             .clip(cardShape)
-            .background(MiuixTheme.colorScheme.surfaceContainer.copy(alpha = 0.4f))
-            .glassEdge(AetherChatColors.glassStrokeTop(), AetherChatColors.glassStrokeBottom())
+            .then(
+                if (backdrop != null) {
+                    Modifier.liquidGlassSurface(
+                        backdrop = backdrop,
+                        shape = cardShape,
+                        containerColor = MiuixTheme.colorScheme.surfaceContainer.copy(alpha = 0.4f),
+                    )
+                } else {
+                    Modifier.background(MiuixTheme.colorScheme.surfaceContainer)
+                },
+            )
             .clickable(onClick = onClick)
             .padding(horizontal = 14.dp, vertical = 14.dp),
     ) {

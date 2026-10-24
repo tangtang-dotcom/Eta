@@ -549,7 +549,7 @@ internal fun AgentConversationMessages(
             is AgentTimelineEntry.WorkProcess -> last.key
             // 正文还没开始时，工作过程处于自动展开态；正文一开始就让位给回答。
             is AgentTimelineEntry.Turn -> last.key.takeIf {
-                (last.answer as? AgentMessageUi)?.content?.isBlank() == true
+                last.answers.all { answer -> (answer as? AgentMessageUi)?.content?.isBlank() != false }
             }
             else -> null
         }
@@ -864,7 +864,8 @@ internal fun AgentConversationMessages(
                                 streamingMarkdownCache.getOrCreate(message.id)
                             }
                         }
-                        val answer = entry.answer
+                        // 一轮里的多个正文段合并成一条，显示在同一个气泡里。
+                        val answer = entry.answers.mergeTurnAnswers(entry.key)
                         val answerAgent = answer as? AgentMessageUi
                         ChatMessageItem(
                             message = answer,
@@ -1037,12 +1038,17 @@ internal sealed interface AgentTimelineEntry {
         val messages: List<AgentChatMessageUi>,
     ) : AgentTimelineEntry
 
-    /** 工作过程与其后的回答合并成一条，让思考、工具调用和正文共处同一个气泡。 */
+    /**
+     * 一整轮问答（一条用户消息到下一次用户消息之间）的所有助手输出。
+     *
+     * 思考与工具调用收进子气泡 [work]，正文段按发生顺序收进 [answers]；
+     * 投影层仍按 round+index 保留多个正文块，这里只是把它们展示成同一个气泡。
+     */
     data class Turn(
         override val key: String,
         val work: List<AgentChatMessageUi>,
         // 通常是模型回答，任务中断等情况下是系统提示，同样要落在气泡里。
-        val answer: AgentChatMessageUi,
+        val answers: List<AgentChatMessageUi>,
     ) : AgentTimelineEntry
 }
 
@@ -1092,50 +1098,103 @@ private fun AgentChatMessageUi.isTurnAnswer(): Boolean = when (this) {
     else -> false
 }
 
-/** 相邻的工作过程与最终回答合成一个 [AgentTimelineEntry.Turn]，其余条目原样保留。 */
+/**
+ * 把一整轮问答的工作过程与正文合成同一个 [AgentTimelineEntry.Turn]。
+ *
+ * 投影层按 round+index 把每次正文都切成独立消息，一轮里「正文→工具→正文」会产出多条
+ * [AgentMessageUi]。这里按「两条用户消息之间」重新分组，让它们显示在同一个大气泡里，
+ * 思考与工具调用统一收进子气泡；条目 key 仍取首个工作过程（没有工作过程时取首条正文）的
+ * id，保证流式刷新期间条目身份稳定、历史分页锚点不跳。
+ *
+ * 上下文压缩标记不属于任何回答，保留为独立条目。
+ */
 private fun List<AgentTimelineEntry>.mergeWorkIntoAnswers(): List<AgentTimelineEntry> = buildList {
-    var pending: AgentTimelineEntry.WorkProcess? = null
+    val work = mutableListOf<AgentChatMessageUi>()
+    val answers = mutableListOf<AgentChatMessageUi>()
+
+    fun flushTurn() {
+        if (work.isEmpty() && answers.isEmpty()) return
+        // 与 WorkProcess 的 key 规则保持一致，避免流式刷新时条目身份变化导致锚点跳动。
+        val key = work.firstOrNull()?.let { "work-${it.id}" }
+            ?: answers.firstOrNull()?.id
+            ?: return
+        add(
+            AgentTimelineEntry.Turn(
+                key = key,
+                work = work.toList(),
+                answers = answers.toList(),
+            ),
+        )
+        work.clear()
+        answers.clear()
+    }
+
     for (entry in this@mergeWorkIntoAnswers) {
-        when {
-            entry is AgentTimelineEntry.WorkProcess -> pending = entry
-            entry is AgentTimelineEntry.Message &&
-                entry.message.isTurnAnswer() &&
-                pending != null -> {
-                val work = pending
-                pending = null
-                add(
-                    AgentTimelineEntry.Turn(
-                        key = work.key,
-                        work = work.messages,
-                        answer = entry.message,
-                    ),
-                )
+        when (entry) {
+            is AgentTimelineEntry.WorkProcess -> work += entry.messages
+            is AgentTimelineEntry.Message -> {
+                val message = entry.message
+                when {
+                    // 新的用户消息是轮次边界，先把上一轮收口。
+                    message is UserMessageUi -> {
+                        flushTurn()
+                        add(entry)
+                    }
+                    message.isWorkProcessMessage() -> work += message
+                    message is SystemNoticeMessageUi &&
+                        message.code == SystemNoticeCode.ContextCompaction -> {
+                        flushTurn()
+                        add(entry)
+                    }
+                    message.isTurnAnswer() -> answers += message
+                    else -> {
+                        flushTurn()
+                        add(entry)
+                    }
+                }
             }
-            else -> {
-                pending?.let { add(it) }
-                pending = null
+            is AgentTimelineEntry.Turn -> {
+                // 理论上不会出现（Turn 由本函数产生），保守地原样保留。
+                flushTurn()
                 add(entry)
             }
         }
     }
-    // 生成刚开始时还没有正文，但气泡、头像和模型名要立刻出现，
-    // 因此末尾的工作过程同样合成一条 Turn，answer 用空内容的占位消息。
-    pending?.let { work ->
-        add(
-            AgentTimelineEntry.Turn(
-                key = work.key,
-                work = work.messages,
-                answer = AgentMessageUi(
-                    id = work.key,
-                    content = "",
-                    isStreaming = work.messages.any { message ->
-                        (message is ThinkingMessageUi && message.isStreaming) ||
-                            (message is ToolActivityMessageUi &&
-                                message.status == ToolActivityStatusUi.Running)
-                    },
-                ),
-            ),
+    flushTurn()
+}
+
+/**
+ * 把一轮里的多个正文段合并成展示用的单条消息。
+ *
+ * 投影层会按 round+index 把每次正文切成独立消息，但一次问答应当读起来是一段回答，
+ * 因此这里用空行把各段正文接起来，并沿用首条正文的 id：流式渲染会话、复制/重新生成
+ * 等操作行的定位都锚在这个 id 上，不会因为合并而丢失打字机进度。
+ *
+ * 首条正文可能还在流式状态，此时仍以流式渲染；任意一段仍在流式即视为整轮未完成。
+ */
+internal fun List<AgentChatMessageUi>.mergeTurnAnswers(turnKey: String): AgentChatMessageUi {
+    if (isEmpty()) {
+        // 生成刚开始：正文还没到，先给出空正文让气泡、头像和模型名立刻出现。
+        return AgentMessageUi(id = turnKey, content = "", isStreaming = true)
+    }
+    val first = first()
+    if (size == 1 && first is AgentMessageUi) return first
+
+    val text = asSequence()
+        .filterIsInstance<AgentMessageUi>()
+        .map { it.content.trimEnd() }
+        .filter { it.isNotBlank() }
+        .joinToString("\n\n")
+
+    return when (val head = first) {
+        is AgentMessageUi -> head.copy(
+            content = text,
+            isStreaming = any { message -> (message as? AgentMessageUi)?.isStreaming == true },
+            // 多段合并后必须走 Markdown 渲染，避免把分段接缝当成纯文本原样输出。
+            renderMarkdown = true,
         )
+        // 首条是系统提示（已停止、中断等）时保持其性质，沿用首条身份。
+        else -> head
     }
 }
 

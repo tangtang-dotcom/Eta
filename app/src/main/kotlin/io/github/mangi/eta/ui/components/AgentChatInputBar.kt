@@ -91,10 +91,7 @@ import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.ListPopupDefaults
 import top.yukonga.miuix.kmp.basic.Text
-import top.yukonga.miuix.kmp.blur.BlendColorEntry
-import top.yukonga.miuix.kmp.blur.BlurDefaults
 import top.yukonga.miuix.kmp.blur.LayerBackdrop
-import top.yukonga.miuix.kmp.blur.textureBlur
 import top.yukonga.miuix.kmp.squircle.squircleBorder
 import top.yukonga.miuix.kmp.squircle.squircleSurface
 import top.yukonga.miuix.kmp.theme.MiuixTheme
@@ -343,17 +340,12 @@ internal fun AgentChatInputBar(
                         .clip(composerShape)
                         .then(
                             if (frosted && backdrop != null) {
-                                Modifier.textureBlur(
+                                // 与顶栏同款液态玻璃：提饱和 + 轻模糊 + 圆角折射 + BloomStroke 高光。
+                                Modifier.liquidGlassSurface(
                                     backdrop = backdrop,
                                     shape = composerShape,
-                                    blurRadius = 14f,
-                                    colors = BlurDefaults.blurColors(
-                                        blendColors = listOf(
-                                            BlendColorEntry(
-                                                AetherChatColors.surface().copy(alpha = AetherChatColors.frostBlendAlpha()),
-                                            ),
-                                        ),
-                                    ),
+                                    containerColor = AetherChatColors.surface()
+                                        .copy(alpha = AetherChatColors.frostBlendAlpha()),
                                 )
                             } else {
                                 Modifier.background(AetherChatColors.surface())
@@ -551,18 +543,12 @@ internal fun AgentChatInputBar(
                         .clip(CircleShape)
                         .then(
                             if (plusSeparated && frosted && backdrop != null) {
-                                // 磨砂开启时，分离出来的加号圆钮同样采样背后消息做虚化。
-                                Modifier.textureBlur(
+                                // 分离出来的加号圆钮同样用顶栏液态玻璃材质。
+                                Modifier.liquidGlassSurface(
                                     backdrop = backdrop,
                                     shape = CircleShape,
-                                    blurRadius = 14f,
-                                    colors = BlurDefaults.blurColors(
-                                        blendColors = listOf(
-                                            BlendColorEntry(
-                                                AetherChatColors.surface().copy(alpha = AetherChatColors.frostBlendAlpha()),
-                                            ),
-                                        ),
-                                    ),
+                                    containerColor = AetherChatColors.surface()
+                                        .copy(alpha = AetherChatColors.frostBlendAlpha()),
                                 )
                             } else {
                                 Modifier.background(

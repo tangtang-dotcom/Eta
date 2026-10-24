@@ -125,11 +125,8 @@ import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.IconButtonDefaults
 import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.basic.Text
-import top.yukonga.miuix.kmp.blur.BlendColorEntry
-import top.yukonga.miuix.kmp.blur.BlurColors
 import top.yukonga.miuix.kmp.blur.LayerBackdrop
 import top.yukonga.miuix.kmp.blur.isRuntimeShaderSupported
-import top.yukonga.miuix.kmp.blur.textureBlur
 import top.yukonga.miuix.kmp.blur.layerBackdrop
 import top.yukonga.miuix.kmp.blur.rememberLayerBackdrop
 import top.yukonga.miuix.kmp.squircle.squircleBorder
@@ -496,7 +493,7 @@ internal fun AgentConversationMessages(
     modifier: Modifier = Modifier,
 ) {
     // 「回到底部」圆钮专用的实时模糊采样层：只挂在消息列表（LazyColumn）上录制，
-    // 按钮本身是列表的兄弟节点、不在录制范围内，因此可以安全采样做 textureBlur，
+    // 按钮本身是列表的兄弟节点、不在录制范围内，因此可以安全采样做实时模糊，
     // 不会像复用 messageBackdrop 那样把按钮自己录进去造成采样自引用。
     val buttonSurfaceColor = MiuixTheme.colorScheme.surface
     val buttonBackdrop = rememberLayerBackdrop {
@@ -898,9 +895,8 @@ internal fun AgentConversationMessages(
             enter = fadeIn(tween(160)) + scaleIn(tween(180), initialScale = 0.82f),
             exit = fadeOut(tween(100)) + scaleOut(tween(120), targetScale = 0.86f),
         ) {
-            // 玻璃圆钮：与顶栏两大按钮完全同一套材质参数。
-            // 采样 buttonBackdrop（只录 LazyColumn 消息内容、不含按钮自身），
-            // 因此可以做真实 textureBlur 而不产生采样自引用。
+            // 玻璃圆钮：与顶栏两大按钮完全同一套液态玻璃材质（提饱和 + 轻模糊 + 折射 + BloomStroke 高光）。
+            // 采样 buttonBackdrop（只录 LazyColumn 消息内容、不含按钮自身），因此不会产生采样自引用。
             val bottomBlurAvailable = frosted && isRuntimeShaderSupported()
             val bottomGlassBase = AetherChatColors.controlSurface().copy(
                 alpha = AetherChatColors.glassBaseAlpha(),
@@ -915,24 +911,14 @@ internal fun AgentConversationMessages(
                     .clip(CircleShape)
                     .then(
                         if (bottomBlurAvailable) {
-                            Modifier.textureBlur(
+                            Modifier.liquidGlassSurface(
                                 backdrop = buttonBackdrop,
                                 shape = CircleShape,
-                                blurRadius = if (LocalIsDarkTheme.current) 24f else 18f,
-                                colors = BlurColors(
-                                    blendColors = listOf(
-                                        BlendColorEntry(bottomGlassBase),
-                                        BlendColorEntry(AetherChatColors.glassBackground()),
-                                    ),
-                                ),
+                                containerColor = bottomGlassBase,
                             )
                         } else {
                             Modifier.background(AetherChatColors.controlSurface())
                         },
-                    )
-                    .glassEdge(
-                        AetherChatColors.glassStrokeTop(),
-                        AetherChatColors.glassStrokeBottom(),
                     )
                     .clickable(
                         interactionSource = remember { MutableInteractionSource() },

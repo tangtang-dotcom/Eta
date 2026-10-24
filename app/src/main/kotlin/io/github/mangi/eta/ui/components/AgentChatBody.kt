@@ -38,6 +38,7 @@ import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.ArrowDownward
 import androidx.compose.material.icons.rounded.DocumentScanner
@@ -418,6 +419,7 @@ private fun AgentChatScaffold(
                 EmptyChatState(
                     showSuggestions = showEmptySuggestions,
                     onSuggestionClick = onSuggestionClick,
+                    backdrop = pageBackdrop.takeIf { blurSupported },
                     modifier = Modifier
                         .fillMaxSize()
                         .padding(bottom = composerBottomInset),
@@ -1307,6 +1309,7 @@ internal fun shouldRequestInitialBottom(
 private fun EmptyChatState(
     showSuggestions: Boolean,
     onSuggestionClick: (String) -> Unit,
+    backdrop: top.yukonga.miuix.kmp.blur.Backdrop? = null,
     modifier: Modifier = Modifier,
 ) {
     val character = LocalRoleplayChat.current
@@ -1397,6 +1400,7 @@ private fun EmptyChatState(
                             rowItems.forEach { item ->
                                 SuggestionCard(
                                     item = item,
+                                    backdrop = backdrop,
                                     onClick = { onSuggestionClick(item.prompt) },
                                     modifier = Modifier.weight(1f),
                                 )
@@ -1414,22 +1418,24 @@ private fun SuggestionCard(
     item: SuggestionItem,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
+    backdrop: top.yukonga.miuix.kmp.blur.Backdrop? = null,
 ) {
-    // 推荐卡配色跟随用户主气泡（userBubble / onUserBubble），
-    // 深浅模式下背景、图标、文字统一为气泡紫调，与消息主气泡呼应。
-    val bubbleColor = AetherChatColors.userBubble()
-    val onBubbleColor = AetherChatColors.onUserBubble()
+    // 推荐卡采用与顶栏按钮一致的液态玻璃材质（提饱和 + 轻模糊 + 折射 + BloomStroke 高光），
+    // 采样页面级 backdrop，背景与顶栏按钮统一，不再用气泡实色。
+    val bubbleShape = RoundedCornerShape(16.dp)
+    val bubbleModifier = if (backdrop != null) {
+        Modifier.liquidGlassSurface(
+            backdrop = backdrop,
+            shape = bubbleShape,
+            containerColor = MiuixTheme.colorScheme.surfaceContainer.copy(alpha = 0.4f),
+        )
+    } else {
+        Modifier.background(MiuixTheme.colorScheme.surfaceContainer)
+    }
     Column(
         modifier = modifier
-            .squircleSurface(
-                color = bubbleColor.copy(alpha = if (LocalIsDarkTheme.current) 0.55f else 0.65f),
-                cornerRadius = 16.dp,
-            )
-            .squircleBorder(
-                width = 0.5.dp,
-                color = onBubbleColor.copy(alpha = 0.35f),
-                cornerRadius = 16.dp,
-            )
+            .clip(bubbleShape)
+            .then(bubbleModifier)
             .clickable(onClick = onClick)
             .padding(horizontal = 14.dp, vertical = 14.dp),
     ) {
@@ -1437,13 +1443,13 @@ private fun SuggestionCard(
             imageVector = item.icon,
             contentDescription = null,
             modifier = Modifier.size(18.dp),
-            tint = onBubbleColor,
+            tint = MiuixTheme.colorScheme.primary,
         )
         Spacer(modifier = Modifier.height(10.dp))
         Text(
             text = item.title,
             style = MiuixTheme.textStyles.body2,
-            color = onBubbleColor,
+            color = MiuixTheme.colorScheme.onSurface,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
         )

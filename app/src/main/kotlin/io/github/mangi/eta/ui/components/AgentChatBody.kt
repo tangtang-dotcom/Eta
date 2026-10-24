@@ -402,6 +402,9 @@ private fun AgentChatScaffold(
         drawContent()
     }
 
+    // 键盘动画期间不传 backdrop：既停止了重录，也就不能继续采样，归位回实底。
+    val composerBackdrop = pageBackdrop.takeIf { blurSupported && !imeAnimating }
+
     // 聊天舞台背景：
     // - 浅色：跟设置页页面底色一致（Miuix Scaffold 默认 surface）；
     // - 深色：回到上一版 Aether 三段竖向渐变（backgroundGradientTop → background → surface）。
@@ -477,9 +480,9 @@ private fun AgentChatScaffold(
                 .onSizeChanged { composerHeightPx = it.height.toFloat() },
         ) {
             AgentChatBottomBar(
-                // 输入卡片采样页面级 backdrop：真实背景 + 消息区，覆盖全屏，
-                // 空聊天、有消息时颜色都与顶栏按钮一致；消息区模糊仍由 frosted=frostEnabled 控制。
-                backdrop = pageBackdrop.takeIf { blurSupported },
+                // 输入卡片采样页面级 backdrop：真实背景 + 消息区，覆盖全屏。
+                // 键盘动画期间为 null，输入卡片自动回到实底。
+                backdrop = composerBackdrop,
                 input = input,
                 isCompacting = isCompacting,
                 contextUsage = contextUsage,
@@ -1330,8 +1333,6 @@ private fun AgentChatBottomBar(
                 onRemoveFileReference = onRemoveFileReference,
                 onCancelMessageEdit = onCancelMessageEdit,
                 frosted = composeFrost,
-                // 动画期间 backdrop 不再重录，也就不能继续采样，一并退回实底。
-                backdrop = backdrop.takeUnless { imeAnimating },
                 modifier = Modifier.fillMaxWidth(),
             )
         }

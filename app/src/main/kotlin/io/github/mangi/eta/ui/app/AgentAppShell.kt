@@ -630,9 +630,11 @@ private const val ChatTopBarProgressiveAlpha = 0.72f
 private const val ChatTopBarSurfaceAlpha = 0.9f
 private const val ChatTopBarProgressiveRadius = 14f
 
-// 渐进模糊曲线：curve 越高顶部越轻，startFraction 让最顶部一段完全不模糊。
+// 渐进模糊曲线：startFraction（顶部）是全模糊端，endFraction 是零模糊端。
+// 聊天顶栏要「状态栏区域糊得重、状态栏下面的顶栏主体尽量清晰」，
+// 所以把零模糊点提前到条高一半左右，并用 1.6 的曲线让状态栏区保持较重权重。
 private val ChatTopBarProgressiveGradient =
-    ProgressiveBlur.Top.copy(curve = 3.2f, startFraction = 0.1f)
+    ProgressiveBlur.Top.copy(curve = 1.6f, endFraction = 0.5f)
 
 private val TopBarMenuIconSize = 20.dp
 

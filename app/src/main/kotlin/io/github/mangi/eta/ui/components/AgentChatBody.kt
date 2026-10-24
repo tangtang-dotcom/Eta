@@ -352,7 +352,9 @@ private fun AgentChatScaffold(
     modifier: Modifier = Modifier,
 ) {
     val surfaceColor = MiuixTheme.colorScheme.surface
-    val frostEnabled = hasMessages && LocalBlurEnabled.current && isRuntimeShaderSupported()
+    // blur 可用性（开关 + 运行时 shader 支持）；消息区模糊仍要求有消息。
+    val blurSupported = LocalBlurEnabled.current && isRuntimeShaderSupported()
+    val frostEnabled = hasMessages && blurSupported
     val messageBackdrop = rememberLayerBackdrop {
         // Backdrop 必须包含不透明底色，否则文字边缘模糊到透明区域时会出现黑边。
         drawRect(surfaceColor)
@@ -388,7 +390,9 @@ private fun AgentChatScaffold(
         ),
         bottomBar = {
             AgentChatBottomBar(
-                messageBackdrop = messageBackdrop.takeIf { frostEnabled },
+                // 输入卡片的 backdrop 不因「无消息」而失效：空聊天时录到的是纯表面色，
+                // 液态玻璃观感与顶栏按钮一致；消息区模糊仍由 frosted=frostEnabled 控制。
+                messageBackdrop = messageBackdrop.takeIf { blurSupported },
                 input = input,
                 isCompacting = isCompacting,
                 contextUsage = contextUsage,
@@ -454,7 +458,9 @@ private fun AgentChatScaffold(
                 frosted = frostEnabled,
                 modifier = Modifier
                     .fillMaxSize()
-                    .then(if (frostEnabled) Modifier.layerBackdrop(messageBackdrop) else Modifier),
+                    // backdrop 只要 blur 可用就挂载：空聊天时录制纯表面色，
+                    // 保证输入卡片的液态玻璃始终有内容可采样。
+                    .then(if (blurSupported) Modifier.layerBackdrop(messageBackdrop) else Modifier),
             )
         }
     }

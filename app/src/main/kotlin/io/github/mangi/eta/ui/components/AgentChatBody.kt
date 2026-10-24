@@ -15,6 +15,7 @@ import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.scrollBy
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsDraggedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -59,6 +60,7 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.draw.dropShadow
@@ -124,6 +126,7 @@ import top.yukonga.miuix.kmp.basic.IconButtonDefaults
 import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.blur.BlendColorEntry
+import top.yukonga.miuix.kmp.blur.BlurColors
 import top.yukonga.miuix.kmp.blur.BlurDefaults
 import top.yukonga.miuix.kmp.blur.LayerBackdrop
 import top.yukonga.miuix.kmp.blur.isRuntimeShaderSupported
@@ -452,6 +455,7 @@ private fun AgentChatScaffold(
                 onLoadEarlierMessages = onLoadEarlierMessages,
                 onHistoryViewportChanged = onHistoryViewportChanged,
                 topInset = LocalChatTopOverlayInset.current,
+                backdrop = messageBackdrop,
                 modifier = Modifier
                     .fillMaxSize()
                     .then(if (frostEnabled) Modifier.layerBackdrop(messageBackdrop) else Modifier),
@@ -488,6 +492,8 @@ internal fun AgentConversationMessages(
     onHistoryViewportChanged: (Boolean) -> Unit = {},
     // 首页顶栏悬浮在内容之上，列表用这个值补回首条消息的顶部留白。
     topInset: Dp = 0.dp,
+    // 输入区之上的「回到底部」圆钮采样消息列表的实时模糊采样层，材质对齐顶栏玻璃按钮。
+    backdrop: LayerBackdrop? = null,
     modifier: Modifier = Modifier,
 ) {
     // 上一版条目只作复用比对，不参与组合观察。
@@ -883,33 +889,58 @@ internal fun AgentConversationMessages(
             enter = fadeIn(tween(160)) + scaleIn(tween(180), initialScale = 0.82f),
             exit = fadeOut(tween(100)) + scaleOut(tween(120), targetScale = 0.86f),
         ) {
-            IconButton(
-                // 与输入框同一套浮起层次：消息背景接近按钮底色时仍能一眼认出。
+            // 玻璃圆钮：材质与顶栏两大按钮一致（半透明玻璃底 + 渐变描边 + 实时模糊采样）。
+            // 深浅色都走 AetherChatColors，莫奈开启时自动跟随主题色。
+            val bottomBlurAvailable = backdrop != null &&
+                LocalBlurEnabled.current && isRuntimeShaderSupported()
+            val bottomGlassBase = AetherChatColors.controlSurface().copy(
+                alpha = AetherChatColors.glassBaseAlpha(),
+            )
+            Box(
                 modifier = Modifier
+                    .size(40.dp)
                     .dropShadow(
                         shape = CircleShape,
                         shadow = Shadow(radius = 8.dp, color = Color.Black, alpha = 0.08f),
                     )
-                    .squircleBorder(
-                        width = 0.5.dp,
-                        color = MiuixTheme.colorScheme.outline.copy(alpha = 0.55f),
-                        cornerRadius = IconButtonDefaults.CornerRadius,
-                    ),
-                onClick = {
-                    onBottomAnchorChanged(true)
-                    coroutineScope.launch {
-                        scrollState.animateScrollToItem(bottomItemIndex)
-                    }
-                },
-                backgroundColor = MiuixTheme.colorScheme.surfaceContainerHigh,
-                minWidth = 40.dp,
-                minHeight = 40.dp,
+                    .clip(CircleShape)
+                    .then(
+                        if (bottomBlurAvailable) {
+                            Modifier.textureBlur(
+                                backdrop = backdrop!!,
+                                shape = CircleShape,
+                                blurRadius = if (LocalIsDarkTheme.current) 24f else 18f,
+                                colors = BlurColors(
+                                    blendColors = listOf(
+                                        BlendColorEntry(bottomGlassBase),
+                                        BlendColorEntry(AetherChatColors.glassBackground()),
+                                    ),
+                                ),
+                            )
+                        } else {
+                            Modifier.background(AetherChatColors.controlSurface())
+                        },
+                    )
+                    .glassEdge(
+                        AetherChatColors.glassStrokeTop(),
+                        AetherChatColors.glassStrokeBottom(),
+                    )
+                    .clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null,
+                    ) {
+                        onBottomAnchorChanged(true)
+                        coroutineScope.launch {
+                            scrollState.animateScrollToItem(bottomItemIndex)
+                        }
+                    },
+                contentAlignment = Alignment.Center,
             ) {
                 Icon(
                     imageVector = Icons.Rounded.ArrowDownward,
                     contentDescription = stringResource(R.string.ui_back_to_bottom_32282e),
                     modifier = Modifier.size(18.dp),
-                    tint = MiuixTheme.colorScheme.onSurface,
+                    tint = AetherChatColors.onSurface(),
                 )
             }
         }

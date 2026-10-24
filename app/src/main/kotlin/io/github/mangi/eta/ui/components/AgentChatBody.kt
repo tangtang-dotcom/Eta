@@ -357,12 +357,33 @@ private fun AgentChatScaffold(
     // blur 可用性（开关 + 运行时 shader 支持）；消息区模糊仍要求有消息。
     val blurSupported = LocalBlurEnabled.current && isRuntimeShaderSupported()
     val frostEnabled = hasMessages && blurSupported
+    // 录制舞台背景所需的颜色（在组合上下文提前取值，onDraw 是非组合 lambda 不能读 CompositionLocal）。
+    val isDark = LocalIsDarkTheme.current
+    val backgroundGradientTop = AetherChatColors.backgroundGradientTop()
+    val backgroundMid = AetherChatColors.background()
+    val backgroundBottom = AetherChatColors.surface()
     // 页面级采样层：录制「真实舞台背景 + 消息区」，覆盖全屏（含输入栏坐标）。
     // 输入栏是录制层的兄弟节点、不参与录制，因此无采样自引用；
     // 输入卡片/加号采样它时颜色公式与顶栏按钮相同（surfaceContainer@0.4f over 真实背景）。
+    // 注意：渐变背景必须在 onDraw 里直接绘制，才能被录进 graphicsLayer；
+    // 若背景作为 layerBackdrop 之外的 Modifier 绘制，采样层里就没有它，
+    // 输入卡片只会采到 surface 实底 + 40% 容器色，比顶栏按钮（采到含渐变背景的 AppShell 层）更深。
     val pageBackdrop = rememberLayerBackdrop {
-        // Backdrop 必须包含不透明底色，否则文字边缘模糊到透明区域时会出现黑边。
-        drawRect(surfaceColor)
+        if (isDark) {
+            drawRect(
+                brush = Brush.verticalGradient(
+                    listOf(
+                        backgroundGradientTop,
+                        backgroundMid,
+                        backgroundBottom,
+                    ),
+                ),
+                size = this.size,
+            )
+        } else {
+            // Backdrop 必须包含不透明底色，否则文字边缘模糊到透明区域时会出现黑边。
+            drawRect(surfaceColor)
+        }
         drawContent()
     }
 

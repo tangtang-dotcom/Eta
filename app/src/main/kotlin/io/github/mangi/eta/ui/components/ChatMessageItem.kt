@@ -211,8 +211,8 @@ internal fun ChatMessageItem(
     workMessages: List<AgentChatMessageUi> = emptyList(),
     workActive: Boolean = false,
     workStreamingStates: Map<String, StreamingMarkdownState> = emptyMap(),
-    // 轮内分段：过程子气泡与正文按发生顺序交替，多段时优先于 workMessages。
-    turnSections: List<AgentTimelineEntry.TurnSection> = emptyList(),
+    // 轮内分块：过程子气泡与正文按发生顺序交替，非空时优先于 workMessages。
+    turnBlocks: List<AgentTurnBlock> = emptyList(),
     currentBrowserMessageId: String? = null,
     messageActionsEnabled: Boolean = true,
     isEditing: Boolean = false,
@@ -239,7 +239,7 @@ internal fun ChatMessageItem(
             workMessages = workMessages,
             workActive = workActive,
             workStreamingStates = workStreamingStates,
-            turnSections = turnSections,
+            turnBlocks = turnBlocks,
             currentBrowserMessageId = currentBrowserMessageId,
             onOpenBrowser = onOpenBrowser,
             assistantOverlay = assistantOverlay,
@@ -692,8 +692,8 @@ private fun AgentMessageBlock(
     workMessages: List<AgentChatMessageUi> = emptyList(),
     workActive: Boolean = false,
     workStreamingStates: Map<String, StreamingMarkdownState> = emptyMap(),
-    // 轮内分段：过程子气泡与正文按发生顺序交替，多段时优先于 workMessages。
-    turnSections: List<AgentTimelineEntry.TurnSection> = emptyList(),
+    // 轮内分块：过程子气泡与正文按发生顺序交替，非空时优先于 workMessages。
+    turnBlocks: List<AgentTurnBlock> = emptyList(),
     currentBrowserMessageId: String? = null,
     onOpenBrowser: () -> Unit = {},
     // 系统提示（已停止、任务中断等）也要落在气泡里，但它没有正文可渲染。
@@ -802,45 +802,47 @@ private fun AgentMessageBlock(
                 Modifier.fillMaxWidth()
             },
         ) {
-            if (showBubble && turnSections.isNotEmpty()) {
-                // 按发生顺序交替渲染：子气泡（思考/工具）紧跟着它之后说出的正文，
+            if (showBubble && turnBlocks.isNotEmpty()) {
+                // 按真实生成时序交替渲染：过程块之后紧跟模型随后说出的正文，
                 // 形成「子气泡 → 正文 → 子气泡 → 正文」的节奏，而不是把过程全堆在顶部。
-                turnSections.forEachIndexed { index, section ->
-                    val isLastSection = index == turnSections.lastIndex
-                    if (section.work.isNotEmpty()) {
-                        AssistantWorkBubble(
-                            messages = section.work,
-                            active = workActive && isLastSection,
+                // 正文永远不会被折叠进子气泡，模型说的话不会丢。
+                val lastProcedureIndex = turnBlocks.indexOfLast { it is AgentTurnBlock.Procedure }
+                turnBlocks.forEachIndexed { index, block ->
+                    when (block) {
+                        is AgentTurnBlock.Procedure -> AssistantWorkBubble(
+                            messages = block.steps,
+                            // 只有最后一个过程块在生成中才自动播报进度。
+                            active = workActive && index == lastProcedureIndex,
                             assistantOverlay = assistantOverlay,
                             onOpenBrowser = onOpenBrowser,
                             currentBrowserMessageId = currentBrowserMessageId,
                             retainedStreamingStates = workStreamingStates,
-                            modifier = Modifier.padding(bottom = if (section.answers.isEmpty()) 0.dp else 10.dp),
+                            modifier = Modifier.padding(bottom = 10.dp),
                         )
-                    }
-                    // 该段正文已作为旁白折进子气泡时不再渲染空正文，否则会多出一个光标。
-                    val visibleAnswers = section.answers.filterNot { answer ->
-                        answer is AgentMessageUi && answer.content.isBlank()
-                    }
-                    visibleAnswers.forEach { answer ->
-                        val answerAgent = answer as? AgentMessageUi
-                        AgentAnswerText(
-                            answer = answerAgent,
-                            fallbackContent = if (answerAgent == null) message.content else null,
-                            streamingState = if (answerAgent != null && answerAgent.id == message.id) streamingState else null,
-                            message = message,
-                            revealComplete = revealComplete,
-                            // 缓存文档只对当前这条流式消息有效，其余段落自行解析。
-                            completedDocument = if (answerAgent == null || answerAgent.id == message.id) {
-                                completedDocument
-                            } else {
-                                null
-                            },
-                            onRevealCompleteChange = { streamingRevealComplete = it },
-                            modifier = Modifier.padding(
-                                bottom = if (visibleAnswers.lastOrNull() === answer) 0.dp else 10.dp,
-                            ),
-                        )
+                        is AgentTurnBlock.Content -> {
+                            val answerAgent = block.message as? AgentMessageUi
+                            AgentAnswerText(
+                                answer = answerAgent,
+                                fallbackContent = if (answerAgent == null) message.content else null,
+                                streamingState = if (answerAgent != null && answerAgent.id == message.id) {
+                                    streamingState
+                                } else {
+                                    null
+                                },
+                                message = message,
+                                revealComplete = revealComplete,
+                                // 缓存文档只对当前这条流式消息有效，其余正文自行解析。
+                                completedDocument = if (answerAgent == null || answerAgent.id == message.id) {
+                                    completedDocument
+                                } else {
+                                    null
+                                },
+                                onRevealCompleteChange = { streamingRevealComplete = it },
+                                modifier = Modifier.padding(
+                                    bottom = if (index == turnBlocks.lastIndex) 0.dp else 10.dp,
+                                ),
+                            )
+                        }
                     }
                 }
             } else {
@@ -1043,12 +1045,13 @@ private fun AssistantWorkBubble(
 }
 
 /**
- * 回答气泡内的工作过程默认收起时保留的步骤数。
+ * 回答气泡内的工作过程收起时保留的尾部步骤数。
  *
- * 0 表示整组只剩一行摘要（「已执行 N 步」之类），点一下才展开细节。
- * 生成进行中的最后一段不受此限：过程会自动展开，让用户看到当前进展。
+ * 与 chatcube 的 `collapsedVisibleCount` 口径一致：收起后只留最后两步，
+ * 既能把十几步的过程压成两三行，又能让用户看到最近在做什么。
+ * 剩下的步骤收进标题行的「已完成 N 个步骤」里，点开标题才全部展开。
  */
-private const val WorkBubbleCollapsedSteps = 0
+private const val WorkBubbleCollapsedSteps = 2
 
 /** 回答气泡圆角；与思考卡片的 12dp 区分，气泡更圆一些。 */
 private val AssistantBubbleCorner = 18.dp

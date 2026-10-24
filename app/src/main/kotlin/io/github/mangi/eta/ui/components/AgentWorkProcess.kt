@@ -65,7 +65,6 @@ import androidx.compose.ui.unit.dp
 import io.github.mangi.eta.R
 import io.github.mangi.eta.agent.overlay.toolDisplayName
 import io.github.mangi.eta.ui.markdown.StreamingMarkdownState
-import io.github.mangi.eta.ui.model.AgentMessageUi
 import io.github.mangi.eta.ui.model.AgentChatMessageUi
 import io.github.mangi.eta.ui.model.ThinkingMessageUi
 import io.github.mangi.eta.ui.model.ToolActivityMessageUi
@@ -173,7 +172,6 @@ internal fun AgentWorkProcess(
                             step = step,
                             isLast = index == visibleSteps.lastIndex,
                             quoted = embedded,
-                            folded = !bodyVisible,
                             onOpenBrowser = onOpenBrowser,
                             currentBrowserMessageId = currentBrowserMessageId,
                             retainedStreamingStates = retainedStreamingStates,
@@ -290,8 +288,6 @@ private fun AgentWorkStepNode(
     retainedStreamingStates: Map<String, StreamingMarkdownState>,
     // 嵌进回答气泡时改画成引用块样式的小卡片，不再走左侧时间线。
     quoted: Boolean = false,
-    // 所在子气泡处于收起态：所有步骤都折在标题行之后，旁白也只留一行。
-    folded: Boolean = false,
 ) {
     when (step) {
         is AgentWorkStep.ToolGroup -> WorkStep(
@@ -350,53 +346,10 @@ private fun AgentWorkStepNode(
                 )
             }
 
-            // 过程旁白：夹在工具/思考之间的正文。它不是结论，只是模型在说明正在做什么，
-            // 因此收进工作过程里按次级文字呈现，不占外层气泡的回答位置。
-            is AgentMessageUi -> WorkStep(
-                icon = Icons.Rounded.Checklist,
-                tone = WorkNodeTone.Done,
-                isLast = isLast,
-                quoted = quoted,
-            ) {
-                WorkNarrationRow(message = message, folded = folded)
-            }
-
             else -> Unit
         }
     }
 }
-
-/**
- * 过程旁白：模型在两次工具调用之间说明自己在做什么。
- *
- * 它属于工作过程而不是本轮回答，所以用次级文字色、限制行数，避免和真正的结论抢注意力。
- */
-@Composable
-private fun WorkNarrationRow(message: AgentMessageUi, folded: Boolean) {
-    val maxLines = when {
-        message.isStreaming -> Int.MAX_VALUE
-        folded -> NARRATION_COLLAPSED_MAX_LINES
-        else -> NARRATION_MAX_LINES
-    }
-    Text(
-        text = message.content,
-        style = MiuixTheme.textStyles.footnote1,
-        color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-        maxLines = maxLines,
-        overflow = TextOverflow.Ellipsis,
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(start = 2.dp, top = 4.dp, bottom = 4.dp),
-    )
-}
-
-/**
- * 旁白最多显示几行。
- *
- * 折叠时一行——它只是过程摘要的一部分，展开后才给几行上下文，避免子气泡被旁白撑长。
- */
-private const val NARRATION_COLLAPSED_MAX_LINES = 1
-private const val NARRATION_MAX_LINES = 3
 
 /** 时间线节点与纯内容两种排布的切换点，正文内容完全一致。 */
 @Composable

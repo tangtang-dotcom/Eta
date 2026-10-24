@@ -862,7 +862,7 @@ internal fun AgentConversationMessages(
                     }
 
                     is AgentTimelineEntry.Turn -> {
-                        entry.sections.flatMap { it.work }.forEach { message ->
+                        entry.procedures.flatMap { it.steps }.forEach { message ->
                             if (message is ThinkingMessageUi && message.isStreaming) {
                                 streamingMarkdownCache.getOrCreate(message.id)
                             }
@@ -876,10 +876,10 @@ internal fun AgentConversationMessages(
                             retainedStreamingState = answerAgent
                                 ?.takeIf { it.isStreaming || streamingMarkdownStates.containsKey(it.id) }
                                 ?.let { streamingMarkdownCache.getOrCreate(it.id) },
-                            workMessages = entry.sections.flatMap { it.work },
+                            workMessages = entry.procedures.flatMap { it.steps },
                             workActive = entry.key == activeWorkProcessKey,
                             workStreamingStates = streamingMarkdownStates,
-                            turnSections = entry.sections,
+                            turnBlocks = entry.blocks,
                             currentBrowserMessageId = currentBrowserMessageId,
                             onOpenBrowser = onOpenBrowser,
                             onSuggestionClick = onSuggestionClick,
@@ -1045,27 +1045,21 @@ internal sealed interface AgentTimelineEntry {
     /**
      * 一整轮问答（一条用户消息到下一次用户消息之间）的所有助手输出。
      *
-     * [sections] 按发生顺序保存交错的段落：一段工作过程（思考/工具）后紧跟它之后的说出的
-     * 正文，形成「子气泡 → 正文 → 子气泡 → 正文」的节奏，而不是把所有过程堆在气泡顶部。
+     * [blocks] 按真实生成时序保存交错的块：过程块（思考/工具）与内容块（正文）交替出现，
+     * 形成「子气泡 → 正文 → 子气泡 → 正文」的节奏，而不是把所有过程堆在气泡顶部。
      */
     data class Turn(
         override val key: String,
-        val sections: List<TurnSection>,
+        val blocks: List<AgentTurnBlock>,
     ) : AgentTimelineEntry {
-        /** 本轮全部回答正文，按顺序拼起来就是完整答复。 */
-        val answers: List<AgentChatMessageUi> get() = sections.flatMap { it.answers }
-    }
+        /** 本轮的过程块，供替换整轮渲染时取用。 */
+        val procedures: List<AgentTurnBlock.Procedure>
+            get() = blocks.filterIsInstance<AgentTurnBlock.Procedure>()
 
-    /**
-     * 一轮里的一段：先是一组工作过程，随后是这组过程之后说出的正文。
-     *
-     * [work] 为空表示这是一段纯正文（例如没有调用工具的直接回答）；
-     * [answers] 为空表示过程之后还没有输出正文，通常正是流式进行中的状态。
-     */
-    data class TurnSection(
-        val work: List<AgentChatMessageUi>,
-        val answers: List<AgentChatMessageUi>,
-    )
+        /** 本轮全部内容块里的消息，按顺序拼起来就是完整答复。 */
+        val answers: List<AgentChatMessageUi>
+            get() = blocks.filterIsInstance<AgentTurnBlock.Content>().map { it.message }
+    }
 }
 
 /**
@@ -1105,49 +1099,7 @@ internal fun List<AgentChatMessageUi>.toTimelineEntries(
         }
     }
     flushWorkProcess()
-}.mergeWorkIntoAnswers().foldNarrationIntoSections()
-
-/**
- * 中间步骤的正文：后面还有工具或思考接着发生，它只是在说明"接下来要做什么"，不是结论。
- *
- * 这类正文收进过程子气泡，问题里的最终回答才是气泡正文。反过来，没被任何过程打断的
- * 正文就是结论——哪怕它只是一句"好的"。
- */
-internal fun AgentChatMessageUi.isProcessNarration(): Boolean =
-    this is AgentMessageUi && content.isNotBlank()
-
-/**
- * 把每轮最后一段正文之外的正文（过程旁白）折进所在的子气泡。
- *
- * 旁白由「后面是否还有正文」判定，纯问答、以思考或工具收尾的回答都不会被误折。
- * 每一段的 work 都在该段正文之前发生，因此把旁白追加到段尾就是正确的时间顺序。
- */
-private fun List<AgentTimelineEntry>.foldNarrationIntoSections(): List<AgentTimelineEntry> =
-    map { entry ->
-        if (entry !is AgentTimelineEntry.Turn) return@map entry
-        val lastAnswerIndex = entry.sections.indexOfLast { section -> section.answers.isNotEmpty() }
-        fun collectNarrations(section: AgentTimelineEntry.TurnSection): List<AgentChatMessageUi> =
-            if (section.answers.isEmpty()) {
-                emptyList()
-            } else {
-                section.answers.filter { it.isProcessNarration() }
-            }
-
-        val narrations = entry.sections.map(::collectNarrations).flatten()
-        if (narrations.isEmpty()) return@map entry
-        entry.copy(
-            sections = entry.sections.mapIndexed { index, section ->
-                if (index == lastAnswerIndex) {
-                    section
-                } else {
-                    section.copy(
-                        work = section.work + collectNarrations(section),
-                        answers = section.answers.filterNot { it.isProcessNarration() },
-                    )
-                }
-            },
-        )
-    }
+}.mergeWorkIntoAnswers()
 
 private fun AgentChatMessageUi.isTurnAnswer(): Boolean = when (this) {
     is AgentMessageUi -> true
@@ -1156,59 +1108,30 @@ private fun AgentChatMessageUi.isTurnAnswer(): Boolean = when (this) {
 }
 
 /**
- * 把一整轮问答的工作过程与正文合成同一个 [AgentTimelineEntry.Turn]。
+ * 把一整轮问答合成同一个 [AgentTimelineEntry.Turn]。
  *
  * 投影层按 round+index 把每次正文都切成独立消息，一轮里「正文→工具→正文」会产出多条
- * [AgentMessageUi]。这里按「两条用户消息之间」重新分组，让它们显示在同一个大气泡里。
+ * [AgentMessageUi]。这里以用户消息为边界重新成组，组内再按 [toTurnBlocks] 切成
+ * 过程块与内容块的交替序列。
  *
- * 正文按位置分成两类，规则与 RikkaHub 的 foldProcessNarration 一致：
- * - **过程旁白**：后面还跟着思考或工具调用的正文，只是模型在解释自己正在干什么。
- *   它们并进所在段的工作过程，和思考、工具调用一起收在子气泡里。
- * - **回答**：本轮最后一次工作过程之后的正文，一个都没有就是还没开始回答。
- *   只有它们留在外层大气泡里，避免把「我先看看」之类的过场话撑满气泡。
- *
- * 段落按发生顺序保留，界面上呈现为「子气泡 → 正文 → 子气泡 → 正文」的交替节奏，
- * 而不是把所有过程堆在气泡顶部。条目 key 仍取首个工作过程（没有工作过程时取首条正文）
- * 的 id，保证流式刷新期间条目身份稳定、历史分页锚点不跳。
- * 上下文压缩标记不属于任何回答，保留为独立条目。
+ * 条目的 key 取首个过程块（没有过程块时取首条内容）的 id，保证流式刷新期间条目身份稳定、
+ * 历史分页锚点不跳。上下文压缩标记不属于任何回答，保留为独立条目。
  */
 private fun List<AgentTimelineEntry>.mergeWorkIntoAnswers(): List<AgentTimelineEntry> = buildList {
-    // 当前这一轮已经切好的段落，按时间顺序累积。
-    val sections = mutableListOf<AgentTimelineEntry.TurnSection>()
-    var sectionWork = mutableListOf<AgentChatMessageUi>()
-    var sectionAnswers = mutableListOf<AgentChatMessageUi>()
-
-    fun flushSection() {
-        if (sectionWork.isEmpty() && sectionAnswers.isEmpty()) return
-        sections += AgentTimelineEntry.TurnSection(
-            work = sectionWork.toList(),
-            answers = sectionAnswers.toList(),
-        )
-        sectionWork = mutableListOf()
-        sectionAnswers = mutableListOf()
-    }
+    val turnMessages = mutableListOf<AgentChatMessageUi>()
 
     fun flushTurn() {
-        flushSection()
-        if (sections.isEmpty()) return
-        // key 取首个工作过程（没有工作过程时取首条正文），流式刷新期间身份保持稳定。
-        val first = sections.first()
-        val key = first.work.firstOrNull()?.let { "work-${it.id}" }
-            ?: first.answers.firstOrNull()?.id
-            ?: return
-        add(AgentTimelineEntry.Turn(key = key, sections = sections.toList()))
-        sections.clear()
+        if (turnMessages.isEmpty()) return
+        val blocks = turnMessages.toTurnBlocks()
+        turnMessages.clear()
+        if (blocks.isEmpty()) return
+        val key = blocks.first().key
+        add(AgentTimelineEntry.Turn(key = key, blocks = blocks))
     }
 
     for (entry in this@mergeWorkIntoAnswers) {
         when (entry) {
-            is AgentTimelineEntry.WorkProcess -> {
-                // 当前段已经说出过正文，说明新一轮过程开始了：先把上一段收口，
-                // 「过程 → 正文 → 过程 → 正文」才能切成两段而不是挤成一段。
-                if (sectionAnswers.isNotEmpty()) flushSection()
-                // 连续的过程之间没有夹正文，仍然并进同一个子气泡。
-                sectionWork += entry.messages
-            }
+            is AgentTimelineEntry.WorkProcess -> turnMessages += entry.messages
             is AgentTimelineEntry.Message -> {
                 val message = entry.message
                 when {
@@ -1217,20 +1140,12 @@ private fun List<AgentTimelineEntry>.mergeWorkIntoAnswers(): List<AgentTimelineE
                         flushTurn()
                         add(entry)
                     }
-                    message.isWorkProcessMessage() -> {
-                        if (sectionAnswers.isNotEmpty()) flushSection()
-                        sectionWork += message
-                    }
                     message is SystemNoticeMessageUi &&
                         message.code == SystemNoticeCode.ContextCompaction -> {
                         flushTurn()
                         add(entry)
                     }
-                    message.isTurnAnswer() -> {
-                        // 正文落进当前段；下一段过程会另起一个子气泡，
-                        // 于是界面上出现「子气泡 → 正文 → 子气泡 → 正文」的交替。
-                        sectionAnswers += message
-                    }
+                    message.isTurnAnswer() -> turnMessages += message
                     else -> {
                         flushTurn()
                         add(entry)
@@ -1238,9 +1153,10 @@ private fun List<AgentTimelineEntry>.mergeWorkIntoAnswers(): List<AgentTimelineE
                 }
             }
             is AgentTimelineEntry.Turn -> {
-                // 理论上不会出现（Turn 由本函数产生），保守地原样保留。
+                // 理论上不会出现（Turn 由本函数产生），保守地把成员摊回当前轮。
+                turnMessages += entry.answers
+                turnMessages += entry.procedures.flatMap { it.steps }
                 flushTurn()
-                add(entry)
             }
         }
     }

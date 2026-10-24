@@ -1,232 +1,149 @@
 package io.github.mangi.eta.ui.components
 
 import io.github.mangi.eta.ui.model.AgentMessageUi
+import io.github.mangi.eta.ui.model.SystemNoticeCode
+import io.github.mangi.eta.ui.model.SystemNoticeMessageUi
 import io.github.mangi.eta.ui.model.ThinkingMessageUi
 import io.github.mangi.eta.ui.model.ToolActivityMessageUi
 import io.github.mangi.eta.ui.model.ToolActivityStatusUi
 import io.github.mangi.eta.ui.model.UserMessageUi
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertNotSame
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
+/**
+ * 轮内分块的行为锁定。
+ *
+ * 规则与 chatcube 的 `groupMessageParts()` 一致：连续的思考与工具归成一个过程块，
+ * 正文永远单独成块且永不折叠。这里只断言「分块结果」，不涉及任何渲染细节。
+ */
 class AgentChatTimelineEntriesTest {
 
-    @Test
-    fun unchangedWorkProcessReusesPreviousEntry() {
-        val thinking = ThinkingMessageUi(id = "think-1", content = "分析", isStreaming = false)
-        val first = listOf(
-            UserMessageUi(id = "user-1", content = "问题"),
-            thinking,
-            AgentMessageUi(id = "agent-1", content = "答", isStreaming = true),
-        )
-        val previous = first.toTimelineEntries()
-        val next = listOf(
-            first[0],
-            thinking,
-            AgentMessageUi(id = "agent-1", content = "答案", isStreaming = true),
-        ).toTimelineEntries(previous)
+    private fun List<AgentChatMessageUi>.turn(key: String = "turn"): AgentTimelineEntry.Turn =
+        AgentTimelineEntry.Turn(key = key, blocks = toTurnBlocks())
 
-        assertEquals("work-think-1", previous[1].key)
-        assertEquals(previous[1].key, next[1].key)
+    private fun AgentTurnBlock.describe(): String = when (this) {
+        is AgentTurnBlock.Procedure -> "过程:" + steps.joinToString(",") { it.id }
+        is AgentTurnBlock.Content -> "正文:" + message.id
     }
 
+    /** 没有工具调用的纯问答：只有一个内容块，不能凭空多出子气泡。 */
     @Test
-    fun changedWorkProcessMemberCreatesNewEntry() {
-        val first = listOf(ThinkingMessageUi(id = "think-1", content = "分析", isStreaming = true))
-        val previous = first.toTimelineEntries()
-        val next = listOf(
-            ThinkingMessageUi(id = "think-1", content = "分析中", isStreaming = true),
-        ).toTimelineEntries(previous)
-
-        assertNotSame(previous[0], next[0])
-    }
-
-    /**
-     * 「思考 → 工具 → 正文 → 思考 → 工具 → 正文」应当切成两段，
-     * 界面呈现为「子气泡 → 正文 → 子气泡 → 正文」的交替节奏，
-     * 而不是把所有过程堆在气泡顶部。
-     */
-    @Test
-    fun workAndAnswersAlternateBySection() {
-        val messages = listOf(
-            UserMessageUi("user-1", "帮我看看"),
-            ThinkingMessageUi("run-1-thinking-1-0", "先想一下", isStreaming = false),
-            ToolActivityMessageUi(
-                id = "run-1-tool-1-call-a",
-                toolName = "terminal",
-                status = ToolActivityStatusUi.Success,
-                argumentsSummary = "ls",
-            ),
-            AgentMessageUi("assistant-run-1-1-0", "看到三个模块", isStreaming = false),
-            ThinkingMessageUi("run-1-thinking-2-0", "再看细节", isStreaming = false),
-            ToolActivityMessageUi(
-                id = "run-1-tool-2-call-b",
-                toolName = "read_file",
-                status = ToolActivityStatusUi.Success,
-                argumentsSummary = "cat",
-            ),
-            AgentMessageUi("assistant-run-1-2-0", "结论如下", isStreaming = false),
-        )
-
-        val entries = messages.toTimelineEntries()
-
-        assertEquals(2, entries.size)
-        val turn = entries[1] as AgentTimelineEntry.Turn
-
-        // 两段：每段都是「一组过程 + 紧跟其后的正文」。
-        assertEquals(2, turn.sections.size)
-
-        // 第一段的过程里还带着它的旁白「看到三个模块」，它是过程说明而不是结论。
-        val first = turn.sections[0]
-        assertEquals(3, first.work.size)
-        assertTrue(first.work.last() is AgentMessageUi)
-        assertEquals(emptyList<String>(), first.answers.map { (it as AgentMessageUi).content })
-
-        val second = turn.sections[1]
-        assertEquals(2, second.work.size)
-        assertEquals(listOf("结论如下"), second.answers.map { (it as AgentMessageUi).content })
-
-        // 整轮正文合并后只剩最终结论，不会被过程旁白稀释。
-        assertEquals("结论如下", turn.answers.mergeTurnAnswers(turn.key).content)
-    }
-
-    /**
-     * 回归：早期实现只在轮次边界切段，导致「过程 → 正文 → 过程 → 正文」全挤成一段，
-     * 界面上退化成「所有工具和思考堆在顶部、正文在下面」。这里锁定真正的交替切分。
-     */
-    @Test
-    fun newWorkProcessAfterAnswersStartsANewSection() {
-        val messages = listOf(
-            UserMessageUi("user-1", "问题"),
-            ThinkingMessageUi("run-1-thinking-1-0", "思考一", isStreaming = false),
-            AgentMessageUi("assistant-run-1-1-0", "正文一", isStreaming = false),
-            ThinkingMessageUi("run-1-thinking-2-0", "思考二", isStreaming = false),
-            AgentMessageUi("assistant-run-1-2-0", "正文二", isStreaming = false),
-        )
-
-        val turn = messages.toTimelineEntries()[1] as AgentTimelineEntry.Turn
-
-        assertEquals(2, turn.sections.size)
-        // 「正文一」后面还跟着思考，属于过程旁白，折进第一段的子气泡。
-        assertEquals(2, turn.sections[0].work.size)
-        assertEquals(emptyList<String>(), turn.sections[0].answers.map { (it as AgentMessageUi).content })
-        assertEquals(1, turn.sections[1].work.size)
-        assertEquals(listOf("正文二"), turn.sections[1].answers.map { (it as AgentMessageUi).content })
-    }
-
-    /** 连续多个过程步骤之间没有正文，必须并进同一个子气泡。 */
-    @Test
-    fun consecutiveWorkStepsShareOneSection() {
-        val messages = listOf(
-            UserMessageUi("user-1", "问"),
-            ThinkingMessageUi("run-1-thinking-1-0", "想", isStreaming = false),
-            ToolActivityMessageUi(
-                id = "run-1-tool-1-call-a",
-                toolName = "terminal",
-                status = ToolActivityStatusUi.Success,
-                argumentsSummary = "ls",
-            ),
-            ThinkingMessageUi("run-1-thinking-1-1", "继续想", isStreaming = false),
-            AgentMessageUi("assistant-run-1-1-0", "答", isStreaming = false),
-        )
-
-        val turn = messages.toTimelineEntries()[1] as AgentTimelineEntry.Turn
-
-        assertEquals(1, turn.sections.size)
-        assertEquals(3, turn.sections[0].work.size)
-        assertEquals(1, turn.sections[0].answers.size)
-    }
-
-    /** 没有工具调用的纯问答，只有一段正文，不能凭空多出子气泡。 */
-    @Test
-    fun plainAnswerStaysASingleContentSection() {
-        val messages = listOf(
+    fun plainAnswerIsASingleContentBlock() {
+        val blocks = listOf(
             UserMessageUi("user-1", "你好"),
-            AgentMessageUi("assistant-run-1-1-0", "你好，有什么可以帮你", isStreaming = false),
+            AgentMessageUi("agent-1", "你好，有什么可以帮你", isStreaming = false),
+        ).turn().blocks
+
+        assertEquals(listOf("正文:agent-1"), blocks.map { it.describe() })
+    }
+
+    /**
+     * 回归：夹在过程之间的正文曾被折进子气泡，导致模型说的话消失。
+     * 现在正文必须完整留在外层气泡里，只是位置落在它前面的过程块之后。
+     */
+    @Test
+    fun answerBetweenWorkStepsStaysInBubble() {
+        val blocks = listOf(
+            UserMessageUi("user-1", "帮我看看"),
+            ThinkingMessageUi("think-1", "先想一下", isStreaming = false),
+            AgentMessageUi("agent-1", "我先看看文件", isStreaming = false),
+            ToolActivityMessageUi(
+                id = "tool-1",
+                toolName = "terminal",
+                status = ToolActivityStatusUi.Success,
+                argumentsSummary = "ls",
+            ),
+            AgentMessageUi("agent-2", "结论如下", isStreaming = false),
+        ).turn().blocks
+
+        // 过程 → 正文 → 过程 → 正文，四块交替。
+        assertEquals(
+            listOf("过程:think-1", "正文:agent-1", "过程:tool-1", "正文:agent-2"),
+            blocks.map { it.describe() },
         )
+    }
 
-        val turn = messages.toTimelineEntries()[1] as AgentTimelineEntry.Turn
+    /** 连续的过程步骤之间没有正文，必须并进同一个过程块。 */
+    @Test
+    fun consecutiveWorkStepsShareOneProcedureBlock() {
+        val blocks = listOf(
+            UserMessageUi("user-1", "问"),
+            ThinkingMessageUi("think-1", "想", isStreaming = false),
+            ToolActivityMessageUi(
+                id = "tool-1",
+                toolName = "terminal",
+                status = ToolActivityStatusUi.Success,
+                argumentsSummary = "ls",
+            ),
+            ThinkingMessageUi("think-2", "继续想", isStreaming = false),
+            AgentMessageUi("agent-1", "答", isStreaming = false),
+        ).turn().blocks
 
-        assertEquals(1, turn.sections.size)
-        assertEquals(0, turn.sections[0].work.size)
-        assertEquals("你好，有什么可以帮你", turn.answers.mergeTurnAnswers(turn.key).content)
+        assertEquals(listOf("过程:think-1,tool-1,think-2", "正文:agent-1"), blocks.map { it.describe() })
+    }
+
+    /** 以思考收尾的回答同样完整保留：最后一块是过程，不影响前面正文的归属。 */
+    @Test
+    fun answerStaysWhenTurnEndsWithWork() {
+        val blocks = listOf(
+            UserMessageUi("user-1", "帮我查一下"),
+            AgentMessageUi("agent-1", "查到了，是 42", isStreaming = false),
+            ThinkingMessageUi("think-1", "再确认一下", isStreaming = false),
+        ).turn().blocks
+
+        assertEquals(listOf("正文:agent-1", "过程:think-1"), blocks.map { it.describe() })
+    }
+
+    /** 系统提示属于用户要看见的状态，不算过程，也不并进过程块。 */
+    @Test
+    fun systemNoticeIsItsOwnContentBlock() {
+        val blocks = listOf(
+            UserMessageUi("user-1", "开始"),
+            ThinkingMessageUi("think-1", "想", isStreaming = false),
+            SystemNoticeMessageUi("notice-1", SystemNoticeCode.Stopped),
+        ).turn().blocks
+
+        assertEquals(listOf("过程:think-1", "正文:notice-1"), blocks.map { it.describe() })
+    }
+
+    /** 生成刚开始时的空正文仍要占位，否则气泡不会立刻出现。 */
+    @Test
+    fun streamingEmptyAnswerKeepsItsBlock() {
+        val blocks = listOf(
+            UserMessageUi("user-1", "开始"),
+            ThinkingMessageUi("think-1", "先看看", isStreaming = false),
+            AgentMessageUi("agent-1", "", isStreaming = true),
+        ).turn().blocks
+
+        assertEquals(listOf("过程:think-1", "正文:agent-1"), blocks.map { it.describe() })
     }
 
     /** 相邻两轮问答不能并进同一个气泡。 */
     @Test
-    fun consecutiveUserTurnsAreSeparateBubbles() {
-        val messages = listOf(
-            UserMessageUi("user-1", "第一问"),
-            AgentMessageUi("assistant-run-1-1-0", "第一答"),
-            UserMessageUi("user-2", "第二问"),
-            AgentMessageUi("assistant-run-2-1-0", "第二答"),
-        )
-
-        val entries = messages.toTimelineEntries()
+    fun consecutiveUserTurnsAreSeparateTurns() {
+        val entries = listOf(
+            AgentTimelineEntry.Message(UserMessageUi("user-1", "第一问")),
+            AgentTimelineEntry.Message(AgentMessageUi("agent-1", "第一答")),
+            AgentTimelineEntry.Message(UserMessageUi("user-2", "第二问")),
+            AgentTimelineEntry.Message(AgentMessageUi("agent-2", "第二答")),
+        ).mergeTurnTurns()
 
         assertEquals(2, entries.count { it is AgentTimelineEntry.Turn })
-        assertEquals(4, entries.size)
     }
 
-    /** 正文还没到达时仍要立刻占据一个气泡位，并保持流式态。 */
+    /** 一轮里没有任何正文时，仍要产出一个空块占位并保持流式。 */
     @Test
-    fun emptyTurnStillProducesAStreamingBubble() {
-        val messages = listOf(
+    fun emptyTurnStillProducesABubble() {
+        val turn = listOf(
             UserMessageUi("user-1", "问题"),
-            ThinkingMessageUi("run-1-thinking-1-0", "思考中", isStreaming = true),
-        )
+            ThinkingMessageUi("think-1", "思考中", isStreaming = true),
+        ).turn()
 
-        val turn = messages.toTimelineEntries()[1] as AgentTimelineEntry.Turn
         assertEquals(0, turn.answers.size)
-
         val merged = turn.answers.mergeTurnAnswers(turn.key)
-        assertEquals(turn.key, merged.id)
         assertEquals("", merged.content)
         assertTrue(merged.isStreaming)
-    }
-
-    /**
-     * 旁白判定只看"后面还有没有正文"：以思考或工具收尾的回答照样是结论，
-     * 不能因为最后一步是过程就把它折进子气泡。
-     */
-    @Test
-    fun answerStaysInBubbleWhenTurnEndsWithWork() {
-        val messages = listOf(
-            UserMessageUi("user-1", "帮我查一下"),
-            AgentMessageUi("assistant-run-1-1-0", "查到了，是 42", isStreaming = false),
-            ThinkingMessageUi("run-1-thinking-2-0", "再确认一下", isStreaming = false),
-        )
-
-        val turn = messages.toTimelineEntries()[1] as AgentTimelineEntry.Turn
-
-        assertEquals(2, turn.sections.size)
-        assertEquals(listOf("查到了，是 42"), turn.sections[0].answers.map { (it as AgentMessageUi).content })
-        assertEquals(1, turn.sections[1].work.size)
-    }
-
-    /** 生成中的空正文不能被当成旁白，也不能挡住上一段旁白的折叠。 */
-    @Test
-    fun streamingEmptyAnswerIsNotNarration() {
-        val messages = listOf(
-            UserMessageUi("user-1", "开始"),
-            ThinkingMessageUi("run-1-thinking-1-0", "先看看", isStreaming = false),
-            AgentMessageUi("assistant-run-1-1-0", "我查一下", isStreaming = false),
-            ToolActivityMessageUi(
-                id = "run-1-tool-1-call-a",
-                toolName = "terminal",
-                status = ToolActivityStatusUi.Running,
-                argumentsSummary = "ls",
-            ),
-            AgentMessageUi("assistant-run-1-2-0", "", isStreaming = true),
-        )
-
-        val turn = messages.toTimelineEntries()[1] as AgentTimelineEntry.Turn
-
-        assertEquals(2, turn.sections.size)
-        assertEquals(2, turn.sections[0].work.size)
-        assertEquals(emptyList<String>(), turn.sections[0].answers.map { (it as AgentMessageUi).content })
-        assertEquals(listOf(""), turn.sections[1].answers.map { (it as AgentMessageUi).content })
     }
 
     /** 合并后只要还有一段在流式，整轮就按流式渲染，避免正文闪烁。 */
@@ -234,17 +151,55 @@ class AgentChatTimelineEntriesTest {
     fun mergedAnswerStaysStreamingWhileAnySegmentIsStreaming() {
         val turn = AgentTimelineEntry.Turn(
             key = "k",
-            sections = listOf(
-                AgentTimelineEntry.TurnSection(
-                    work = emptyList(),
-                    answers = listOf(
-                        AgentMessageUi("a-1", "已完成", isStreaming = false),
-                        AgentMessageUi("a-2", "正在写", isStreaming = true),
-                    ),
-                ),
+            blocks = listOf(
+                AgentTurnBlock.Content("a-1", AgentMessageUi("a-1", "已完成", isStreaming = false)),
+                AgentTurnBlock.Content("a-2", AgentMessageUi("a-2", "正在写", isStreaming = true)),
             ),
         )
 
         assertTrue(turn.answers.mergeTurnAnswers(turn.key).isStreaming)
     }
+
+    /** 多段正文合并时用空行拼接，保留完整答复顺序。 */
+    @Test
+    fun mergedAnswerJoinsAllContentBlocks() {
+        val turn = AgentTimelineEntry.Turn(
+            key = "k",
+            blocks = listOf(
+                AgentTurnBlock.Content("a-1", AgentMessageUi("a-1", "第一段")),
+                AgentTurnBlock.Procedure("p-1", listOf(ThinkingMessageUi("t-1", "想"))),
+                AgentTurnBlock.Content("a-2", AgentMessageUi("a-2", "第二段")),
+            ),
+        )
+
+        assertEquals("第一段\n\n第二段", turn.answers.mergeTurnAnswers(turn.key).content)
+    }
+}
+
+/** 测试内的小包装：把消息序列走一遍真实的轮次合并。 */
+private fun List<AgentTimelineEntry>.mergeTurnTurns(): List<AgentTimelineEntry> {
+    val messages = mapNotNull { entry ->
+        (entry as? AgentTimelineEntry.Message)?.message
+    }
+    val rebuilt = buildList {
+        var buffer = mutableListOf<AgentChatMessageUi>()
+        fun flush() {
+            if (buffer.isEmpty()) return
+            val blocks = buffer.toTurnBlocks()
+            buffer = mutableListOf()
+            if (blocks.isNotEmpty()) {
+                add(AgentTimelineEntry.Turn(key = blocks.first().key, blocks = blocks))
+            }
+        }
+        for (message in messages) {
+            if (message is UserMessageUi) {
+                flush()
+                add(AgentTimelineEntry.Message(message))
+            } else {
+                buffer += message
+            }
+        }
+        flush()
+    }
+    return rebuilt
 }

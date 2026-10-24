@@ -74,6 +74,7 @@ import io.github.mangi.eta.ui.model.ToolSummaryMessageUi
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.theme.MiuixTheme
+import kotlin.math.min
 
 /**
  * 把连续的思考与工具调用收束为一条可展开的工作过程：折叠时只是一行摘要，展开后是
@@ -112,7 +113,6 @@ internal fun AgentWorkProcess(
 
     // 竖条颜色在组合期取一次：drawBehind 的 lambda 不是 @Composable 上下文，
     // 不能在绘制阶段读主题色。
-    val barColor = MiuixTheme.colorScheme.primary.copy(alpha = 0.45f)
 
     // 收起态只展示尾部若干步，其余收进标题行；流式进行中至少留一步，
     // 否则模型跑工具时界面上看不到任何进展，容易误以为卡死。
@@ -170,30 +170,13 @@ internal fun AgentWorkProcess(
                 ),
             ),
         ) {
-            // 展开后的步骤挂在一条主题色竖线上，与 Markdown 引用块同一套视觉语言：
-            // 不再用灰色圆角内层卡片，避免「气泡套气泡」把气泡撑厚。
+            // 竖条与底色改由每一步自己画：
+            // 整组一条竖线会被拉到全部步骤的总高，看起来像一根柱子；
+            // 探索过程本来就是一行一条的短记录，每步各带底色更接近“引用一句话”。
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(bottom = 6.dp)
-                    .then(
-                        if (embedded) {
-                            Modifier
-                                .drawBehind {
-                                    val barWidth = WorkQuoteBarWidth.toPx()
-                                    drawLine(
-                                        color = barColor,
-                                        start = Offset(barWidth / 2f, 2.dp.toPx()),
-                                        end = Offset(barWidth / 2f, size.height - 2.dp.toPx()),
-                                        strokeWidth = barWidth,
-                                        cap = StrokeCap.Round,
-                                    )
-                                }
-                                .padding(start = WorkQuoteBarInset)
-                        } else {
-                            Modifier
-                        },
-                    ),
+                    .padding(bottom = 6.dp),
             ) {
                 visibleSteps.forEachIndexed { index, step ->
                     key(step.key) {
@@ -389,21 +372,36 @@ private fun WorkStep(
     content: @Composable () -> Unit,
 ) {
     if (quoted) {
-        // 嵌进回答气泡时不再画卡片，但状态徽章必须保留：
-        // 长过程里靠它分辨哪一步在跑、哪一步失败，否则只剩一堆同色文字。
+        val barColor = MiuixTheme.colorScheme.primary.copy(alpha = 0.75f)
+        val stepBackground = MiuixTheme.colorScheme.primary.copy(alpha = 0.07f)
+        // 每一步各自是一小块“引用条”：浅紫底 + 左侧竖条 + 状态徽章。
+        // 竖条高度只跟随内容，最多两行文字高，不再是贯穿整组的长柱子。
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(vertical = 3.dp),
-            verticalAlignment = Alignment.Top,
+                .padding(vertical = 2.dp)
+                .background(stepBackground, RoundedCornerShape(8.dp))
+                .drawBehind {
+                    val barWidth = WorkQuoteBarWidth.toPx()
+                    val barHeight = min(size.height - 8.dp.toPx(), WorkQuoteBarMaxHeight.toPx())
+                    val top = (size.height - barHeight) / 2f
+                    drawLine(
+                        color = barColor,
+                        start = Offset(barWidth / 2f, top),
+                        end = Offset(barWidth / 2f, top + barHeight),
+                        strokeWidth = barWidth,
+                        cap = StrokeCap.Round,
+                    )
+                }
+                .padding(start = 9.dp, end = 8.dp, top = 4.dp, bottom = 4.dp),
+            verticalAlignment = Alignment.CenterVertically,
         ) {
-            Box(
-                modifier = Modifier.padding(top = 1.dp),
-                contentAlignment = Alignment.Center,
-            ) {
+            // 徽章居中对齐：单行时徽章与文字中线对齐。
+            // 两行时也不会像顶部对齐那样悬在行首上方。
+            Box(contentAlignment = Alignment.Center) {
                 WorkNodeBadge(icon = icon, tone = tone)
             }
-            Spacer(modifier = Modifier.width(8.dp))
+            Spacer(modifier = Modifier.width(7.dp))
             Box(modifier = Modifier.weight(1f)) {
                 content()
             }
@@ -416,8 +414,8 @@ private fun WorkStep(
 /** 过程块左侧竖条宽度，与 Markdown 引用块的 3dp 保持一致。 */
 private val WorkQuoteBarWidth = 3.dp
 
-/** 竖条到步骤内容之间留出的间距。 */
-private val WorkQuoteBarInset = 11.dp
+/** 竖条最大高度：约两行正文，避免内容很长时变成一根长柱子。 */
+private val WorkQuoteBarMaxHeight = 34.dp
 
 
 internal enum class WorkNodeTone { Running, Done, Failed }

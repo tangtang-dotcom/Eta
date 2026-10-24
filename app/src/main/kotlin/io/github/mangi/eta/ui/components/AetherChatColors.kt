@@ -9,6 +9,7 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.lerp
 import io.github.mangi.eta.ui.app.LocalAppearanceSettings
 import io.github.mangi.eta.ui.app.LocalIsDarkTheme
 import top.yukonga.miuix.kmp.theme.MiuixTheme
@@ -130,23 +131,30 @@ internal object AetherChatColors {
     }
 
     /**
-     * 模型气泡底色：在页面底色里掺一层用户气泡的紫，
-     * 两个气泡同属一个色相，同时保持明显的明度层级：
-     * 模型气泡一直比用户气泡浅得多，不会抢走“我说的话”的强调。
+     * 模型气泡底色：以深色页面渐变（#1B1D22 → #151619 → #1C1F23）中最亮的一档为基调，
+     * 整体提亮一档、再掺入极少量用户气泡的紫，让两个气泡色相呼应而不抢眼。
+     * 结果 #24262D，与更早那版中性灰 #262629 处于同一明度层级，只是偏冷偏紫一点点。
      */
     @Composable
     fun assistantBubble(): Color = when {
         // 莫奈下 surface 常与 background 同色，沿用带色调的容器色。
         monet -> MiuixTheme.colorScheme.surfaceContainer
-        // 0.45 的掺比对应 #221D2F：与旧版中性灰 #262629 亮度相当，
-        // 只把灰换成紫，不改层级感。再低就与页面底分不开了。
-        dark -> deepPurpleTint(Color(0xFF151619), 0.45f)
+        dark -> deepPurpleTint(Color(0xFF1C1F23), 0.10f)
         else -> Color.White
     }
 
-    /** 把一个近黑色向用户气泡的紫推过去。 */
-    private fun deepPurpleTint(base: Color, amount: Float): Color =
-        androidx.compose.ui.graphics.lerp(base, Color(0xFF32264A), amount)
+    /**
+     * 把页面底色向用户气泡的紫轻轻推一点。
+     * 掺比很小：气泡要“落在主背景的基调上”，紫色只作呼应，不能盖过背景的中性冷灰。
+     */
+    private fun deepPurpleTint(base: Color, amount: Float): Color {
+        val lifted = lerp(
+            base,
+            Color(0xFF2A2C33),
+            0.45f,
+        )
+        return lerp(lifted, Color(0xFF32264A), amount)
+    }
 
     /** 用户气泡文字：对应 Aether 的 onPrimaryContainer（dark #F0E9FF / light #4D2F8E）。 */
     @Composable

@@ -358,6 +358,20 @@ private fun AgentChatScaffold(
     // blur 可用性（开关 + 运行时 shader 支持）；消息区模糊仍要求有消息。
     val blurSupported = LocalBlurEnabled.current && isRuntimeShaderSupported()
     val frostEnabled = hasMessages && blurSupported
+
+    // 键盘弹出/收起的 ~300ms 里整个聊天页的布局逐帧变化。层采样（layerBackdrop）会因此逐帧重录整屏，
+    // 再叠上输入卡片与顶栏的实时模糊就会吊帧。动画期间先停止录制并退回实底，
+    // 结束后自动接回玻璃。这里提到 scaffold 层，才能同时管到录制层与它的两个采样方。
+    val scaffoldDensity = LocalDensity.current
+    val scaffoldImeVisible = WindowInsets.ime.getBottom(scaffoldDensity) > 0
+    var imeAnimating by remember { mutableStateOf(false) }
+    LaunchedEffect(Unit) {
+        snapshotFlow { scaffoldImeVisible }.drop(1).collect {
+            imeAnimating = true
+            delay(320)
+            imeAnimating = false
+        }
+    }
     // 录制舞台背景所需的颜色（在组合上下文提前取值，onDraw 是非组合 lambda 不能读 CompositionLocal）。
     val isDark = LocalIsDarkTheme.current
     val backgroundGradientTop = AetherChatColors.backgroundGradientTop()
@@ -413,7 +427,7 @@ private fun AgentChatScaffold(
             modifier = Modifier
                 .fillMaxSize()
                 .then(stageBackground)
-                .then(if (blurSupported) Modifier.layerBackdrop(pageBackdrop) else Modifier),
+                .then(if (blurSupported && !imeAnimating) Modifier.layerBackdrop(pageBackdrop) else Modifier),
         ) {
             if (hasMessages) {
                 AgentConversationMessages(
@@ -1274,16 +1288,8 @@ private fun AgentChatBottomBar(
         // Aether 底栏：完全透明，只有悬浮的输入卡片；键盘弹出时输入器贴近键盘（12dp），
         // 收起时回到 18dp 悬浮高度。消息会从卡片后方滑过，配合卡片阴影呈现浮层感。
         val barImeVisible = WindowInsets.ime.getBottom(barDensity) > 0
-        // 键盘弹出/收起那 300ms 里布局每帧都在变，backdrop 需要逐帧重录，
-        // 再叠加实时模糊就会明显掉帧；动画结束后再把玻璃效果接回来。
-        var imeAnimating by remember { mutableStateOf(false) }
-        LaunchedEffect(Unit) {
-            snapshotFlow { barImeVisible }.drop(1).collect {
-                imeAnimating = true
-                delay(320)
-                imeAnimating = false
-            }
-        }
+        // 键盘动画期间的录制与退回实底由 AgentChatScaffold 统一管理：
+        // 那里会直接不再传 backdrop，本层的 composeFrost 因此自动为 false。
         val bottomLiftDp by animateFloatAsState(
             targetValue = if (barImeVisible) 12f else 18f,
             animationSpec = tween(260, easing = ComposerMotionEasing),
@@ -1323,8 +1329,9 @@ private fun AgentChatBottomBar(
                 onAttachFilePath = onAttachFilePath,
                 onRemoveFileReference = onRemoveFileReference,
                 onCancelMessageEdit = onCancelMessageEdit,
-                frosted = composeFrost && !imeAnimating,
-                backdrop = backdrop,
+                frosted = composeFrost,
+                // 动画期间 backdrop 不再重录，也就不能继续采样，一并退回实底。
+                backdrop = backdrop.takeUnless { imeAnimating },
                 modifier = Modifier.fillMaxWidth(),
             )
         }

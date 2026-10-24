@@ -50,6 +50,7 @@ import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -78,6 +79,7 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import io.github.mangi.eta.R
@@ -355,7 +357,10 @@ private fun AgentChatScaffold(
     // blur 可用性（开关 + 运行时 shader 支持）；消息区模糊仍要求有消息。
     val blurSupported = LocalBlurEnabled.current && isRuntimeShaderSupported()
     val frostEnabled = hasMessages && blurSupported
-    val messageBackdrop = rememberLayerBackdrop {
+    // 页面级采样层：录制「真实舞台背景 + 消息区」，覆盖全屏（含输入栏坐标）。
+    // 输入栏是录制层的兄弟节点、不参与录制，因此无采样自引用；
+    // 输入卡片/加号采样它时颜色公式与顶栏按钮相同（surfaceContainer@0.4f over 真实背景）。
+    val pageBackdrop = rememberLayerBackdrop {
         // Backdrop 必须包含不透明底色，否则文字边缘模糊到透明区域时会出现黑边。
         drawRect(surfaceColor)
         drawContent()
@@ -377,22 +382,66 @@ private fun AgentChatScaffold(
     } else {
         Modifier.background(MiuixTheme.colorScheme.surface)
     }
-    Scaffold(
-        modifier = modifier
-            .fillMaxSize()
-            .then(stageBackground),
-        containerColor = Color.Transparent,
-        contentWindowInsets = WindowInsets(
-            left = 0.dp,
-            top = 0.dp,
-            right = 0.dp,
-            bottom = 0.dp,
-        ),
-        bottomBar = {
+    // 输入栏高度（含底部安全区），用于给消息区留出底部空间（替代原 Scaffold bottomBar 占位）。
+    var composerHeightPx by remember { mutableFloatStateOf(0f) }
+    val composerBottomInset = with(LocalDensity.current) { composerHeightPx.toDp() }
+    Box(modifier = modifier.fillMaxSize()) {
+        // 录制层：真实背景 + 消息区（不含输入栏），覆盖全屏供输入卡片采样。
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .then(stageBackground)
+                .then(if (blurSupported) Modifier.layerBackdrop(pageBackdrop) else Modifier),
+        ) {
+            if (!hasMessages) {
+                EmptyChatState(
+                    showSuggestions = showEmptySuggestions,
+                    onSuggestionClick = onSuggestionClick,
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(bottom = composerBottomInset),
+                )
+            } else {
+                AgentConversationMessages(
+                    visibleMessages = visibleMessages,
+                    scrollState = scrollState,
+                    isStreaming = isStreaming,
+                    bottomInset = composerBottomInset,
+                    keepBottomAnchored = keepBottomAnchored,
+                    onBottomAnchorChanged = onBottomAnchorChanged,
+                    onSuggestionClick = onSuggestionClick,
+                    onRunTraceClick = onRunTraceClick,
+                    onOpenBrowser = onOpenBrowser,
+                    onEditMessage = onEditMessage,
+                    onDeleteMessage = onDeleteMessage,
+                    onRegenerateMessage = onRegenerateMessage,
+                    onSelectReplyCandidate = onSelectReplyCandidate,
+                    messageActionsEnabled = !isStreaming && messageEdit == null,
+                    assistantModel = modelPickerState.selectedModel,
+                    editTargetMessageId = messageEdit?.targetMessageId,
+                    currentBrowserMessageId = currentBrowserMessageId,
+                    hasEarlierMessages = hasEarlierMessages,
+                    messageStartIndex = messageStartIndex,
+                    historyLoadState = historyLoadState,
+                    onLoadEarlierMessages = onLoadEarlierMessages,
+                    onHistoryViewportChanged = onHistoryViewportChanged,
+                    topInset = LocalChatTopOverlayInset.current,
+                    frosted = frostEnabled,
+                    modifier = Modifier.fillMaxSize(),
+                )
+            }
+        }
+        // 输入栏：录制层外的兄弟节点，采样 pageBackdrop 无自引用。
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .align(Alignment.BottomCenter)
+                .onSizeChanged { composerHeightPx = it.height },
+        ) {
             AgentChatBottomBar(
-                // 输入卡片使用独立采样层（composerBackdrop），不依赖消息区 backdrop，
+                // 输入卡片采样页面级 backdrop：真实背景 + 消息区，覆盖全屏，
                 // 空聊天、有消息时颜色都与顶栏按钮一致；消息区模糊仍由 frosted=frostEnabled 控制。
-                blurSupported = blurSupported,
+                backdrop = pageBackdrop.takeIf { blurSupported },
                 input = input,
                 isCompacting = isCompacting,
                 contextUsage = contextUsage,
@@ -418,49 +467,7 @@ private fun AgentChatScaffold(
                 onAttachFilePath = onAttachFilePath,
                 onRemoveFileReference = onRemoveFileReference,
                 onCancelMessageEdit = onCancelMessageEdit,
-            )
-        },
-    ) { innerPadding ->
-        val bottomPadding = innerPadding.calculateBottomPadding()
-        if (!hasMessages) {
-            EmptyChatState(
-                showSuggestions = showEmptySuggestions,
-                onSuggestionClick = onSuggestionClick,
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(bottom = bottomPadding),
-            )
-        } else {
-            AgentConversationMessages(
-                visibleMessages = visibleMessages,
-                scrollState = scrollState,
-                isStreaming = isStreaming,
-                bottomInset = bottomPadding,
-                keepBottomAnchored = keepBottomAnchored,
-                onBottomAnchorChanged = onBottomAnchorChanged,
-                onSuggestionClick = onSuggestionClick,
-                onRunTraceClick = onRunTraceClick,
-                onOpenBrowser = onOpenBrowser,
-                onEditMessage = onEditMessage,
-                onDeleteMessage = onDeleteMessage,
-                onRegenerateMessage = onRegenerateMessage,
-                onSelectReplyCandidate = onSelectReplyCandidate,
-                messageActionsEnabled = !isStreaming && messageEdit == null,
-                assistantModel = modelPickerState.selectedModel,
-                editTargetMessageId = messageEdit?.targetMessageId,
-                currentBrowserMessageId = currentBrowserMessageId,
-                hasEarlierMessages = hasEarlierMessages,
-                messageStartIndex = messageStartIndex,
-                historyLoadState = historyLoadState,
-                onLoadEarlierMessages = onLoadEarlierMessages,
-                onHistoryViewportChanged = onHistoryViewportChanged,
-                topInset = LocalChatTopOverlayInset.current,
-                frosted = frostEnabled,
-                modifier = Modifier
-                    .fillMaxSize()
-                    // backdrop 只要 blur 可用就挂载：空聊天时录制纯表面色，
-                    // 保证输入卡片的液态玻璃始终有内容可采样。
-                    .then(if (blurSupported) Modifier.layerBackdrop(messageBackdrop) else Modifier),
+
             )
         }
     }
@@ -1146,7 +1153,7 @@ internal fun resolveFinalResultMessageIds(
 
 @Composable
 private fun AgentChatBottomBar(
-    blurSupported: Boolean,
+    backdrop: LayerBackdrop?,
     input: String,
     isCompacting: Boolean,
     contextUsage: AgentContextUsageUi,
@@ -1174,14 +1181,6 @@ private fun AgentChatBottomBar(
     onCancelMessageEdit: () -> Unit,
 ) {
     val barDensity = LocalDensity.current
-    // 输入卡片/加号的专属采样层：只画舞台表面色打底，覆盖整条输入栏区域。
-    // 不使用 messageBackdrop —— 它只录制 Scaffold content（消息区）到输入栏上沿，
-    // 输入卡片在其下方采样会越界采到黑，导致卡片颜色比顶栏按钮深很多。
-    // 采样层不含输入卡片自身，避免采样自引用。
-    val composerSurface = MiuixTheme.colorScheme.surface
-    val composerBackdrop = rememberLayerBackdrop {
-        drawRect(composerSurface)
-    }
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -1190,7 +1189,7 @@ private fun AgentChatBottomBar(
         // 深浅色都给输入卡片做液态玻璃（提饱和 + 轻模糊 + 折射 + 高光），
         // 统一按「输入框磨砂」开关走；深色容器色与混色透明度由 AetherChatColors 适配。
         val composeFrost = LocalAppearanceSettings.current.chatComposerFrost &&
-            blurSupported
+            backdrop != null
         // Aether 底栏：完全透明，只有悬浮的输入卡片；键盘弹出时输入器贴近键盘（12dp），
         // 收起时回到 18dp 悬浮高度。消息会从卡片后方滑过，配合卡片阴影呈现浮层感。
         val barImeVisible = WindowInsets.ime.getBottom(barDensity) > 0
@@ -1215,18 +1214,7 @@ private fun AgentChatBottomBar(
                 .navigationBarsPadding()
                 .padding(bottom = bottomLiftDp.dp),
         ) {
-            Box(
-                modifier = Modifier.fillMaxWidth(),
-            ) {
-                if (blurSupported) {
-                    // 采样层：与输入栏同尺寸、只录表面色，兄弟节点不参与录制。
-                    Box(
-                        modifier = Modifier
-                            .matchParentSize()
-                            .layerBackdrop(composerBackdrop),
-                    )
-                }
-                AgentChatInputBar(
+            AgentChatInputBar(
                 input = input,
                 isCompacting = isCompacting,
                 contextUsage = contextUsage,
@@ -1255,10 +1243,9 @@ private fun AgentChatBottomBar(
                 onRemoveFileReference = onRemoveFileReference,
                 onCancelMessageEdit = onCancelMessageEdit,
                 frosted = composeFrost && !imeAnimating,
-                backdrop = if (blurSupported) composerBackdrop else null,
+                backdrop = backdrop,
                 modifier = Modifier.fillMaxWidth(),
             )
-            }
         }
     }
 }

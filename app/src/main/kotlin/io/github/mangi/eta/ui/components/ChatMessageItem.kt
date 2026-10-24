@@ -819,7 +819,9 @@ private fun AgentMessageBlock(
                         )
                     }
                     // 该段正文已作为旁白折进子气泡时不再渲染空正文，否则会多出一个光标。
-                    val visibleAnswers = section.answers.filterNot { it.content.isBlank() }
+                    val visibleAnswers = section.answers.filterNot { answer ->
+                        answer is AgentMessageUi && answer.content.isBlank()
+                    }
                     visibleAnswers.forEach { answer ->
                         val answerAgent = answer as? AgentMessageUi
                         AgentAnswerText(

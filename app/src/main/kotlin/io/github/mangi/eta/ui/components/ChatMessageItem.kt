@@ -1013,20 +1013,9 @@ private fun AssistantWorkBubble(
     retainedStreamingStates: Map<String, StreamingMarkdownState>,
     modifier: Modifier = Modifier,
 ) {
-    // 整组工作过程共用一个灰色圆角框：收起时是一行摘要，展开后是步骤列表，外框不变。
-    // 深色下比气泡再亮一档，保证外框、工作过程框和页面底三者互相分得开。
-    val darkWork = LocalIsDarkTheme.current
-    val cardFill = if (darkWork) {
-        lerp(MiuixTheme.colorScheme.background, MiuixTheme.colorScheme.onBackground, 0.16f)
-    } else {
-        lerp(MiuixTheme.colorScheme.surface, MiuixTheme.colorScheme.onSurface, 0.06f)
-    }
-    Column(
-        modifier = modifier
-            .fillMaxWidth()
-            .squircleSurface(color = cardFill, cornerRadius = 14.dp)
-            .padding(horizontal = 10.dp, vertical = 5.dp),
-    ) {
+    // 不再给过程单独套灰色圆角卡片：展开时由 AgentWorkProcess 自己画一条主题色竖线，
+    // 与 Markdown 引用块同一套视觉语言，气泡里只剩一层文字，不会被内层卡片压厚。
+    Column(modifier = modifier.fillMaxWidth()) {
         AgentWorkProcess(
             id = messages.first().id,
             messages = messages,

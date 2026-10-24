@@ -502,6 +502,8 @@
     <item quantity="one">%d failed</item>
     <item quantity="other">%d failed</item>
   </plurals>
+  <string name="work_show_more_steps">Show %1$d more steps</string>
+  <string name="work_hide_steps">Show less</string>
   <string name="work_collapse">Collapse work details</string>
   <string name="work_expand">Expand work details</string>
   <string name="markdown_code_block">Code</string>

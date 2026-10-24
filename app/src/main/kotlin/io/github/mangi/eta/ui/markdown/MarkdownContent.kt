@@ -246,25 +246,27 @@ private fun CopyButton(text: String, tint: Color) {
 
 @Composable
 private fun MarkdownQuoteBlock(block: MarkdownQuote, scope: MarkdownRenderScope) {
-    val barColor = scope.style.dividerColor
-    val mutedScope = remember(scope) { scope.muted() }
+    // 与 chatcube 的 ChatMarkdownHybridRenderer 对齐：浅底色 + 圆角 + 主题色竖条，
+    // 引用里的文字保持原亮度，靠底色和竖条区分层级，而不是把字调灰。
+    val barColor = scope.style.quoteBarColor
     MarkdownBlockColumn(
         blocks = block.blocks,
-        scope = mutedScope,
+        scope = scope,
         compact = false,
         modifier = Modifier
             .fillMaxWidth()
+            .squircleSurface(color = scope.style.quoteBackground, cornerRadius = 10.dp)
             .drawBehind {
                 val width = 3.dp.toPx()
                 drawLine(
                     color = barColor,
-                    start = Offset(width / 2, width / 2),
-                    end = Offset(width / 2, size.height - width / 2),
+                    start = Offset(width / 2, 8.dp.toPx()),
+                    end = Offset(width / 2, size.height - 8.dp.toPx()),
                     strokeWidth = width,
                     cap = StrokeCap.Round,
                 )
             }
-            .padding(start = 14.dp),
+            .padding(start = 12.dp, end = 10.dp, top = 6.dp, bottom = 6.dp),
     )
 }
 

@@ -486,6 +486,8 @@
   <plurals name="work_summary_failed">
     <item quantity="other">%d 个失败</item>
   </plurals>
+  <string name="work_show_more_steps">显示更多 %1$d 步</string>
+  <string name="work_hide_steps">收起</string>
   <string name="work_collapse">收起工作过程</string>
   <string name="work_expand">展开工作过程</string>
   <string name="markdown_code_block">代码</string>

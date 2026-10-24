@@ -54,6 +54,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.pluralStringResource
@@ -165,7 +166,31 @@ internal fun AgentWorkProcess(
                 ),
             ),
         ) {
-            Column(modifier = Modifier.padding(bottom = 6.dp)) {
+            // 展开后的步骤挂在一条主题色竖线上，与 Markdown 引用块同一套视觉语言：
+            // 不再用灰色圆角内层卡片，避免「气泡套气泡」把气泡撑厚。
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 6.dp)
+                    .then(
+                        if (embedded) {
+                            Modifier
+                                .drawBehind {
+                                    val barWidth = WorkQuoteBarWidth.toPx()
+                                    drawLine(
+                                        color = quoteBarColor(),
+                                        start = Offset(barWidth / 2f, 2.dp.toPx()),
+                                        end = Offset(barWidth / 2f, size.height - 2.dp.toPx()),
+                                        strokeWidth = barWidth,
+                                        cap = StrokeCap.Round,
+                                    )
+                                }
+                                .padding(start = WorkQuoteBarInset)
+                        } else {
+                            Modifier
+                        },
+                    ),
+            ) {
                 visibleSteps.forEachIndexed { index, step ->
                     key(step.key) {
                         AgentWorkStepNode(
@@ -206,16 +231,15 @@ private fun AgentWorkHeader(
         working -> stringResource(R.string.work_analyzing)
         else -> workSummaryText(summary)
     }
-    // 收起态还有步骤被折在下面时给出可见提示，否则用户不知道上面还藏着内容。
-    val text = if (!expanded && hiddenStepCount > 0) {
-        val hidden = pluralStringResource(
-            R.plurals.work_completed_steps,
-            hiddenStepCount,
+    // 与 chatcube 的 ChainOfThought 一致：收起态给一行「显示更多 N 步」，
+    // 展开态给「收起」，用户始终知道还能往哪个方向切换。
+    val text = when {
+        hiddenStepCount > 0 && !expanded -> stringResource(
+            R.string.work_show_more_steps,
             hiddenStepCount,
         )
-        "$base · $hidden"
-    } else {
-        base
+        expanded -> stringResource(R.string.work_hide_steps)
+        else -> base
     }
     Row(
         modifier = Modifier
@@ -361,19 +385,39 @@ private fun WorkStep(
     content: @Composable () -> Unit,
 ) {
     if (quoted) {
-        // 嵌进回答气泡时，整组工作过程共用一个灰色圆角框，步骤自身不再画卡片，
-        // 只用一点纵向间距把相邻步骤分开。
-        Box(
+        // 嵌进回答气泡时不再画卡片，但状态徽章必须保留：
+        // 长过程里靠它分辨哪一步在跑、哪一步失败，否则只剩一堆同色文字。
+        Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(vertical = 2.dp),
+                .padding(vertical = 3.dp),
+            verticalAlignment = Alignment.Top,
         ) {
-            content()
+            Box(
+                modifier = Modifier.padding(top = 1.dp),
+                contentAlignment = Alignment.Center,
+            ) {
+                WorkNodeBadge(icon = icon, tone = tone)
+            }
+            Spacer(modifier = Modifier.width(8.dp))
+            Box(modifier = Modifier.weight(1f)) {
+                content()
+            }
         }
     } else {
         WorkTimelineNode(icon = icon, tone = tone, isLast = isLast) { content() }
     }
 }
+
+/** 过程块左侧竖条宽度，与 Markdown 引用块的 3dp 保持一致。 */
+private val WorkQuoteBarWidth = 3.dp
+
+/** 竖条到步骤内容之间留出的间距。 */
+private val WorkQuoteBarInset = 11.dp
+
+/** 竖条颜色：跟随主题色，而不是灰色分隔线，让过程块有引用块那样的存在感。 */
+@Composable
+private fun quoteBarColor(): Color = MiuixTheme.colorScheme.primary.copy(alpha = 0.45f)
 
 internal enum class WorkNodeTone { Running, Done, Failed }
 

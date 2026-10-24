@@ -29,6 +29,10 @@ internal class MarkdownStyle(
     val secondaryColor: Color,
     val markerColor: Color,
     val dividerColor: Color,
+    /** 引用块左侧竖条颜色：跟主题色走，不再用灰色分隔线。 */
+    val quoteBarColor: Color,
+    /** 引用块整体底色：与正文拉开一层，浮出来但不抢戏。 */
+    val quoteBackground: Color,
     val codeBackground: Color,
     val tableHeaderBackground: Color,
     val inline: MarkdownInlineStyle,
@@ -46,6 +50,8 @@ internal class MarkdownStyle(
         secondaryColor = secondaryColor,
         markerColor = markerColor,
         dividerColor = dividerColor,
+        quoteBarColor = quoteBarColor,
+        quoteBackground = quoteBackground,
         codeBackground = codeBackground,
         tableHeaderBackground = tableHeaderBackground,
         inline = inline,
@@ -90,6 +96,9 @@ internal fun rememberMarkdownStyle(tone: MarkdownTone): MarkdownStyle {
             secondaryColor = colors.onSurfaceVariantSummary,
             markerColor = if (answer) colors.onSurface.copy(alpha = 0.55f) else colors.onSurfaceVariantSummary,
             dividerColor = colors.outline.copy(alpha = 0.6f),
+            // 引用块：主题色竖条 + 一层极浅的主题色底，复刻 chatcube 的视觉分量。
+            quoteBarColor = colors.primary.copy(alpha = 0.75f),
+            quoteBackground = colors.primary.copy(alpha = if (answer) 0.06f else 0.04f),
             codeBackground = colors.surfaceContainer,
             tableHeaderBackground = colors.surfaceContainer,
             inline = MarkdownInlineStyle(

@@ -112,7 +112,9 @@ internal fun ToolActivityRow(
     }
     val running = message.status == ToolActivityStatusUi.Running
     val failed = message.status == ToolActivityStatusUi.Failed
-    val title = message.argumentsSummary.ifBlank { toolDisplayName(message.toolName) }
+    // 与 chatcube 的 buildToolStepTitle 一致：标题只放语义化的工具名，
+    // 参数摘要不占第二行，避免十几步时每步都翻倍占高。
+    val title = toolDisplayName(message.toolName)
     val outcome = remember(message.status, message.resultSummary) { message.outcomeLine() }
     val browserLine = browserSnapshot?.let { snapshot ->
         when {
@@ -125,8 +127,13 @@ internal fun ToolActivityRow(
     val subtitle = browserLine ?: outcome
     // 结果只有一行且已作为结论显示时，展开不会带来新信息，不提供展开入口。
     val resultDetail = message.resultSummary?.trim()?.takeIf { it.isNotEmpty() && it != outcome }
+    // 参数摘要挪进展开详情，收起态只留「工具名 + 一行结论」。
+    val argumentsDetail = message.argumentsSummary.trim().takeIf {
+        it.isNotEmpty() && it != title
+    }
     val hasDetail = !message.command.isNullOrBlank() ||
         resultDetail != null ||
+        argumentsDetail != null ||
         showBrowserShortcut
     val elapsedSeconds = rememberRunningSeconds(message.id, running)
 
@@ -196,6 +203,7 @@ internal fun ToolActivityRow(
                 message = message,
                 browserSnapshot = browserSnapshot,
                 showBrowserShortcut = showBrowserShortcut,
+                argumentsDetail = argumentsDetail,
                 onOpenBrowser = onOpenBrowser,
             )
         }
@@ -299,6 +307,8 @@ private fun ToolActivityDetail(
     message: ToolActivityMessageUi,
     browserSnapshot: BrowserSessionSnapshot?,
     showBrowserShortcut: Boolean,
+    // 调用参数：收起态不显示，展开后才和结果一起看。
+    argumentsDetail: String?,
     onOpenBrowser: () -> Unit,
 ) {
     Column(
@@ -309,6 +319,17 @@ private fun ToolActivityDetail(
     ) {
         if (!message.command.isNullOrBlank()) {
             ToolCommandBlock(command = message.command, context = message.argumentsSummary)
+        } else if (argumentsDetail != null) {
+            SelectionContainer {
+                Text(
+                    text = argumentsDetail,
+                    style = MiuixTheme.textStyles.footnote2,
+                    color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                    maxLines = MAX_RESULT_LINES,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
         }
         val result = message.resultSummary?.takeIf(String::isNotBlank)
         if (result != null) {

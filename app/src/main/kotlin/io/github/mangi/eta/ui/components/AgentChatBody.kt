@@ -549,10 +549,8 @@ internal fun AgentConversationMessages(
             is AgentTimelineEntry.WorkProcess -> last.key
             // 正文还没开始时，工作过程处于自动展开态；正文一开始就让位给回答。
             is AgentTimelineEntry.Turn -> last.key.takeIf {
-                // 只有最后一段还没说出正文时才让过程保持展开，正文一开始就让位。
-                last.sections.lastOrNull()?.answers?.all { answer ->
-                    (answer as? AgentMessageUi)?.content?.isBlank() != false
-                } != false
+                // 只有最后一块还是过程、正文尚未开始时才让过程保持展开，正文一开始就让位。
+                last.blocks.lastOrNull() is AgentTurnBlock.Procedure
             }
             else -> null
         }

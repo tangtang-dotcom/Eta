@@ -36,18 +36,23 @@ internal fun List<AgentChatMessageUi>.toWorkSteps(): List<AgentWorkStep> = build
         when (run.size) {
             0 -> Unit
             1 -> add(AgentWorkStep.Single(run.single()))
-            else -> add(AgentWorkStep.ToolGroup(toolName = run.first().toolName, calls = run.toList()))
+            else -> add(
+                AgentWorkStep.ToolGroup(
+                    toolName = groupDisplayToolName(run.first().toolName),
+                    calls = run.toList(),
+                ),
+            )
         }
         run.clear()
     }
 
     this@toWorkSteps.forEach { message ->
-        val groupable = message is ToolActivityMessageUi && message.toolName !in UNGROUPED_TOOLS
-        if (groupable && run.isNotEmpty() && run.first().toolName != (message as ToolActivityMessageUi).toolName) {
+        val family = (message as? ToolActivityMessageUi)?.let { toolFamily(it.toolName) }
+        if (family != null && run.isNotEmpty() && toolFamily(run.first().toolName) != family) {
             flushRun()
         }
-        if (groupable) {
-            run += message as ToolActivityMessageUi
+        if (family != null) {
+            run += message
         } else {
             flushRun()
             add(AgentWorkStep.Single(message))
@@ -56,7 +61,22 @@ internal fun List<AgentChatMessageUi>.toWorkSteps(): List<AgentWorkStep> = build
     flushRun()
 }
 
-private val UNGROUPED_TOOLS = setOf("browser_use")
+/**
+ * 分组用的“工具族”：同步终端、后台任务和常驻服务其实是同一件事的不同入口，
+ * 连续出现时合并成一个节点，标题统一显示终端。返回 null 表示不参与合并。
+ */
+private fun toolFamily(toolName: String): String? = when (toolName) {
+    in TERMINAL_TOOLS -> TERMINAL_FAMILY
+    "browser_use" -> null
+    else -> toolName
+}
+
+private const val TERMINAL_FAMILY = "terminal"
+
+private val TERMINAL_TOOLS = setOf("terminal", "terminal_job", "terminal_daemon")
+
+/** 分组标题用的工具名：终端族统一显示为终端。 */
+internal fun groupDisplayToolName(toolName: String): String = toolFamily(toolName) ?: toolName
 
 /** 折叠后的工作过程摘要所需计数。 */
 internal data class AgentWorkSummary(

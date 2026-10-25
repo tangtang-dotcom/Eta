@@ -74,6 +74,7 @@ import io.github.mangi.eta.ui.model.ToolSummaryMessageUi
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.theme.MiuixTheme
+import kotlin.math.max
 import kotlin.math.min
 
 /**
@@ -372,23 +373,27 @@ private fun WorkStep(
     content: @Composable () -> Unit,
 ) {
     if (quoted) {
-        val barColor = MiuixTheme.colorScheme.primary.copy(alpha = 0.75f)
-        val stepBackground = MiuixTheme.colorScheme.primary.copy(alpha = 0.07f)
-        // 每一步各自是一小块“引用条”：浅紫底 + 左侧竖条 + 状态徽章。
-        // 竖条高度只跟随内容，最多两行文字高，不再是贯穿整组的长柱子。
+        // 竖条用用户气泡的紫，背景是它的极浅版，
+        // 两者同源，能和用户气泡形成一套而不是两种无关的颜色。
+        val barColor = Color(0xFF32264A)
+        val stepBackground = Color(0xFFEFE9F8)
         Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(vertical = 2.dp)
-                .background(stepBackground, RoundedCornerShape(8.dp))
+                // 圆角与气泡一致，嵌在气泡里时两层轮廓才不会互相冲突。
+                .background(stepBackground, RoundedCornerShape(WorkQuoteCorner))
                 .drawBehind {
+                    // 竖条高度直接等于背景块高度，两端只内缩一点点；
+                    // 24dp 圆角远大于行高，按圆角半径内缩会算出负高度。
                     val barWidth = WorkQuoteBarWidth.toPx()
-                    val barHeight = min(size.height - 8.dp.toPx(), WorkQuoteBarMaxHeight.toPx())
-                    val top = (size.height - barHeight) / 2f
+                    val edge = WorkQuoteBarEdge.toPx()
+                    val top = min(edge, (size.height - barWidth) / 2f)
+                    val bottom = max(size.height - edge, top + barWidth)
                     drawLine(
                         color = barColor,
                         start = Offset(barWidth / 2f, top),
-                        end = Offset(barWidth / 2f, top + barHeight),
+                        end = Offset(barWidth / 2f, bottom),
                         strokeWidth = barWidth,
                         cap = StrokeCap.Round,
                     )
@@ -414,8 +419,11 @@ private fun WorkStep(
 /** 过程块左侧竖条宽度，与 Markdown 引用块的 3dp 保持一致。 */
 private val WorkQuoteBarWidth = 3.dp
 
-/** 竖条最大高度：约两行正文，避免内容很长时变成一根长柱子。 */
-private val WorkQuoteBarMaxHeight = 34.dp
+/** 竖条两端相对背景块的内缩，避免线头贴着圆角边。 */
+private val WorkQuoteBarEdge = 5.dp
+
+/** 过程步骤底色块的圆角，与聊天气泡的 24dp 保持一致。 */
+private val WorkQuoteCorner = 24.dp
 
 
 internal enum class WorkNodeTone { Running, Done, Failed }

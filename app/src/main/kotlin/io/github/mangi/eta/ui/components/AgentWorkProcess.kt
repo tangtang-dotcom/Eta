@@ -507,7 +507,7 @@ private fun WorkStepText(
         Text(
             text = text.trim(),
             style = MiuixTheme.textStyles.body2,
-            color = MiuixTheme.colorScheme.onSurfaceVariant,
+            color = AetherChatColors.onSurfaceVariant(),
             modifier = Modifier.fillMaxWidth(),
         )
     }

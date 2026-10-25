@@ -257,7 +257,8 @@ private fun MarkdownQuoteBlock(block: MarkdownQuote, scope: MarkdownRenderScope)
     val barColor = scope.style.quoteBarColor
     val content = scope.style.quoteBackground
     val density = LocalDensity.current
-    val radiusPx = with(density) { QuoteRadius.toPx() }
+    val barRadiusPx = with(density) { QuoteBarRadius.toPx() }
+    val fillRadiusPx = with(density) { QuoteFillRadius.toPx() }
     val barWidthPx = with(density) { QuoteBarWidth.toPx() }
     val overlapPx = with(density) { QuoteOverlap.toPx() }
     MarkdownBlockColumn(
@@ -267,19 +268,21 @@ private fun MarkdownQuoteBlock(block: MarkdownQuote, scope: MarkdownRenderScope)
         modifier = Modifier
             .fillMaxWidth()
             .drawBehind {
-                val corner = CornerRadius(radiusPx, radiusPx)
-                drawRoundRect(
-                    color = barColor,
-                    topLeft = Offset(0f, 0f),
-                    size = Size(barWidthPx, size.height),
-                    cornerRadius = corner,
-                )
+                // 先画横条，再把竖条盖到最上层，竖条不会被横条遮住。
                 val left = (barWidthPx - overlapPx).coerceAtLeast(0f)
+                val fillRadius = fillRadiusPx.coerceAtMost(size.height / 2f)
                 drawRoundRect(
                     color = content,
                     topLeft = Offset(left, 0f),
                     size = Size((size.width - left).coerceAtLeast(0f), size.height),
-                    cornerRadius = corner,
+                    cornerRadius = CornerRadius(fillRadius, fillRadius),
+                )
+                val barRadius = barRadiusPx.coerceAtMost(size.height / 2f)
+                drawRoundRect(
+                    color = barColor,
+                    topLeft = Offset(0f, 0f),
+                    size = Size(barWidthPx, size.height),
+                    cornerRadius = CornerRadius(barRadius, barRadius),
                 )
             }
             .padding(start = QuoteBarWidth + 9.dp, end = 10.dp, top = 6.dp, bottom = 6.dp),
@@ -289,11 +292,14 @@ private fun MarkdownQuoteBlock(block: MarkdownQuote, scope: MarkdownRenderScope)
 /** 引用条左侧竖条宽度。 */
 private val QuoteBarWidth = 6.dp
 
-/** 竖条与横条的圆角半径。 */
-private val QuoteRadius = 6.dp
+/** 竖条圆角半径。 */
+private val QuoteBarRadius = 6.dp
 
-/** 横条压在竖条上的重叠量。 */
-private val QuoteOverlap = 3.dp
+/** 横条圆角半径，比竖条更大。 */
+private val QuoteFillRadius = 14.dp
+
+/** 横条左缘与竖条的重叠量。 */
+private val QuoteOverlap = 2.dp
 
 @Composable
 private fun MarkdownAlertBlock(block: MarkdownAlert, scope: MarkdownRenderScope) {

@@ -486,11 +486,14 @@ private fun WorkStep(
 /** 过程块左侧竖条宽度。 */
 private val WorkQuoteBarWidth = 4.dp
 
-/** 竖条与横条的圆角半径。 */
+/** 竖条圆角半径。 */
 private val WorkQuoteBarRadius = 6.dp
 
-/** 横条压在竖条上的重叠量：两块拼在一起，不留缝。 */
-private val WorkQuoteOverlap = 3.dp
+/** 横条圆角半径：比竖条更大，整条看起来更柔和。 */
+private val WorkQuoteFillRadius = 14.dp
+
+/** 横条左缘与竖条的重叠量：让两块拼成一体，不留缝。 */
+private val WorkQuoteOverlap = 2.dp
 
 /** 展开后的步骤之间用一条很淡的分隔线切开，而不是各自成卡片。 */
 private val WorkStepDividerColor = Color(0x1AFFFFFF)
@@ -505,25 +508,28 @@ private val WorkStepDividerColor = Color(0x1AFFFFFF)
 private fun Modifier.workQuoteBar(): Modifier {
     val barColor = AetherChatColors.quoteBar()
     val fillColor = AetherChatColors.quoteFill()
-    val radiusPx = with(LocalDensity.current) { WorkQuoteBarRadius.toPx() }
-    val barWidthPx = with(LocalDensity.current) { WorkQuoteBarWidth.toPx() }
-    val overlapPx = with(LocalDensity.current) { WorkQuoteOverlap.toPx() }
+    val density = LocalDensity.current
+    val barRadiusPx = with(density) { WorkQuoteBarRadius.toPx() }
+    val fillRadiusPx = with(density) { WorkQuoteFillRadius.toPx() }
+    val barWidthPx = with(density) { WorkQuoteBarWidth.toPx() }
+    val overlapPx = with(density) { WorkQuoteOverlap.toPx() }
     return this.drawBehind {
-        val corner = CornerRadius(radiusPx, radiusPx)
-        // 竖条：贴最左边，和整块等高。
-        drawRoundRect(
-            color = barColor,
-            topLeft = Offset(0f, 0f),
-            size = Size(barWidthPx, size.height),
-            cornerRadius = corner,
-        )
-        // 横条：从竖条右缘往回压一点起笔，右侧留出圆角。
+        // 先画横条：从竖条右缘往回压一点起笔，右侧是更大的圆角。
         val left = (barWidthPx - overlapPx).coerceAtLeast(0f)
+        val fillRadius = fillRadiusPx.coerceAtMost(size.height / 2f)
         drawRoundRect(
             color = fillColor,
             topLeft = Offset(left, 0f),
             size = Size((size.width - left).coerceAtLeast(0f), size.height),
-            cornerRadius = corner,
+            cornerRadius = CornerRadius(fillRadius, fillRadius),
+        )
+        // 后画竖条，盖在横条上面：竖条始终是完整的一条，不会被横条吃掉。
+        val barRadius = barRadiusPx.coerceAtMost(size.height / 2f)
+        drawRoundRect(
+            color = barColor,
+            topLeft = Offset(0f, 0f),
+            size = Size(barWidthPx, size.height),
+            cornerRadius = CornerRadius(barRadius, barRadius),
         )
     }
 }

@@ -156,12 +156,12 @@ internal object AetherChatColors {
         else -> Color(0xFFE7DEF5)
     }
 
-    /** 引用条 / 工作过程左侧竖条：比底色更亮一档的紫，形成“亮竖条 + 中亮横条”的层次。 */
+    /** 引用条 / 工作过程左侧竖条：比横条底色更深一档的紫，形成“深竖条 + 浅横条”的层次。 */
     @Composable
     fun quoteBar(): Color = when {
         monet -> MiuixTheme.colorScheme.primary
-        dark -> Color(0xFF6C52AE)
-        else -> Color(0xFF9B7FD6)
+        dark -> Color(0xFF4B3577)
+        else -> Color(0xFF6D4FB0)
     }
 
     /**

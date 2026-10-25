@@ -453,8 +453,8 @@ private fun WorkStep(
     }
 }
 
-/** 过程块左侧竖条宽度：比 Markdown 引用条的 3dp 更宽，正好包住左侧圆角。 */
-private val WorkQuoteBarWidth = 6.dp
+/** 过程块左侧竖条宽度：收窄到 4dp，仍然包住左侧圆角但不再显粗。 */
+private val WorkQuoteBarWidth = 4.dp
 
 /** 过程条右侧圆角：保持与聊天气泡一致的 24dp。 */
 private val WorkQuoteCorner = 24.dp

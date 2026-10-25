@@ -46,6 +46,7 @@ import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -63,6 +64,7 @@ import androidx.compose.ui.text.style.TextMotion
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
 import io.github.mangi.eta.R
 import io.github.mangi.eta.ui.components.StatusSuccess
@@ -307,10 +309,25 @@ private val QuoteCorner = 24.dp
 /** 引用条左上/左下的小圆角：左缘保持直线，只把两个角磨圆。 */
 private val QuoteStartCorner = 8.dp
 
-/** 引用条轮廓：左边一条竖直直线，上下小圆角过渡，右端保留气泡大圆角。 */
-private fun quoteBarShape() = GenericShape { size, _ ->
-    val startRadius = QuoteStartCorner.toPx().coerceAtMost(size.width / 2f)
-    val endRadius = QuoteCorner.toPx().coerceAtMost(size.width / 2f)
+/**
+ * 引用条轮廓：左边一条竖直直线，上下小圆角过渡，右端保留气泡大圆角。
+ *
+ * GenericShape 的构造 lambda 只有 (Path, Size, LayoutDirection)，拿不到 Density，
+ * 所以两个圆角按当前屏幕密度预先换算成像素再传进来。
+ */
+@Composable
+private fun quoteBarShape(): Shape {
+    val density = LocalDensity.current
+    val startRadiusPx = with(density) { QuoteStartCorner.toPx() }
+    val endRadiusPx = with(density) { QuoteCorner.toPx() }
+    return remember(startRadiusPx, endRadiusPx) {
+        quoteBarShape(startRadiusPx, endRadiusPx)
+    }
+}
+
+private fun quoteBarShape(startRadiusPx: Float, endRadiusPx: Float) = GenericShape { size, _ ->
+    val startRadius = startRadiusPx.coerceAtMost(size.width / 2f)
+    val endRadius = endRadiusPx.coerceAtMost(size.width / 2f)
     val w = size.width
     val h = size.height
     moveTo(0f, startRadius)

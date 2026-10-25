@@ -44,6 +44,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -58,6 +59,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -66,6 +68,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
 import io.github.mangi.eta.R
 import io.github.mangi.eta.agent.overlay.toolDisplayName
@@ -456,10 +459,23 @@ private val WorkQuoteStartCorner = 8.dp
 /**
  * 过程引用条的形状：左缘是一条竖直直线，只有左上/左下两个角是小圆角，
  * 右侧保持气泡的 24dp。中间整段边缘没有弧线，看起来就是“左边切直的一条”。
+ *
+ * GenericShape 的构造 lambda 只有 (Path, Size, LayoutDirection)，拿不到 Density，
+ * 所以两个圆角在这里按当前屏幕密度预先换算成像素再传进来。
  */
-private fun quoteBarShape() = GenericShape { size, _ ->
-    val startRadius = WorkQuoteStartCorner.toPx().coerceAtMost(size.width / 2f)
-    val endRadius = WorkQuoteCorner.toPx().coerceAtMost(size.width / 2f)
+@Composable
+private fun quoteBarShape(): Shape {
+    val density = LocalDensity.current
+    val startRadiusPx = with(density) { WorkQuoteStartCorner.toPx() }
+    val endRadiusPx = with(density) { WorkQuoteCorner.toPx() }
+    return remember(startRadiusPx, endRadiusPx) {
+        quoteBarShape(startRadiusPx, endRadiusPx)
+    }
+}
+
+private fun quoteBarShape(startRadiusPx: Float, endRadiusPx: Float) = GenericShape { size, _ ->
+    val startRadius = startRadiusPx.coerceAtMost(size.width / 2f)
+    val endRadius = endRadiusPx.coerceAtMost(size.width / 2f)
     val w = size.width
     val h = size.height
     // 左上角：从直边起弧，再落到顶部直线。

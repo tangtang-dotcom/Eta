@@ -66,7 +66,11 @@ internal class MarkdownStyle(
 internal fun rememberMarkdownStyle(tone: MarkdownTone): MarkdownStyle {
     val colors = MiuixTheme.colorScheme
     val textStyles = MiuixTheme.textStyles
-    return remember(tone, colors, textStyles) {
+    // @Composable 取值必须在组合期完成，不能留在 remember 的 lambda 里。
+    val quoteBar = AetherChatColors.userBubble()
+    val quoteFill = AetherChatColors.quoteFill()
+    val quoteCard = AetherChatColors.assistantBubble()
+    return remember(tone, colors, textStyles, quoteBar, quoteFill, quoteCard) {
         val answer = tone == MarkdownTone.Answer
         val textColor = if (answer) colors.onSurface else colors.onSurfaceVariantSummary
         val body = (if (answer) textStyles.body1 else textStyles.body2).copy(
@@ -103,9 +107,9 @@ internal fun rememberMarkdownStyle(tone: MarkdownTone): MarkdownStyle {
             // 引用块与工作过程（工具/思考）共用一套：竖条用用户气泡的紫，
             // 底色是在模型气泡上提亮一档，形成“底色横条 + 竖条”与大气泡的对比，
             // 不再用主题色的高亮紫铺底——那样在深紫气泡上会亮得发跳。
-            quoteBarColor = AetherChatColors.userBubble(),
-            quoteBackground = AetherChatColors.quoteFill(),
-            quoteCardBackground = AetherChatColors.assistantBubble(),
+            quoteBarColor = quoteBar,
+            quoteBackground = quoteFill,
+            quoteCardBackground = quoteCard,
             codeBackground = colors.surfaceContainer,
             tableHeaderBackground = colors.surfaceContainer,
             inline = MarkdownInlineStyle(

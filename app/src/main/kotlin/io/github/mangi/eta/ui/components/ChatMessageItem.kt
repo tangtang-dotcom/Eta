@@ -757,7 +757,11 @@ private fun AgentMessageBlock(
     val character = LocalRoleplayChat.current.takeUnless { assistantOverlay }
     val isGreeting = character != null && message.id.startsWith(GreetingMessagePrefix)
     // 回答气泡：非悬浮窗的正常回答包成描边卡片，并在顶部署名模型。
-    val showBubble = !assistantOverlay && (forceBubble || message.renderMarkdown)
+    // 气泡只由「是不是回答」决定，不再看 renderMarkdown：后者描述的是正文该不该
+    // 走 Markdown 排版，不是「要不要气泡」。之前把两者绑在一起，流式期间
+    // renderMarkdown 还是 false，第一个字到定稿之间正文是裸文本，气泡要等消息
+    // 结束后才突然出现。
+    val showBubble = !assistantOverlay && (forceBubble || isReplyBubble(message))
     // 回答气泡同样支持单击切换操作行；无气泡（悬浮窗）时保持原来的常显规则。
     var replyActionsVisible by rememberSaveable(message.id) { mutableStateOf(false) }
 
@@ -809,7 +813,6 @@ private fun AgentMessageBlock(
                             onOpenBrowser = onOpenBrowser,
                             currentBrowserMessageId = currentBrowserMessageId,
                             retainedStreamingStates = workStreamingStates,
-                            modifier = Modifier.padding(bottom = 10.dp),
                         )
                         is AgentTurnBlock.Content -> {
                             val answerAgent = block.message as? AgentMessageUi
@@ -846,7 +849,6 @@ private fun AgentMessageBlock(
                         onOpenBrowser = onOpenBrowser,
                         currentBrowserMessageId = currentBrowserMessageId,
                         retainedStreamingStates = workStreamingStates,
-                        modifier = Modifier.padding(bottom = 10.dp),
                     )
                 }
                 AgentAnswerText(
@@ -1003,11 +1005,12 @@ private fun AssistantWorkBubble(
     onOpenBrowser: () -> Unit,
     currentBrowserMessageId: String?,
     retainedStreamingStates: Map<String, StreamingMarkdownState>,
-    modifier: Modifier = Modifier,
 ) {
     // 不再给过程单独套灰色圆角卡片：展开时由 AgentWorkProcess 自己画一条主题色竖线，
     // 与 Markdown 引用块同一套视觉语言，气泡里只剩一层文字，不会被内层卡片压厚。
-    Column(modifier = modifier.fillMaxWidth()) {
+    // 底部间距加在这里而不是交给 AgentWorkProcess：整块画布必须贴紧气泡内的左右边缘，
+    // 竖条才能从折叠行一路贯到底只有一条。
+    Column(modifier = Modifier.fillMaxWidth().padding(bottom = 10.dp)) {
         AgentWorkProcess(
             id = messages.first().id,
             messages = messages,
@@ -1029,6 +1032,17 @@ private fun AssistantWorkBubble(
 
 /** 回答气泡圆角：与用户气泡保持一致，两边气泡形状才对得上。 */
 private val AssistantBubbleCorner = 24.dp
+
+/**
+ * 这条消息是不是「模型的回答」，从而该包在回答气泡里。
+ *
+ * 只有系统提示（已停止、任务中断等）这类借 [AgentMessageUi] 承载的临时消息不在此列，
+ * 它们由 [forceBubble] 单独放行。正文的排版方式（[AgentMessageUi.renderMarkdown]）
+ * 与是否给气泡无关：流式输出的首字就该已经落在气泡里。
+ */
+/** 是否给这条回答包气泡：只有非悬浮窗下的模型正文才包。 */
+private fun isReplyBubble(message: AgentMessageUi): Boolean =
+    message::class == AgentMessageUi::class
 
 /** 用户气泡圆角：模型气泡同步这个值，两边圆角才对得上。 */
 private val UserBubbleCorner = 24.dp

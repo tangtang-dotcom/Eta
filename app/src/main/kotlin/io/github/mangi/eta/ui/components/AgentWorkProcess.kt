@@ -483,14 +483,17 @@ private fun WorkStep(
     }
 }
 
-/** 过程块左侧竖条宽度。 */
-private val WorkQuoteBarWidth = 4.dp
+/** 过程块左侧竖条宽度：加宽一档，颜色够深时靠宽度立住这一条。 */
+private val WorkQuoteBarWidth = 6.dp
 
 /** 竖条圆角半径。 */
 private val WorkQuoteBarRadius = 6.dp
 
-/** 横条圆角半径：比竖条更大，整条看起来更柔和。 */
-private val WorkQuoteFillRadius = 14.dp
+/** 横条右端圆角半径。 */
+private val WorkQuoteFillRadiusEnd = 14.dp
+
+/** 横条左端圆角半径：比右端小，左侧更像一条直边的起点。 */
+private val WorkQuoteFillStartCorner = 4.dp
 
 /** 横条左缘与竖条的重叠量：让两块拼成一体，不留缝。 */
 private val WorkQuoteOverlap = 2.dp
@@ -510,26 +513,29 @@ private fun Modifier.workQuoteBar(): Modifier {
     val fillColor = AetherChatColors.quoteFill()
     val density = LocalDensity.current
     val barRadiusPx = with(density) { WorkQuoteBarRadius.toPx() }
-    val fillRadiusPx = with(density) { WorkQuoteFillRadius.toPx() }
+    val fillRadiusEndPx = with(density) { WorkQuoteFillRadiusEnd.toPx() }
+    val fillRadiusStartPx = with(density) { WorkQuoteFillStartCorner.toPx() }
     val barWidthPx = with(density) { WorkQuoteBarWidth.toPx() }
     val overlapPx = with(density) { WorkQuoteOverlap.toPx() }
     return this.drawBehind {
-        // 先画横条：从竖条右缘往回压一点起笔，右侧是更大的圆角。
-        val left = (barWidthPx - overlapPx).coerceAtLeast(0f)
-        val fillRadius = fillRadiusPx.coerceAtMost(size.height / 2f)
-        drawRoundRect(
-            color = fillColor,
-            topLeft = Offset(left, 0f),
-            size = Size((size.width - left).coerceAtLeast(0f), size.height),
-            cornerRadius = CornerRadius(fillRadius, fillRadius),
-        )
-        // 后画竖条，盖在横条上面：竖条始终是完整的一条，不会被横条吃掉。
-        val barRadius = barRadiusPx.coerceAtMost(size.height / 2f)
+        val halfHeight = size.height / 2f
+        // 先画竖条，压在下面。
+        val barRadius = barRadiusPx.coerceAtMost(halfHeight)
         drawRoundRect(
             color = barColor,
             topLeft = Offset(0f, 0f),
             size = Size(barWidthPx, size.height),
             cornerRadius = CornerRadius(barRadius, barRadius),
+        )
+        // 后画横条，盖在上面：左端小圆角、右端大圆角。
+        val left = (barWidthPx - overlapPx).coerceAtLeast(0f)
+        val startRadius = fillRadiusStartPx.coerceAtMost(halfHeight)
+        val endRadius = fillRadiusEndPx.coerceAtMost(halfHeight)
+        drawRoundRect(
+            color = fillColor,
+            topLeft = Offset(left, 0f),
+            size = Size((size.width - left).coerceAtLeast(0f), size.height),
+            cornerRadius = CornerRadius(startRadius, endRadius),
         )
     }
 }

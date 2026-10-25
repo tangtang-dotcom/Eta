@@ -58,6 +58,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.addOutline
+import androidx.compose.ui.graphics.drawscope.translate
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.lerp
@@ -485,8 +486,8 @@ private fun WorkStep(
     }
 }
 
-/** 过程块左侧竖条宽度：加宽一档，颜色够深时靠宽度立住这一条。 */
-private val WorkQuoteBarWidth = 6.dp
+/** 过程块左侧竖条宽度：细的一条，贴在最左边。 */
+private val WorkQuoteBarWidth = 4.dp
 
 /** 横条右端圆角半径。 */
 private val WorkQuoteFillRadiusEnd = 14.dp
@@ -498,11 +499,10 @@ private val WorkQuoteFillStartCorner = 4.dp
 private val WorkStepDividerColor = Color(0x1AFFFFFF)
 
 /**
- * 过程引用条的背景：竖条垫在最下面，横条盖在上面。
+ * 过程引用条的背景：最左边一条细竖线，右边挨着一个不规则圆角（左小右大）的横条。
  *
- * 两块都是圆角矩形，高度一致；横条直接从最左边起笔，用不规则圆角
- * （左边小、右边大）自己裁出形状，所以左缘看起来是一条直线，
- * 右端是圆弧。竖条只作为最左侧那一道深色底色露出。
+ * 竖条整条贴在最左边，横条从竖条右缘起笔、不和它重叠，因此竖条始终是完整的 4dp，
+ * 不会被横条吃掉；两块等高，拼起来就是「｜ + 长条」的样子。
  */
 @Composable
 private fun Modifier.workQuoteBar(): Modifier {
@@ -514,16 +514,26 @@ private fun Modifier.workQuoteBar(): Modifier {
         topEnd = WorkQuoteFillRadiusEnd,
         bottomEnd = WorkQuoteFillRadiusEnd,
     )
-    return this
-        .background(barColor)
-        .drawBehind {
+    val barWidthPx = with(LocalDensity.current) { WorkQuoteBarWidth.toPx() }
+    return this.drawBehind {
+        // 细竖条：贴最左边、与整块等高。
+        drawRect(
+            color = barColor,
+            topLeft = Offset(0f, 0f),
+            size = Size(barWidthPx, size.height),
+        )
+        // 横条：从竖条右缘开始，左端小圆角、右端大圆角。
+        translate(left = barWidthPx) {
             drawPath(
-                path = fillShape.createOutline(size, layoutDirection, this).let { outline ->
-                    Path().apply { addOutline(outline) }
-                },
+                path = fillShape.createOutline(
+                    size = Size((size.width - barWidthPx).coerceAtLeast(0f), size.height),
+                    layoutDirection = layoutDirection,
+                    density = this,
+                ).let { outline -> Path().apply { addOutline(outline) } },
                 color = fillColor,
             )
         }
+    }
 }
 
 internal enum class WorkNodeTone { Running, Done, Failed }

@@ -47,6 +47,7 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.addOutline
+import androidx.compose.ui.graphics.drawscope.translate
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -253,7 +254,7 @@ private fun CopyButton(text: String, tint: Color) {
 
 @Composable
 private fun MarkdownQuoteBlock(block: MarkdownQuote, scope: MarkdownRenderScope) {
-    // 与工作过程同一套画法：竖条垫底，横条用不规则圆角盖在上面（左小右大）。
+    // 与工作过程同一套画法：最左边一条细竖线，右边挨着一个不规则圆角（左小右大）的横条。
     // 引用里的文字保持原亮度，靠底色和竖条区分层级，不把字调灰。
     val barColor = scope.style.quoteBarColor
     val content = scope.style.quoteBackground
@@ -263,27 +264,36 @@ private fun MarkdownQuoteBlock(block: MarkdownQuote, scope: MarkdownRenderScope)
         topEnd = QuoteFillRadiusEnd,
         bottomEnd = QuoteFillRadiusEnd,
     )
+    val barWidthPx = with(LocalDensity.current) { QuoteBarWidth.toPx() }
     MarkdownBlockColumn(
         blocks = block.blocks,
         scope = scope,
         compact = false,
         modifier = Modifier
             .fillMaxWidth()
-            .background(barColor)
             .drawBehind {
-                drawPath(
-                    path = fillShape.createOutline(size, layoutDirection, this).let { outline ->
-                        Path().apply { addOutline(outline) }
-                    },
-                    color = content,
+                drawRect(
+                    color = barColor,
+                    topLeft = Offset(0f, 0f),
+                    size = Size(barWidthPx, size.height),
                 )
+                translate(left = barWidthPx) {
+                    drawPath(
+                        path = fillShape.createOutline(
+                            size = Size((size.width - barWidthPx).coerceAtLeast(0f), size.height),
+                            layoutDirection = layoutDirection,
+                            density = this,
+                        ).let { outline -> Path().apply { addOutline(outline) } },
+                        color = content,
+                    )
+                }
             }
             .padding(start = QuoteBarWidth + 9.dp, end = 10.dp, top = 6.dp, bottom = 6.dp),
     )
 }
 
-/** 引用条左侧竖条宽度。 */
-private val QuoteBarWidth = 6.dp
+/** 引用条左侧竖条宽度，与工作过程保持一致。 */
+private val QuoteBarWidth = 4.dp
 
 /** 横条右端圆角半径。 */
 private val QuoteFillRadiusEnd = 14.dp

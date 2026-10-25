@@ -161,6 +161,63 @@ class AgentChatTimelineEntriesTest {
     }
 
     /**
+     * 短旁白不切断过程：模型边做事边一句「我先看下文件」时，
+     * 过程应保持为一条，而不是被切成两段、冒出两个折叠行。
+     */
+    @Test
+    fun briefAsideDoesNotSplitProcedure() {
+        val blocks = listOf(
+            UserMessageUi("user-1", "帮我看看"),
+            ThinkingMessageUi("think-1", "先想一下", isStreaming = false),
+            AgentMessageUi("aside-1", "我先看下文件", isStreaming = false),
+            ToolActivityMessageUi(
+                id = "tool-1",
+                toolName = "terminal",
+                status = ToolActivityStatusUi.Success,
+                argumentsSummary = "ls",
+            ),
+            AgentMessageUi("agent-2", "结论如下", isStreaming = false),
+        ).turn().blocks
+
+        // 短旁白并入过程，只有最后那段长正文独立成块。
+        assertEquals(listOf("过程:think-1,aside-1,tool-1", "正文:agent-2"), blocks.map { it.describe() })
+    }
+
+    /** 长正文仍然切断过程：模型真正在回答时不能被折进折叠行。 */
+    @Test
+    fun longAnswerStillSplitsProcedure() {
+        val long = "这是一段足够长的回答，" + "用来确认它会独立成块。".repeat(10)
+        val blocks = listOf(
+            UserMessageUi("user-1", "问"),
+            ThinkingMessageUi("think-1", "想", isStreaming = false),
+            AgentMessageUi("agent-1", long, isStreaming = false),
+            ToolActivityMessageUi(
+                id = "tool-1",
+                toolName = "terminal",
+                status = ToolActivityStatusUi.Success,
+                argumentsSummary = "ls",
+            ),
+        ).turn().blocks
+
+        assertEquals(listOf("过程:think-1", "正文:agent-1", "过程:tool-1"), blocks.map { it.describe() })
+    }
+
+    /** 被并入过程块的旁白仍要出现在整轮全文里，复制不能丢半句话。 */
+    @Test
+    fun briefAsideSurvivesInMergedAnswer() {
+        val turn = listOf(
+            UserMessageUi("user-1", "问"),
+            ThinkingMessageUi("think-1", "想", isStreaming = false),
+            AgentMessageUi("aside-1", "我先看下文件", isStreaming = false),
+            AgentMessageUi("agent-1", "结论如下", isStreaming = false),
+        ).turn()
+
+        val content = turn.answers.joinToString("\n\n") { (it as AgentMessageUi).content }
+        assertTrue(content.contains("我先看下文件"))
+        assertTrue(content.contains("结论如下"))
+    }
+
+    /**
      * 回归：系统提示曾被并进本轮 Turn，变成一个没有正文的 Content 块，
      * 于是"模型请求重试""任务已中断"这类提示整条从界面消失。
      * 现在它们必须保留为独立条目，交给 SystemNoticeMessageUi 分支渲染本地化文案。

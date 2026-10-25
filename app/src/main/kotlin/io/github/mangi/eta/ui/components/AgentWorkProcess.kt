@@ -75,6 +75,7 @@ import io.github.mangi.eta.R
 import io.github.mangi.eta.agent.overlay.toolDisplayName
 import io.github.mangi.eta.ui.markdown.StreamingMarkdownState
 import io.github.mangi.eta.ui.model.AgentChatMessageUi
+import io.github.mangi.eta.ui.model.AgentMessageUi
 import io.github.mangi.eta.ui.model.ThinkingMessageUi
 import io.github.mangi.eta.ui.model.ToolActivityMessageUi
 import io.github.mangi.eta.ui.model.ToolActivityStatusUi
@@ -143,7 +144,11 @@ internal fun AgentWorkProcess(
             if (keep >= steps.size) steps else steps.takeLast(keep)
         }
     }
-    val hiddenStepCount = steps.size - visibleSteps.size
+    // 计数只算真正的动作：旁白是被并进过程块的那句话，不是一次步骤，
+    // 把它算进「显示更多 N 步」会让隐藏数量虚高。
+    val hiddenStepCount = (
+        steps.count { !it.isAsideStep() } - visibleSteps.count { !it.isAsideStep() }
+        ).coerceAtLeast(0)
 
     Column(
         modifier = modifier
@@ -295,7 +300,9 @@ private fun AgentWorkHeader(
     // 与 chatcube 的 ChainOfThought 一致：收起态提示还能展开多少步，
     // 展开态给「收起」，用户始终知道还能往哪个方向切换。
     val text = when {
-        hiddenStepCount > 0 && !expanded -> stringResource(
+        // 只藏了一两步时不提示「显示更多」：收起态本来就只留摘要行，
+        // 为此专门加一句会让每段过程都多出一个高频噪音。
+        hiddenStepCount >= WorkShowMoreThreshold && !expanded -> stringResource(
             R.string.work_show_more_steps,
             hiddenStepCount,
         )
@@ -464,7 +471,63 @@ private fun AgentWorkStepNode(
                 )
             }
 
+            // 短旁白：模型边做事边随口一句，被并进过程块内部。它是正文不是步骤，
+            // 因此不挂徽章、不画节点图标，按普通正文排进时间线，位置仍是它被说出的位置。
+            is AgentMessageUi -> WorkStepText(
+                text = message.content,
+                quoted = quoted,
+                isLast = isLast,
+            )
+
             else -> Unit
+        }
+    }
+}
+
+/** 收起态隐藏步数达到这个量级才提示「显示更多 N 步」，避免高频噪音。 */
+private const val WorkShowMoreThreshold = 3
+
+/** 这个时间线节点是不是被并入过程块的短旁白（而非真正的动作）。 */
+private fun AgentWorkStep.isAsideStep(): Boolean =
+    this is AgentWorkStep.Single && message is AgentMessageUi
+
+/**
+ * 过程块内部的短旁白行。
+ *
+ * 它没有节点图标与状态徽章：这条消息是模型说的话，不是一次工具调用，
+ * 套上「已完成」的勾选图标会让人误以为它是个步骤。
+ */
+@Composable
+private fun WorkStepText(
+    text: String,
+    quoted: Boolean,
+    isLast: Boolean,
+) {
+    val content: @Composable () -> Unit = {
+        Text(
+            text = text.trim(),
+            style = MiuixTheme.textStyles.body2,
+            color = MiuixTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.fillMaxWidth(),
+        )
+    }
+    if (quoted) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(top = 2.dp)
+                .workQuoteBar()
+                .padding(start = WorkQuoteBarWidth + 8.dp, end = 8.dp, top = 4.dp, bottom = 4.dp),
+        ) {
+            content()
+        }
+    } else {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(top = 2.dp, bottom = if (isLast) 4.dp else 0.dp),
+        ) {
+            content()
         }
     }
 }

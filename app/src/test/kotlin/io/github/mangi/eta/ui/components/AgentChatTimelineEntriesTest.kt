@@ -160,6 +160,54 @@ class AgentChatTimelineEntriesTest {
         assertTrue(turn.answers.mergeTurnAnswers(turn.key).isStreaming)
     }
 
+    /**
+     * 回归：系统提示曾被并进本轮 Turn，变成一个没有正文的 Content 块，
+     * 于是"模型请求重试""任务已中断"这类提示整条从界面消失。
+     * 现在它们必须保留为独立条目，交给 SystemNoticeMessageUi 分支渲染本地化文案。
+     */
+    @Test
+    fun systemNoticeStaysItsOwnEntry() {
+        val entries = listOf(
+            AgentTimelineEntry.Message(UserMessageUi("user-1", "问")),
+            AgentTimelineEntry.Message(AgentMessageUi("agent-1", "第一段")),
+            AgentTimelineEntry.Message(
+                SystemNoticeMessageUi(
+                    id = "retry-1",
+                    code = SystemNoticeCode.ModelRetry,
+                    detail = "网络错误",
+                ),
+            ),
+            AgentTimelineEntry.Message(AgentMessageUi("agent-2", "第二段")),
+        ).mergeTurnTurns()
+
+        // 提示自己成条，且不能出现在任何 Turn 的内容块里。
+        assertTrue(entries.any { it is AgentTimelineEntry.Message && it.message.id == "retry-1" })
+        val turnAnswerIds = entries.filterIsInstance<AgentTimelineEntry.Turn>()
+            .flatMap { turn -> turn.answers.map { it.id } }
+        assertTrue("retry-1" !in turnAnswerIds)
+        assertEquals(listOf("agent-1", "agent-2"), turnAnswerIds)
+    }
+
+    /**
+     * 回归：Turn 的 key 曾取首个块的 key。流式期间首块会从过程块变成内容块，
+     * key 跟着变，LazyColumn 会把同一个气泡当成新条目重新组合。
+     * 现在 key 锚在本轮第一条消息上，跨首块变化保持稳定。
+     */
+    @Test
+    fun turnKeyStaysStableWhileFirstBlockChanges() {
+        val user = AgentTimelineEntry.Message(UserMessageUi("user-1", "问"))
+        val thinking = AgentTimelineEntry.Message(ThinkingMessageUi("think-1", "想", isStreaming = true))
+        val answer = AgentTimelineEntry.Message(AgentMessageUi("agent-1", "答", isStreaming = true))
+
+        val onlyWork = listOf(user, thinking).mergeTurnTurns()
+        val withAnswer = listOf(user, thinking, answer).mergeTurnTurns()
+
+        val keyBefore = onlyWork.filterIsInstance<AgentTimelineEntry.Turn>().single().key
+        val keyAfter = withAnswer.filterIsInstance<AgentTimelineEntry.Turn>().single().key
+        assertEquals(keyBefore, keyAfter)
+        assertEquals("think-1", keyBefore)
+    }
+
     /** 多段正文合并时用空行拼接，保留完整答复顺序。 */
     @Test
     fun mergedAnswerJoinsAllContentBlocks() {
@@ -177,29 +225,5 @@ class AgentChatTimelineEntriesTest {
 }
 
 /** 测试内的小包装：把消息序列走一遍真实的轮次合并。 */
-private fun List<AgentTimelineEntry>.mergeTurnTurns(): List<AgentTimelineEntry> {
-    val messages = mapNotNull { entry ->
-        (entry as? AgentTimelineEntry.Message)?.message
-    }
-    val rebuilt = buildList {
-        var buffer = mutableListOf<AgentChatMessageUi>()
-        fun flush() {
-            if (buffer.isEmpty()) return
-            val blocks = buffer.toTurnBlocks()
-            buffer = mutableListOf()
-            if (blocks.isNotEmpty()) {
-                add(AgentTimelineEntry.Turn(key = blocks.first().key, blocks = blocks))
-            }
-        }
-        for (message in messages) {
-            if (message is UserMessageUi) {
-                flush()
-                add(AgentTimelineEntry.Message(message))
-            } else {
-                buffer += message
-            }
-        }
-        flush()
-    }
-    return rebuilt
-}
+private fun List<AgentTimelineEntry>.mergeTurnTurns(): List<AgentTimelineEntry> =
+    mergeWorkIntoAnswers()

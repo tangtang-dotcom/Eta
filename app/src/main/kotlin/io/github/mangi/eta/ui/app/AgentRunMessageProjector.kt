@@ -26,6 +26,50 @@ internal class AgentRunMessageProjector(
         runId: String,
         event: AgentEvent,
         messages: List<AgentChatMessageUi>,
+    ): List<AgentChatMessageUi> = handleEvent(runId, event, clearModelRetryNotice(runId, event, messages))
+
+    /**
+     * 重试提示只是「当前正在重试」的临时状态，模型一旦恢复输出就必须撤掉。
+     *
+     * 之前只有 [scheduleModelRetry] 会动这条提示，后续的正文、思考、工具与收尾事件都不清它，
+     * 于是重试成功后那行「模型请求重试」会一直挂在消息流末尾；每次重试 round 不同、
+     * 生成的 id 也不同，失败多次还会累积多条。
+     *
+     * 这里在事件入口统一处理：任何代表「模型已经重新产出」或「本次运行已收尾」的事件
+     * 都先清掉本 run 的重试提示，再交给各自的分支合并。
+     */
+    private fun clearModelRetryNotice(
+        runId: String,
+        event: AgentEvent,
+        messages: List<AgentChatMessageUi>,
+    ): List<AgentChatMessageUi> {
+        if (!event.settlesModelRetry()) return messages
+        return messages.filterNot { message ->
+            message is SystemNoticeMessageUi &&
+                message.code == SystemNoticeCode.ModelRetry &&
+                message.id.startsWith("assistant-$runId-retry-")
+        }
+    }
+
+    private fun AgentEvent.settlesModelRetry(): Boolean = when (this) {
+        is AgentEvent.AssistantBlockStart -> true
+        // 只有真正到达内容的增量才算恢复；空增量可能出现在重试判定之前。
+        is AgentEvent.AssistantBlockDelta -> delta.isNotBlank()
+        is AgentEvent.AssistantBlockEnd -> true
+        is AgentEvent.AssistantReceived -> true
+        is AgentEvent.ToolStarted,
+        is AgentEvent.HostedToolStarted,
+        is AgentEvent.RunFinished,
+        -> true
+        // RunFailed 不能清：applyResult 要靠最后一条重试提示定位「重试之后的半截输出」，
+        // 提前移除会让失败态写到错误的正文上。失败文案本身会替换掉那条提示。
+        else -> false
+    }
+
+    private fun handleEvent(
+        runId: String,
+        event: AgentEvent,
+        messages: List<AgentChatMessageUi>,
     ): List<AgentChatMessageUi> = when (event) {
         is AgentEvent.AssistantBlockStart -> startAssistantBlock(runId, event, messages)
         is AgentEvent.AssistantBlockDelta -> when (event.kind) {

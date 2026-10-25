@@ -101,7 +101,6 @@ import io.github.mangi.eta.ui.model.AgentModelPickerUiState
 import io.github.mangi.eta.ui.model.MessageEditUiState
 import io.github.mangi.eta.ui.model.PendingFileReferenceUi
 import io.github.mangi.eta.ui.model.PendingImageUi
-import io.github.mangi.eta.ui.model.SystemNoticeCode
 import io.github.mangi.eta.ui.model.SystemNoticeMessageUi
 import io.github.mangi.eta.ui.model.QueuedMessageUi
 import io.github.mangi.eta.ui.model.ThinkingMessageUi
@@ -1125,7 +1124,10 @@ internal fun List<AgentChatMessageUi>.toTimelineEntries(
 
 private fun AgentChatMessageUi.isTurnAnswer(): Boolean = when (this) {
     is AgentMessageUi -> true
-    is SystemNoticeMessageUi -> code != SystemNoticeCode.ContextCompaction
+    // 系统提示（重试、中断、已停止等）不属于本轮答复：它们要在列表里独立成条，
+    // 走 ChatMessageItem 的 SystemNoticeMessageUi 分支拿本地化文案渲染。
+    // 一旦被并进 Turn，就只剩下一个没有正文的 Content 块，
+    // 提示文字会整条从界面上消失，用户再也看不到"正在重试"或"任务已中断"。
     else -> false
 }
 
@@ -1136,24 +1138,33 @@ private fun AgentChatMessageUi.isTurnAnswer(): Boolean = when (this) {
  * [AgentMessageUi]。这里以用户消息为边界重新成组，组内再按 [toTurnBlocks] 切成
  * 过程块与内容块的交替序列。
  *
- * 条目的 key 取首个过程块（没有过程块时取首条内容）的 id，保证流式刷新期间条目身份稳定、
- * 历史分页锚点不跳。上下文压缩标记不属于任何回答，保留为独立条目。
+ * 条目的 key 取本轮第一条消息的 id（不看先后产生的是过程块还是内容块）：流式期间
+ * 首块会从过程块变成内容块，若 key 跟着首块走，LazyColumn 会把同一个气泡当成新条目
+ * 重新组合，正文与过程块的位置、以及历史分页锚点都会跟着跳。
+ * 上下文压缩标记与其它系统提示不属于任何回答，保留为独立条目。
  */
-private fun List<AgentTimelineEntry>.mergeWorkIntoAnswers(): List<AgentTimelineEntry> = buildList {
+internal fun List<AgentTimelineEntry>.mergeWorkIntoAnswers(): List<AgentTimelineEntry> = buildList {
     val turnMessages = mutableListOf<AgentChatMessageUi>()
+    var turnKey: String? = null
 
     fun flushTurn() {
         if (turnMessages.isEmpty()) return
         val blocks = turnMessages.toTurnBlocks()
+        val key = turnKey
         turnMessages.clear()
-        if (blocks.isEmpty()) return
-        val key = blocks.first().key
+        turnKey = null
+        if (blocks.isEmpty() || key == null) return
         add(AgentTimelineEntry.Turn(key = key, blocks = blocks))
+    }
+
+    fun append(message: AgentChatMessageUi) {
+        if (turnKey == null) turnKey = message.id
+        turnMessages += message
     }
 
     for (entry in this@mergeWorkIntoAnswers) {
         when (entry) {
-            is AgentTimelineEntry.WorkProcess -> turnMessages += entry.messages
+            is AgentTimelineEntry.WorkProcess -> entry.messages.forEach(::append)
             is AgentTimelineEntry.Message -> {
                 val message = entry.message
                 when {
@@ -1162,12 +1173,8 @@ private fun List<AgentTimelineEntry>.mergeWorkIntoAnswers(): List<AgentTimelineE
                         flushTurn()
                         add(entry)
                     }
-                    message is SystemNoticeMessageUi &&
-                        message.code == SystemNoticeCode.ContextCompaction -> {
-                        flushTurn()
-                        add(entry)
-                    }
-                    message.isTurnAnswer() -> turnMessages += message
+                    message.isTurnAnswer() -> append(message)
+                    // 系统提示打断本轮：先收口，再让提示自己成条。
                     else -> {
                         flushTurn()
                         add(entry)
@@ -1176,8 +1183,12 @@ private fun List<AgentTimelineEntry>.mergeWorkIntoAnswers(): List<AgentTimelineE
             }
             is AgentTimelineEntry.Turn -> {
                 // 理论上不会出现（Turn 由本函数产生），保守地把成员摊回当前轮。
-                turnMessages += entry.answers
-                turnMessages += entry.procedures.flatMap { it.steps }
+                entry.blocks.forEach { block ->
+                    when (block) {
+                        is AgentTurnBlock.Procedure -> block.steps.forEach(::append)
+                        is AgentTurnBlock.Content -> append(block.message)
+                    }
+                }
                 flushTurn()
             }
         }

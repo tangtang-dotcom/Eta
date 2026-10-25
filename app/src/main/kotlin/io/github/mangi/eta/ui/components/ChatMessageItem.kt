@@ -799,13 +799,16 @@ private fun AgentMessageBlock(
             },
         ) {
             if (showBubble && turnBlocks.isNotEmpty()) {
-                // 按真实生成时序交替渲染：过程块之后紧跟模型随后说出的正文，
-                // 形成「子气泡 → 正文 → 子气泡 → 正文」的节奏，而不是把过程全堆在顶部。
-                // 正文永远不会被折叠进子气泡，模型说的话不会丢。
+                // 按真实生成时序渲染：过程块（思考/工具）留在它发生的位置，正文统一
+                // 由合并后的 answer 在末尾渲染一次。
+                //
+                // 这里不能逐块渲染 AgentTurnBlock.Content：调用方传进来的 message 就是
+                // mergeTurnAnswers() 把本轮所有正文段落拼好的结果，再把每个 Content 块
+                // 各渲染一遍，整段回答就会在气泡里重复出现（多段正文重复多次）。
                 val lastProcedureIndex = turnBlocks.indexOfLast { it is AgentTurnBlock.Procedure }
                 turnBlocks.forEachIndexed { index, block ->
-                    when (block) {
-                        is AgentTurnBlock.Procedure -> AssistantWorkBubble(
+                    if (block is AgentTurnBlock.Procedure) {
+                        AssistantWorkBubble(
                             messages = block.steps,
                             // 只有最后一个过程块在生成中才自动播报进度。
                             active = workActive && index == lastProcedureIndex,
@@ -814,32 +817,18 @@ private fun AgentMessageBlock(
                             currentBrowserMessageId = currentBrowserMessageId,
                             retainedStreamingStates = workStreamingStates,
                         )
-                        is AgentTurnBlock.Content -> {
-                            val answerAgent = block.message as? AgentMessageUi
-                            AgentAnswerText(
-                                answer = answerAgent,
-                                fallbackContent = if (answerAgent == null) message.content else null,
-                                streamingState = if (answerAgent != null && answerAgent.id == message.id) {
-                                    streamingState
-                                } else {
-                                    null
-                                },
-                                message = message,
-                                revealComplete = revealComplete,
-                                // 缓存文档只对当前这条流式消息有效，其余正文自行解析。
-                                completedDocument = if (answerAgent == null || answerAgent.id == message.id) {
-                                    completedDocument
-                                } else {
-                                    null
-                                },
-                                onRevealCompleteChange = { streamingRevealComplete = it },
-                                modifier = Modifier.padding(
-                                    bottom = if (index == turnBlocks.lastIndex) 0.dp else 10.dp,
-                                ),
-                            )
-                        }
                     }
                 }
+                // 过程块自带 10dp 底部间距，正文不需要再补顶部间距。
+                AgentAnswerText(
+                    answer = message,
+                    fallbackContent = null,
+                    streamingState = streamingState,
+                    message = message,
+                    revealComplete = revealComplete,
+                    completedDocument = completedDocument,
+                    onRevealCompleteChange = { streamingRevealComplete = it },
+                )
             } else {
                 if (showBubble && workMessages.isNotEmpty()) {
                     AssistantWorkBubble(

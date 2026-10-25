@@ -102,6 +102,8 @@ internal fun ToolActivityRow(
     showBrowserShortcut: Boolean,
     modifier: Modifier = Modifier,
     showTitle: Boolean = true,
+    // 单行形态：结论拼到标题后面，不再占第二行；命令与完整结果仍在展开里。
+    oneLine: Boolean = false,
 ) {
     var expanded by rememberSaveable(message.id) { mutableStateOf(false) }
     // 只有「当前浏览器」条目订阅实时会话快照，避免每个工具行都跟随快照重组。
@@ -124,7 +126,7 @@ internal fun ToolActivityRow(
             else -> null
         }
     }
-    val subtitle = browserLine ?: outcome
+    val subtitle = if (oneLine) null else browserLine ?: outcome
     // 结果只有一行且已作为结论显示时，展开不会带来新信息，不提供展开入口。
     val resultDetail = message.resultSummary?.trim()?.takeIf { it.isNotEmpty() && it != outcome }
     // 参数摘要挪进展开详情，收起态只留「工具名 + 一行结论」。
@@ -141,24 +143,59 @@ internal fun ToolActivityRow(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .heightIn(min = WorkRowHeight)
+                .heightIn(min = if (oneLine) 0.dp else WorkRowHeight)
                 .clip(RoundedCornerShape(10.dp))
                 .then(if (hasDetail) Modifier.clickable { expanded = !expanded } else Modifier)
-                .padding(vertical = 6.dp),
+                .padding(vertical = if (oneLine) 2.dp else 6.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Column(modifier = Modifier.weight(1f)) {
                 if (showTitle) {
-                    ShimmerText(
-                        text = title,
-                        active = running,
-                        style = MiuixTheme.textStyles.body2,
-                        color = if (running) {
-                            MiuixTheme.colorScheme.onSurface
-                        } else {
-                            MiuixTheme.colorScheme.onSurfaceVariantSummary
-                        },
-                    )
+                    if (oneLine) {
+                        val inlineTail = browserLine ?: outcome
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                text = title,
+                                style = MiuixTheme.textStyles.body2,
+                                color = if (running) {
+                                    MiuixTheme.colorScheme.onSurface
+                                } else {
+                                    MiuixTheme.colorScheme.onSurfaceVariantSummary
+                                },
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                            if (inlineTail != null) {
+                                Text(
+                                    text = " · " + inlineTail,
+                                    style = if (message.isTerminalTool() && browserLine == null) {
+                                        MiuixTheme.textStyles.footnote2.copy(fontFamily = FontFamily.Monospace)
+                                    } else {
+                                        MiuixTheme.textStyles.footnote2
+                                    },
+                                    color = if (failed) {
+                                        StatusError
+                                    } else {
+                                        MiuixTheme.colorScheme.onSurfaceVariantSummary.copy(alpha = 0.75f)
+                                    },
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                    modifier = Modifier.weight(1f, fill = false),
+                                )
+                            }
+                        }
+                    } else {
+                        ShimmerText(
+                            text = title,
+                            active = running,
+                            style = MiuixTheme.textStyles.body2,
+                            color = if (running) {
+                                MiuixTheme.colorScheme.onSurface
+                            } else {
+                                MiuixTheme.colorScheme.onSurfaceVariantSummary
+                            },
+                        )
+                    }
                 }
                 if (subtitle != null) {
                     Text(
@@ -218,43 +255,76 @@ internal fun ToolGroupRow(
     group: AgentWorkStep.ToolGroup,
     onOpenBrowser: () -> Unit,
     modifier: Modifier = Modifier,
+    // 单行形态：失败计数拼在标题后面，进行中的参数摘要不占第二行。
+    oneLine: Boolean = false,
 ) {
     var expanded by rememberSaveable(group.key) { mutableStateOf(false) }
     val running = group.running
     val latest = group.calls.last()
     val title = toolDisplayName(group.toolName) + " · " +
         pluralStringResource(R.plurals.tool_group_calls, group.calls.size, group.calls.size)
+    val failedText = if (group.failedCount > 0) {
+        pluralStringResource(R.plurals.work_summary_failed, group.failedCount, group.failedCount)
+    } else {
+        null
+    }
     val subtitle = when {
+        oneLine -> null
         running -> latest.argumentsSummary.takeIf(String::isNotBlank)
-        group.failedCount > 0 -> pluralStringResource(
-            R.plurals.work_summary_failed,
-            group.failedCount,
-            group.failedCount,
-        )
-        else -> null
+        else -> failedText
     }
 
     Column(modifier = modifier.fillMaxWidth()) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .heightIn(min = WorkRowHeight)
+                .heightIn(min = if (oneLine) 0.dp else WorkRowHeight)
                 .clip(RoundedCornerShape(10.dp))
                 .clickable { expanded = !expanded }
-                .padding(vertical = 6.dp),
+                .padding(vertical = if (oneLine) 2.dp else 6.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Column(modifier = Modifier.weight(1f)) {
-                ShimmerText(
-                    text = title,
-                    active = running,
-                    style = MiuixTheme.textStyles.body2,
-                    color = if (running) {
-                        MiuixTheme.colorScheme.onSurface
-                    } else {
-                        MiuixTheme.colorScheme.onSurfaceVariantSummary
-                    },
-                )
+                if (oneLine) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            text = title,
+                            style = MiuixTheme.textStyles.body2,
+                            color = if (running) {
+                                MiuixTheme.colorScheme.onSurface
+                            } else {
+                                MiuixTheme.colorScheme.onSurfaceVariantSummary
+                            },
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                        if (failedText != null) {
+                            Text(
+                                text = " · " + failedText,
+                                style = MiuixTheme.textStyles.footnote2,
+                                color = if (running) {
+                                    MiuixTheme.colorScheme.onSurfaceVariantSummary
+                                } else {
+                                    StatusError
+                                },
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier.weight(1f, fill = false),
+                            )
+                        }
+                    }
+                } else {
+                    ShimmerText(
+                        text = title,
+                        active = running,
+                        style = MiuixTheme.textStyles.body2,
+                        color = if (running) {
+                            MiuixTheme.colorScheme.onSurface
+                        } else {
+                            MiuixTheme.colorScheme.onSurfaceVariantSummary
+                        },
+                    )
+                }
                 if (subtitle != null) {
                     Text(
                         text = subtitle,

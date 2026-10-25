@@ -1020,19 +1020,12 @@ private fun AssistantWorkBubble(
             // 生成中也保持收起：十几步过程全摊开会把气泡撑得很长，
             // 进行中的进度交给那一行摘要播报。
             autoExpandWhileActive = false,
-            collapsedVisibleCount = WorkBubbleCollapsedSteps,
+            // 气泡内的过程收成一条：折叠时就是那一行引用条，展开才铺时间线。
+            collapsedVisibleCount = 0,
+            singleRow = true,
         )
     }
 }
-
-/**
- * 回答气泡内的工作过程收起时保留的尾部步骤数。
- *
- * 与 chatcube 的 `collapsedVisibleCount` 口径一致：收起后只留最后两步，
- * 既能把十几步的过程压成两三行，又能让用户看到最近在做什么。
- * 剩下的步骤收进标题行的「已完成 N 个步骤」里，点开标题才全部展开。
- */
-private const val WorkBubbleCollapsedSteps = 2
 
 /** 回答气泡圆角：与用户气泡保持一致，两边气泡形状才对得上。 */
 private val AssistantBubbleCorner = 24.dp
@@ -1219,6 +1212,8 @@ internal fun ThinkingRow(
     retainedStreamingState: StreamingMarkdownState?,
     modifier: Modifier = Modifier,
     compact: Boolean = false,
+    // 单行形态：只保留“思考中/已思考 N 秒”一行，摘要折进展开里。
+    oneLine: Boolean = false,
 ) {
     DisposableEffect(retainedStreamingState) {
         retainedStreamingState?.attachContent()
@@ -1236,9 +1231,10 @@ internal fun ThinkingRow(
         ?.snapshot?.completedDocumentFor(message.content)
     // 展开态必须在组合期同步推导：若经 LaunchedEffect 晚一帧收起，思考结束的那一帧尾部窗口
     // 已解除而正文仍展开，会以全文高度闪现一帧，再从该高度执行收起动画。
-    val expanded = manualExpanded ?: message.isStreaming
+    // 单行形态默认收起：过程只占一行，想看内容再点开。
+    val expanded = manualExpanded ?: (message.isStreaming && !oneLine)
     // 自动模式下高度上限覆盖到收起动画结束，退出过程不会先撑开再收拢。
-    val tailWindow = manualExpanded == null
+    val tailWindow = manualExpanded == null && !oneLine
 
     val pulseAlpha = rememberActivePulse(
         active = message.isStreaming,
@@ -1274,7 +1270,7 @@ internal fun ThinkingRow(
                 }
                 .then(
                     if (compact) {
-                        Modifier.heightIn(min = WorkRowHeight)
+                        Modifier.heightIn(min = if (oneLine) 0.dp else WorkRowHeight)
                     } else {
                         Modifier.padding(horizontal = 12.dp, vertical = 12.dp)
                     },

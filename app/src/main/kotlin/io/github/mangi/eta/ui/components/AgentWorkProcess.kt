@@ -97,6 +97,9 @@ internal fun AgentWorkProcess(
     autoExpandWhileActive: Boolean = true,
     // 收起时尾部保留几步可见；0 表示只留标题行，Int.MAX_VALUE 表示永不收起。
     collapsedVisibleCount: Int = 0,
+    // 过程整段收成一行：折叠行本身就是那条引用条，展开时在其下方铺时间线。
+    // 嵌进回答气泡时开启，做到“一条过程、一行可见”。
+    singleRow: Boolean = false,
 ) {
     val running = messages.any { message ->
         (message is ThinkingMessageUi && message.isStreaming) ||
@@ -154,10 +157,14 @@ internal fun AgentWorkProcess(
             expanded = bodyVisible,
             compact = embedded,
             hiddenStepCount = hiddenStepCount,
+            quoted = singleRow,
             onClick = { manualExpanded = !bodyVisible },
         )
+        // 单行模式下折叠行就是那条引用条本身：气泡里不再显示任何步骤，
+        // 只有用户主动点开时才在下方铺开时间线。
+        val showSteps = if (singleRow) bodyVisible && manualExpanded == true else bodyVisible
         AnimatedVisibility(
-            visible = bodyVisible,
+            visible = showSteps,
             enter = fadeIn(tween(160)) + expandVertically(
                 animationSpec = spring(
                     dampingRatio = Spring.DampingRatioNoBouncy,
@@ -185,6 +192,7 @@ internal fun AgentWorkProcess(
                             step = step,
                             isLast = index == visibleSteps.lastIndex,
                             quoted = embedded,
+                            oneLine = singleRow,
                             onOpenBrowser = onOpenBrowser,
                             currentBrowserMessageId = currentBrowserMessageId,
                             retainedStreamingStates = retainedStreamingStates,
@@ -204,22 +212,26 @@ private fun AgentWorkHeader(
     compact: Boolean = false,
     // 收起态下被折进标题行的步骤数，展开后为 0。
     hiddenStepCount: Int = 0,
+    // 单行模式：这一行自己就是过程引用条，折叠时不再叠任何步骤。
+    quoted: Boolean = false,
     onClick: () -> Unit,
 ) {
     val runningTool = messages.lastOrNull { message ->
         message is ToolActivityMessageUi && message.status == ToolActivityStatusUi.Running
     } as? ToolActivityMessageUi
     val summary = remember(messages) { messages.workSummary() }
+    // 合并后的步骤数（连续同类工具算一步），折叠行报的就是条数。
+    val stepCount = remember(messages) { messages.mergedWorkStepCount() }
     val base = when {
         runningTool != null -> pluralStringResource(
             R.plurals.work_processing_step,
-            summary.toolCount,
-            summary.toolCount,
+            stepCount,
+            stepCount,
         ) + " · " + runningTool.argumentsSummary.ifBlank { toolDisplayName(runningTool.toolName) }
         working -> stringResource(R.string.work_analyzing)
-        else -> workSummaryText(summary)
+        else -> workSummaryText(summary, stepCount)
     }
-    // 与 chatcube 的 ChainOfThought 一致：收起态给一行「显示更多 N 步」，
+    // 与 chatcube 的 ChainOfThought 一致：收起态提示还能展开多少步，
     // 展开态给「收起」，用户始终知道还能往哪个方向切换。
     val text = when {
         hiddenStepCount > 0 && !expanded -> stringResource(
@@ -229,35 +241,61 @@ private fun AgentWorkHeader(
         expanded -> stringResource(R.string.work_hide_steps)
         else -> base
     }
-    Row(
-        modifier = Modifier
+    val icon = when {
+        runningTool != null -> iconForTool(runningTool.toolName)
+        working -> Icons.Rounded.Lightbulb
+        else -> Icons.Rounded.Checklist
+    }
+    // 单行模式下整条过程只有这一行：引用条自带底色、竖条与圆角，
+    // 不再额外叠一层步骤列表，多条工具/思考合并成“一条、一行”。
+    val barModifier = if (quoted) {
+        Modifier
+            .fillMaxWidth()
+            .workQuoteSurface()
+            .padding(start = WorkQuoteBarWidth + 7.dp, end = 4.dp, top = 7.dp, bottom = 7.dp)
+    } else {
+        Modifier
             .fillMaxWidth()
             // 嵌进气泡时这一行就是收起态的整个灰框，压矮一些不占地方。
             .heightIn(min = if (compact) 26.dp else WorkRowHeight)
             .clip(RoundedCornerShape(10.dp))
+    }
+    Row(
+        modifier = barModifier
+            .clip(RoundedCornerShape(if (quoted) WorkQuoteCorner else 10.dp))
             .clickable(onClick = onClick),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Box(
-            modifier = Modifier.width(if (compact) 18.dp else WorkGutterWidth),
-            contentAlignment = Alignment.Center,
-        ) {
-            Icon(
-                imageVector = when {
-                    runningTool != null -> iconForTool(runningTool.toolName)
-                    working -> Icons.Rounded.Lightbulb
-                    else -> Icons.Rounded.Checklist
-                },
-                contentDescription = null,
-                modifier = Modifier.size(if (compact) 13.dp else 15.dp),
-                tint = if (working) {
-                    MiuixTheme.colorScheme.primary
-                } else {
-                    MiuixTheme.colorScheme.onSurfaceVariantSummary
-                },
-            )
+        if (quoted) {
+            Box(contentAlignment = Alignment.Center) {
+                WorkNodeBadge(
+                    icon = icon,
+                    tone = when {
+                        working -> WorkNodeTone.Running
+                        summary.failedCount > 0 -> WorkNodeTone.Failed
+                        else -> WorkNodeTone.Done
+                    },
+                )
+            }
+            Spacer(modifier = Modifier.width(7.dp))
+        } else {
+            Box(
+                modifier = Modifier.width(if (compact) 18.dp else WorkGutterWidth),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    imageVector = icon,
+                    contentDescription = null,
+                    modifier = Modifier.size(if (compact) 13.dp else 15.dp),
+                    tint = if (working) {
+                        MiuixTheme.colorScheme.primary
+                    } else {
+                        MiuixTheme.colorScheme.onSurfaceVariantSummary
+                    },
+                )
+            }
+            Spacer(modifier = Modifier.width(if (compact) 4.dp else WorkGutterGap))
         }
-        Spacer(modifier = Modifier.width(if (compact) 4.dp else WorkGutterGap))
         ShimmerText(
             text = text,
             active = working,
@@ -270,19 +308,19 @@ private fun AgentWorkHeader(
             contentDescription = stringResource(
                 if (expanded) R.string.work_collapse else R.string.work_expand,
             ),
-            modifier = Modifier.padding(start = 4.dp, end = 8.dp),
+            modifier = Modifier.padding(start = 4.dp, end = if (quoted) 6.dp else 8.dp),
         )
     }
 }
 
 @Composable
-private fun workSummaryText(summary: AgentWorkSummary): String {
+private fun workSummaryText(summary: AgentWorkSummary, stepCount: Int): String {
     val parts = buildList {
         if (summary.thinkingCount > 0) {
             add(pluralStringResource(R.plurals.work_summary_thinking, summary.thinkingCount, summary.thinkingCount))
         }
         if (summary.toolCount > 0) {
-            add(pluralStringResource(R.plurals.work_summary_tools, summary.toolCount, summary.toolCount))
+            add(pluralStringResource(R.plurals.work_summary_tools, stepCount, stepCount))
         }
         if (summary.failedCount > 0) {
             add(pluralStringResource(R.plurals.work_summary_failed, summary.failedCount, summary.failedCount))
@@ -300,6 +338,8 @@ private fun AgentWorkStepNode(
     retainedStreamingStates: Map<String, StreamingMarkdownState>,
     // 嵌进回答气泡时改画成引用块样式的小卡片，不再走左侧时间线。
     quoted: Boolean = false,
+    // 展开后的每一步也只占一行（参数、命令、结果都收进各自的详情）。
+    oneLine: Boolean = false,
 ) {
     when (step) {
         is AgentWorkStep.ToolGroup -> WorkStep(
@@ -312,7 +352,7 @@ private fun AgentWorkStepNode(
             isLast = isLast,
             quoted = quoted,
         ) {
-            ToolGroupRow(group = step, onOpenBrowser = onOpenBrowser)
+            ToolGroupRow(group = step, onOpenBrowser = onOpenBrowser, oneLine = oneLine)
         }
 
         is AgentWorkStep.Single -> when (val message = step.message) {
@@ -326,6 +366,7 @@ private fun AgentWorkStepNode(
                     message = message,
                     onOpenBrowser = onOpenBrowser,
                     showBrowserShortcut = message.id == currentBrowserMessageId,
+                    oneLine = oneLine,
                 )
             }
 
@@ -339,6 +380,7 @@ private fun AgentWorkStepNode(
                     message = message,
                     retainedStreamingState = retainedStreamingStates[message.id],
                     compact = true,
+                    oneLine = oneLine,
                 )
             }
 
@@ -373,32 +415,13 @@ private fun WorkStep(
     content: @Composable () -> Unit,
 ) {
     if (quoted) {
-        // 竖条用用户气泡的紫，背景是它的极浅版，
-        // 两者同源，能和用户气泡形成一套而不是两种无关的颜色。
-        val barColor = Color(0xFF32264A)
-        val stepBackground = Color(0xFFEFE9F8)
+        // 底色与竖条统一走 workQuoteSurface()：折叠行和展开后的每一步保持同一套颜色。
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(vertical = 2.dp)
-                // 圆角与气泡一致，嵌在气泡里时两层轮廓才不会互相冲突。
-                .background(stepBackground, RoundedCornerShape(WorkQuoteCorner))
-                .drawBehind {
-                    // 竖条高度直接等于背景块高度，两端只内缩一点点；
-                    // 24dp 圆角远大于行高，按圆角半径内缩会算出负高度。
-                    val barWidth = WorkQuoteBarWidth.toPx()
-                    val edge = WorkQuoteBarEdge.toPx()
-                    val top = min(edge, (size.height - barWidth) / 2f)
-                    val bottom = max(size.height - edge, top + barWidth)
-                    drawLine(
-                        color = barColor,
-                        start = Offset(barWidth / 2f, top),
-                        end = Offset(barWidth / 2f, bottom),
-                        strokeWidth = barWidth,
-                        cap = StrokeCap.Round,
-                    )
-                }
-                .padding(start = 9.dp, end = 8.dp, top = 4.dp, bottom = 4.dp),
+                .padding(top = 2.dp)
+                .workQuoteSurface()
+                .padding(start = WorkQuoteBarWidth + 7.dp, end = 8.dp, top = 6.dp, bottom = 6.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             // 徽章居中对齐：单行时徽章与文字中线对齐。
@@ -424,6 +447,35 @@ private val WorkQuoteBarEdge = 5.dp
 
 /** 过程步骤底色块的圆角，与聊天气泡的 24dp 保持一致。 */
 private val WorkQuoteCorner = 24.dp
+
+/**
+ * 过程引用条的底色与竖条。折叠行、展开后的每一步都走这一处，颜色只在常量里改一次。
+ *
+ * 底色取模型气泡的深紫（而不是某个固定的亮紫），竖条取用户气泡的紫：
+ * 两者同源，嵌在气泡里时既压得住正文，又能和用户一侧形成呼应。
+ */
+@Composable
+private fun Modifier.workQuoteSurface(): Modifier {
+    val barColor = AetherChatColors.userBubble()
+    val stepBackground = AetherChatColors.assistantBubble()
+    return this
+        .background(stepBackground, RoundedCornerShape(WorkQuoteCorner))
+        .drawBehind {
+            // 竖条高度直接等于背景块高度，两端只内缩一点点；
+            // 24dp 圆角远大于行高，按圆角半径内缩会算出负高度。
+            val barWidth = WorkQuoteBarWidth.toPx()
+            val edge = WorkQuoteBarEdge.toPx()
+            val top = min(edge, (size.height - barWidth) / 2f)
+            val bottom = max(size.height - edge, top + barWidth)
+            drawLine(
+                color = barColor,
+                start = Offset(barWidth / 2f, top),
+                end = Offset(barWidth / 2f, bottom),
+                strokeWidth = barWidth,
+                cap = StrokeCap.Round,
+            )
+        }
+}
 
 
 internal enum class WorkNodeTone { Running, Done, Failed }

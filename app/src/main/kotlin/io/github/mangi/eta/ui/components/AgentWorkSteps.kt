@@ -92,6 +92,12 @@ internal fun List<AgentChatMessageUi>.workSummary(): AgentWorkSummary = AgentWor
 )
 
 /**
+ * 合并后的步骤数：连续调用同一工具只算一步。
+ * 折叠行要让用户一眼看出“这是一条过程”，报的是条数而不是原始调用次数。
+ */
+internal fun List<AgentChatMessageUi>.mergedWorkStepCount(): Int = toWorkSteps().size
+
+/**
  * 折叠行下方的一行结果。成功的常态结果（如“完成”）不占行；终端输出取最后一行，
  * 因为命令的结论通常在末尾；失败去掉重复的“失败”前缀与日志用的 code= 尾巴。
  */

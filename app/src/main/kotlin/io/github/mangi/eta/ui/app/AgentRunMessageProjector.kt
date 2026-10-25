@@ -179,7 +179,9 @@ internal class AgentRunMessageProjector(
                 message.copy(
                     content = message.content + delta,
                     isStreaming = true,
-                    renderMarkdown = false,
+                    // 流式输出期间就要在气泡里显示：不能等到定稿才切 true，
+                    // 否则第一个字到定稿之间整段正文是裸文本，气泡会突然出现。
+                    renderMarkdown = true,
                 )
             } else {
                 message
@@ -191,7 +193,7 @@ internal class AgentRunMessageProjector(
             id = assistantId,
             content = delta,
             isStreaming = true,
-            renderMarkdown = false,
+            renderMarkdown = true,
         )
     }
 

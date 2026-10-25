@@ -156,90 +156,104 @@ internal fun AgentWorkProcess(
                 vertical = if (embedded) 0.dp else 2.dp,
             ),
     ) {
-        AgentWorkHeader(
-            messages = messages,
-            working = active || running,
-            expanded = bodyVisible,
-            compact = embedded,
-            hiddenStepCount = hiddenStepCount,
-            quoted = singleRow,
-            onClick = { manualExpanded = !bodyVisible },
-        )
         // 单行模式下折叠行就是那条引用条本身：气泡里不再显示任何步骤，
         // 只有用户主动点开时才在下方铺开时间线。
         val showSteps = if (singleRow) bodyVisible && manualExpanded == true else bodyVisible
-        AnimatedVisibility(
-            visible = showSteps,
-            enter = fadeIn(tween(160)) + expandVertically(
-                animationSpec = spring(
-                    dampingRatio = Spring.DampingRatioNoBouncy,
-                    stiffness = Spring.StiffnessMediumLow,
-                ),
-            ),
-            exit = fadeOut(tween(120)) + shrinkVertically(
-                animationSpec = spring(
-                    dampingRatio = Spring.DampingRatioNoBouncy,
-                    stiffness = Spring.StiffnessMediumLow,
-                ),
-            ),
+        // 展开时折叠行与步骤共用外层的同一块画布：竖条只有一条，从上贯通到底。
+        val joinedPanel = embedded && singleRow && showSteps
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .then(if (joinedPanel) Modifier.workQuoteBar() else Modifier),
         ) {
-            if (embedded) {
-                // 展开后接在折叠行下方，和折叠行拼成同一块面板：
-                // 外框只画一次底色与竖条，步骤之间只用细分隔线切开，
-                // 不再每一步各套一条引用条（否则看起来像一堆分开的卡片）。
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .workQuoteBar()
-                        .padding(
-                            start = WorkQuoteBarWidth + 12.dp,
-                            end = 10.dp,
-                            top = 2.dp,
-                            bottom = 6.dp,
-                        ),
-                ) {
-                    visibleSteps.forEachIndexed { index, step ->
-                        if (index > 0) {
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(vertical = 2.dp)
-                                    .height(1.dp)
-                                    .background(WorkStepDividerColor),
-                            )
-                        }
-                        key(step.key) {
-                            AgentWorkStepNode(
-                                step = step,
-                                isLast = index == visibleSteps.lastIndex,
-                                quoted = false,
-                                // 展开后仍是一步一行，参数和结果收进各自的展开区。
-                                oneLine = true,
-                                onOpenBrowser = onOpenBrowser,
-                                currentBrowserMessageId = currentBrowserMessageId,
-                                retainedStreamingStates = retainedStreamingStates,
-                            )
+            AgentWorkHeader(
+                messages = messages,
+                working = active || running,
+                expanded = bodyVisible,
+                compact = embedded,
+                hiddenStepCount = hiddenStepCount,
+                quoted = singleRow,
+                // 整块由外层画时，这一行不再自己画竖条与底色。
+                quotedBackground = !joinedPanel,
+                onClick = { manualExpanded = !bodyVisible },
+            )
+            AnimatedVisibility(
+                visible = showSteps,
+                enter = fadeIn(tween(160)) + expandVertically(
+                    animationSpec = spring(
+                        dampingRatio = Spring.DampingRatioNoBouncy,
+                        stiffness = Spring.StiffnessMediumLow,
+                    ),
+                ),
+                exit = fadeOut(tween(120)) + shrinkVertically(
+                    animationSpec = spring(
+                        dampingRatio = Spring.DampingRatioNoBouncy,
+                        stiffness = Spring.StiffnessMediumLow,
+                    ),
+                ),
+            ) {
+                if (embedded) {
+                    // 展开后接在折叠行下方，属于同一块面板：底色与竖条由外层统一画，
+                    // 步骤之间只用细分隔线切开，不再每一步各套一条引用条。
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(
+                                start = WorkQuoteBarWidth + 12.dp,
+                                end = 10.dp,
+                                top = 0.dp,
+                                bottom = 6.dp,
+                            ),
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(1.dp)
+                                .background(WorkStepDividerColor),
+                        )
+                        visibleSteps.forEachIndexed { index, step ->
+                            if (index > 0) {
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(vertical = 2.dp)
+                                        .height(1.dp)
+                                        .background(WorkStepDividerColor),
+                                )
+                            }
+                            key(step.key) {
+                                AgentWorkStepNode(
+                                    step = step,
+                                    isLast = index == visibleSteps.lastIndex,
+                                    quoted = false,
+                                    // 展开后仍是一步一行，参数和结果收进各自的展开区。
+                                    oneLine = true,
+                                    onOpenBrowser = onOpenBrowser,
+                                    currentBrowserMessageId = currentBrowserMessageId,
+                                    retainedStreamingStates = retainedStreamingStates,
+                                )
+                            }
                         }
                     }
-                }
-            } else {
-                // 非气泡嵌入式（独立卡片、语音浮层）保留原来的时间线布局。
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(bottom = 6.dp),
-                ) {
-                    visibleSteps.forEachIndexed { index, step ->
-                        key(step.key) {
-                            AgentWorkStepNode(
-                                step = step,
-                                isLast = index == visibleSteps.lastIndex,
-                                quoted = false,
-                                oneLine = singleRow,
-                                onOpenBrowser = onOpenBrowser,
-                                currentBrowserMessageId = currentBrowserMessageId,
-                                retainedStreamingStates = retainedStreamingStates,
-                            )
+                } else {
+                    // 非气泡嵌入式（独立卡片、语音浮层）保留原来的时间线布局。
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(bottom = 6.dp),
+                    ) {
+                        visibleSteps.forEachIndexed { index, step ->
+                            key(step.key) {
+                                AgentWorkStepNode(
+                                    step = step,
+                                    isLast = index == visibleSteps.lastIndex,
+                                    quoted = false,
+                                    oneLine = singleRow,
+                                    onOpenBrowser = onOpenBrowser,
+                                    currentBrowserMessageId = currentBrowserMessageId,
+                                    retainedStreamingStates = retainedStreamingStates,
+                                )
+                            }
                         }
                     }
                 }
@@ -258,6 +272,8 @@ private fun AgentWorkHeader(
     hiddenStepCount: Int = 0,
     // 单行模式：这一行自己就是过程引用条，折叠时不再叠任何步骤。
     quoted: Boolean = false,
+    // 这一行是否自己画底色与竖条；展开时整块由外层统一画，这里传 false。
+    quotedBackground: Boolean = true,
     onClick: () -> Unit,
 ) {
     val runningTool = messages.lastOrNull { message ->
@@ -295,9 +311,10 @@ private fun AgentWorkHeader(
     val barModifier = if (quoted) {
         Modifier
             .fillMaxWidth()
-            .padding(bottom = 2.dp)
-            // 竖条 + 横条两块圆角矩形自己画，不裁外层形状。
-            .workQuoteBar()
+            // 展开时整块由外层画，这里不留底边间距，两块才能连成一体。
+            .then(if (quotedBackground) Modifier.padding(bottom = 2.dp) else Modifier)
+            // 竖条 + 横条自己画；整块由外层画时这一步跳过。
+            .then(if (quotedBackground) Modifier.workQuoteBar() else Modifier)
             .padding(start = WorkQuoteBarWidth + 8.dp, end = 10.dp, top = 7.dp, bottom = 7.dp)
     } else {
         Modifier

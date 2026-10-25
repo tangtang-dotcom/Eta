@@ -1082,7 +1082,6 @@ internal sealed interface AgentTimelineEntry {
         val procedures: List<AgentTurnBlock.Procedure>
             get() = blocks.filterIsInstance<AgentTurnBlock.Procedure>()
 
-        /** 本轮全部内容块里的消息，按顺序拼起来就是完整答复。 */
         /**
          * 本轮全部模型正文，按原始发生顺序。
          *
@@ -1149,27 +1148,30 @@ private fun AgentChatMessageUi.isTurnAnswer(): Boolean = when (this) {
  * [AgentMessageUi]。这里以用户消息为边界重新成组，组内再按 [toTurnBlocks] 切成
  * 过程块与内容块的交替序列。
  *
- * 条目的 key 取本轮第一条消息的 id（不看先后产生的是过程块还是内容块）：流式期间
- * 首块会从过程块变成内容块，若 key 跟着首块走，LazyColumn 会把同一个气泡当成新条目
- * 重新组合，正文与过程块的位置、以及历史分页锚点都会跟着跳。
+ * 条目的 key 锚在「本轮的起点消息」上：一轮以用户消息开头，它不会在流式过程中被
+ * 增删；若改取首条助手消息的 id，首块在「过程块 ⇄ 正文块」之间切换时 key 就会变，
+ * LazyColumn 会把同一个气泡当成新条目重新组合，表现为气泡内容跳位、往上滑直接被
+ * 拽回列表最开头。
  * 上下文压缩标记与其它系统提示不属于任何回答，保留为独立条目。
  */
 internal fun List<AgentTimelineEntry>.mergeWorkIntoAnswers(): List<AgentTimelineEntry> = buildList {
     val turnMessages = mutableListOf<AgentChatMessageUi>()
+    // 本轮 key 的宿主：最近一条用户消息；null 表示当前这轮还没有起点。
     var turnKey: String? = null
 
     fun flushTurn() {
         if (turnMessages.isEmpty()) return
         val blocks = turnMessages.toTurnBlocks()
-        val key = turnKey
+        // 历史页可能从某一轮的中间开始：此时没有用户消息可锚，退回用首个成员 id 兜底，
+        // 保证这段回答照样渲染出来，只是该轮的 key 稳定性略弱。
+        val key = turnKey ?: turnMessages.first().id
         turnMessages.clear()
         turnKey = null
-        if (blocks.isEmpty() || key == null) return
-        add(AgentTimelineEntry.Turn(key = key, blocks = blocks))
+        if (blocks.isEmpty()) return
+        add(AgentTimelineEntry.Turn(key = "turn-$key", blocks = blocks))
     }
 
     fun append(message: AgentChatMessageUi) {
-        if (turnKey == null) turnKey = message.id
         turnMessages += message
     }
 
@@ -1179,9 +1181,10 @@ internal fun List<AgentTimelineEntry>.mergeWorkIntoAnswers(): List<AgentTimeline
             is AgentTimelineEntry.Message -> {
                 val message = entry.message
                 when {
-                    // 新的用户消息是轮次边界，先把上一轮收口。
+                    // 新的用户消息是轮次边界：先把上一轮收口，再由它开启新一轮。
                     message is UserMessageUi -> {
                         flushTurn()
+                        turnKey = message.id
                         add(entry)
                     }
                     message.isTurnAnswer() -> append(message)

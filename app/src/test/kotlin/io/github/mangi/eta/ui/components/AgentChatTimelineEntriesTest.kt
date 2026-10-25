@@ -218,6 +218,52 @@ class AgentChatTimelineEntriesTest {
     }
 
     /**
+     * 复现用户遇到的情况：一整轮做完后进程被中断，末尾追加一条 interrupted 提示。
+     * 中断提示必须独立成条，并且它之前的整轮回答（正文+过程）不能因此消失。
+     */
+    @Test
+    fun interruptedNoticeKeepsPrecedingTurnIntact() {
+        val entries = listOf(
+            AgentTimelineEntry.Message(UserMessageUi("user-1", "下载并安装")),
+            AgentTimelineEntry.Message(AgentMessageUi("a-1", "APK 在另一个 artifact", isStreaming = false)),
+            AgentTimelineEntry.Message(
+                ToolActivityMessageUi(
+                    id = "t-1",
+                    toolName = "terminal_job",
+                    status = ToolActivityStatusUi.Running,
+                    argumentsSummary = "pm install",
+                ),
+            ),
+            AgentTimelineEntry.Message(
+                SystemNoticeMessageUi(
+                    id = "interrupted-run-1",
+                    code = SystemNoticeCode.Interrupted,
+                ),
+            ),
+            AgentTimelineEntry.Message(UserMessageUi("user-2", "又出问题了")),
+        ).mergeTurnTurns()
+
+        // 中断提示独立成条，不能把前面的回答吞掉。
+        assertTrue(
+            entries.any {
+                it is AgentTimelineEntry.Message &&
+                    it.message.id == "interrupted-run-1"
+            },
+        )
+        val turn = entries.filterIsInstance<AgentTimelineEntry.Turn>().firstOrNull()
+        assertTrue("整轮 Turn 不应消失", turn != null)
+        assertTrue(
+            "回答正文必须仍在 Turn 内",
+            turn!!.answers.any { it is AgentMessageUi && it.id == "a-1" },
+        )
+        assertTrue(
+            "过程步骤必须仍在 Turn 内",
+            turn.blocks.filterIsInstance<AgentTurnBlock.Procedure>()
+                .any { proc -> proc.steps.any { it.id == "t-1" } },
+        )
+    }
+
+    /**
      * 回归：系统提示曾被并进本轮 Turn，变成一个没有正文的 Content 块，
      * 于是"模型请求重试""任务已中断"这类提示整条从界面消失。
      * 现在它们必须保留为独立条目，交给 SystemNoticeMessageUi 分支渲染本地化文案。
@@ -262,7 +308,8 @@ class AgentChatTimelineEntriesTest {
         val keyBefore = onlyWork.filterIsInstance<AgentTimelineEntry.Turn>().single().key
         val keyAfter = withAnswer.filterIsInstance<AgentTimelineEntry.Turn>().single().key
         assertEquals(keyBefore, keyAfter)
-        assertEquals("think-1", keyBefore)
+        // key 锚在用户消息上，与首块是思考还是正文无关。
+        assertEquals("turn-user-1", keyBefore)
     }
 
     /** 多段正文合并时用空行拼接，保留完整答复顺序。 */

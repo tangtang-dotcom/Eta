@@ -144,16 +144,16 @@ internal object AetherChatColors {
     }
 
     /**
-     * 引用条 / 工作过程横条的底色：在模型气泡的紫上调亮一档。
+     * 引用条 / 工作过程横条的底色：深灰紫。
      *
-     * 深色下模型气泡本身已经很深，直接叠主题色那种高亮紫会整块发跳；
-     * 这里只在气泡色相上提亮，保留紫调但不刺眼，让左侧竖条压得住。
+     * 比模型气泡的紫再沉一档、灰一点，靠竖条的紫和文字的亮度拉反差，
+     * 不再是一整块显眼的亮紫。
      */
     @Composable
     fun quoteFill(): Color = when {
         monet -> MiuixTheme.colorScheme.surfaceContainerHigh
-        dark -> Color(0xFF3A2E52)
-        else -> Color(0xFFE7DEF5)
+        dark -> Color(0xFF33303B)
+        else -> Color(0xFFDED9EA)
     }
 
     /** 引用条 / 工作过程左侧竖条：比横条底色更深一档的紫，形成“深竖条 + 浅横条”的层次。 */

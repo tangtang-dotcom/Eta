@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.GenericShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Check
@@ -40,10 +41,11 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
-import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -262,17 +264,35 @@ private fun MarkdownQuoteBlock(block: MarkdownQuote, scope: MarkdownRenderScope)
             .fillMaxWidth()
             // 引用块可能在流式输出时逐字变大，用普通圆角背景而不是着色器 mask，
             // 避免每次尺寸变化都重跑一遍 runtime shader。
-            .clip(RoundedCornerShape(QuoteCorner))
+            // 形状与工作过程一致：左缘竖直直线，上下各一个小圆角，右端 24dp。
+            .clip(quoteBarShape())
             .background(barColor)
             .drawBehind {
-                val radius = QuoteCorner.toPx()
+                val endRadius = QuoteCorner.toPx().coerceAtMost(size.width / 2f)
                 val left = QuoteBarWidth.toPx()
-                drawRoundRect(
-                    color = content,
-                    topLeft = Offset(left, 0f),
-                    size = Size((size.width - left).coerceAtLeast(0f), size.height),
-                    cornerRadius = CornerRadius(radius, radius),
-                )
+                val w = size.width
+                val h = size.height
+                if (w - left <= endRadius) return@drawBehind
+                val path = Path().apply {
+                    moveTo(left, 0f)
+                    lineTo(w - endRadius, 0f)
+                    arcTo(
+                        rect = Rect(w - endRadius * 2f, 0f, w, endRadius * 2f),
+                        startAngleDegrees = 270f,
+                        sweepAngleDegrees = 90f,
+                        forceMoveTo = false,
+                    )
+                    lineTo(w, h - endRadius)
+                    arcTo(
+                        rect = Rect(w - endRadius * 2f, h - endRadius * 2f, w, h),
+                        startAngleDegrees = 0f,
+                        sweepAngleDegrees = 90f,
+                        forceMoveTo = false,
+                    )
+                    lineTo(left, h)
+                    close()
+                }
+                drawPath(path = path, color = content)
             }
             .padding(start = QuoteBarWidth + 9.dp, end = 10.dp, top = 6.dp, bottom = 6.dp),
     )
@@ -283,6 +303,46 @@ private val QuoteBarWidth = 6.dp
 
 /** 引用条圆角，与工作过程步骤保持一致。 */
 private val QuoteCorner = 24.dp
+
+/** 引用条左上/左下的小圆角：左缘保持直线，只把两个角磨圆。 */
+private val QuoteStartCorner = 8.dp
+
+/** 引用条轮廓：左边一条竖直直线，上下小圆角过渡，右端保留气泡大圆角。 */
+private fun quoteBarShape() = GenericShape { size, _ ->
+    val startRadius = QuoteStartCorner.toPx().coerceAtMost(size.width / 2f)
+    val endRadius = QuoteCorner.toPx().coerceAtMost(size.width / 2f)
+    val w = size.width
+    val h = size.height
+    moveTo(0f, startRadius)
+    arcTo(
+        rect = Rect(0f, 0f, startRadius * 2f, startRadius * 2f),
+        startAngleDegrees = 180f,
+        sweepAngleDegrees = 90f,
+        forceMoveTo = false,
+    )
+    lineTo(w - endRadius, 0f)
+    arcTo(
+        rect = Rect(w - endRadius * 2f, 0f, w, endRadius * 2f),
+        startAngleDegrees = 270f,
+        sweepAngleDegrees = 90f,
+        forceMoveTo = false,
+    )
+    lineTo(w, h - endRadius)
+    arcTo(
+        rect = Rect(w - endRadius * 2f, h - endRadius * 2f, w, h),
+        startAngleDegrees = 0f,
+        sweepAngleDegrees = 90f,
+        forceMoveTo = false,
+    )
+    lineTo(startRadius, h)
+    arcTo(
+        rect = Rect(0f, h - startRadius * 2f, startRadius * 2f, h),
+        startAngleDegrees = 90f,
+        sweepAngleDegrees = 90f,
+        forceMoveTo = false,
+    )
+    close()
+}
 
 @Composable
 private fun MarkdownAlertBlock(block: MarkdownAlert, scope: MarkdownRenderScope) {

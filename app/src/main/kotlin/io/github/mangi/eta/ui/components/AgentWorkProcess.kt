@@ -29,6 +29,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.GenericShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Build
@@ -48,14 +49,15 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.drawWithContent
-import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -264,18 +266,7 @@ private fun AgentWorkHeader(
     }
     Row(
         modifier = barModifier
-            .clip(
-                if (quoted) {
-                    RoundedCornerShape(
-                        topStart = WorkQuoteStartCorner,
-                        bottomStart = WorkQuoteStartCorner,
-                        topEnd = WorkQuoteCorner,
-                        bottomEnd = WorkQuoteCorner,
-                    )
-                } else {
-                    RoundedCornerShape(10.dp)
-                },
-            )
+            .clip(if (quoted) quoteBarShape() else RoundedCornerShape(10.dp))
             .clickable(onClick = onClick),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -459,22 +450,57 @@ private val WorkQuoteBarWidth = 4.dp
 /** 过程条右侧圆角：保持与聊天气泡一致的 24dp。 */
 private val WorkQuoteCorner = 24.dp
 
-/** 过程条左侧圆角：竖条包边处收小，避免左端显得过圆。 */
+/** 过程条左侧两角的小圆角：左缘保持竖直直线，只把上下两个角磨圆。 */
 private val WorkQuoteStartCorner = 8.dp
 
-/** 过程条形状：左侧小圆角、右侧保持气泡圆角。 */
-private fun quoteBarShape() = RoundedCornerShape(
-    topStart = WorkQuoteStartCorner,
-    bottomStart = WorkQuoteStartCorner,
-    topEnd = WorkQuoteCorner,
-    bottomEnd = WorkQuoteCorner,
-)
+/**
+ * 过程引用条的形状：左缘是一条竖直直线，只有左上/左下两个角是小圆角，
+ * 右侧保持气泡的 24dp。中间整段边缘没有弧线，看起来就是“左边切直的一条”。
+ */
+private fun quoteBarShape() = GenericShape { size, _ ->
+    val startRadius = WorkQuoteStartCorner.toPx().coerceAtMost(size.width / 2f)
+    val endRadius = WorkQuoteCorner.toPx().coerceAtMost(size.width / 2f)
+    val w = size.width
+    val h = size.height
+    // 左上角：从直边起弧，再落到顶部直线。
+    moveTo(0f, startRadius)
+    arcTo(
+        rect = Rect(0f, 0f, startRadius * 2f, startRadius * 2f),
+        startAngleDegrees = 180f,
+        sweepAngleDegrees = 90f,
+        forceMoveTo = false,
+    )
+    lineTo(w - endRadius, 0f)
+    arcTo(
+        rect = Rect(w - endRadius * 2f, 0f, w, endRadius * 2f),
+        startAngleDegrees = 270f,
+        sweepAngleDegrees = 90f,
+        forceMoveTo = false,
+    )
+    lineTo(w, h - endRadius)
+    arcTo(
+        rect = Rect(w - endRadius * 2f, h - endRadius * 2f, w, h),
+        startAngleDegrees = 0f,
+        sweepAngleDegrees = 90f,
+        forceMoveTo = false,
+    )
+    lineTo(startRadius, h)
+    arcTo(
+        rect = Rect(0f, h - startRadius * 2f, startRadius * 2f, h),
+        startAngleDegrees = 90f,
+        sweepAngleDegrees = 90f,
+        forceMoveTo = false,
+    )
+    // 左边回到起点：这一整条是竖直直线。
+    close()
+}
 
 /**
  * 过程引用条的背景与竖条：折叠行和展开后的每一步都走这一处。
  *
- * 整张卡只有一个圆角形状，左侧那条竖条就是这层形状向外露出的部分：
- * 竖条与横条等高、自然包住左侧圆角，不再是浮在中间的一根细线。
+ * 外层按 [quoteBarShape] 裁出“左边直、右端圆”的轮廓并铺满竖条色；
+ * 内侧再铺一块同轮廓的横条色，只是不从最左边起笔——
+ * 横条自身的左缘是垂直的，右端才带 24dp 圆角，于是竖条与横条拼成一块，中间没有缝。
  */
 @Composable
 private fun Modifier.workQuoteBar(): Modifier {
@@ -484,17 +510,33 @@ private fun Modifier.workQuoteBar(): Modifier {
         .clip(quoteBarShape())
         .background(barColor)
         .drawBehind {
-            // 内侧横条从竖条右缘开始，右侧沿用 24dp，左侧换成更小的半径：
-            // 左侧仍被竖条整圈包住，只是左端不再那么圆。
-            val startRadius = WorkQuoteStartCorner.toPx()
-            val endRadius = WorkQuoteCorner.toPx()
+            // 内侧横条从竖条右缘起笔：左缘垂直向下，右端沿用气泡圆角。
+            // 竖条宽度落在裁切轮廓内，因此两者的上下边缘完全重合，不会露出阶梯。
+            val endRadius = WorkQuoteCorner.toPx().coerceAtMost(size.width / 2f)
             val left = WorkQuoteBarWidth.toPx()
-            drawRoundRect(
-                color = stepBackground,
-                topLeft = Offset(left, 0f),
-                size = Size((size.width - left).coerceAtLeast(0f), size.height),
-                cornerRadius = CornerRadius(startRadius, endRadius),
-            )
+            val w = size.width
+            val h = size.height
+            if (w - left <= endRadius) return@drawBehind
+            val path = Path().apply {
+                moveTo(left, 0f)
+                lineTo(w - endRadius, 0f)
+                arcTo(
+                    rect = Rect(w - endRadius * 2f, 0f, w, endRadius * 2f),
+                    startAngleDegrees = 270f,
+                    sweepAngleDegrees = 90f,
+                    forceMoveTo = false,
+                )
+                lineTo(w, h - endRadius)
+                arcTo(
+                    rect = Rect(w - endRadius * 2f, h - endRadius * 2f, w, h),
+                    startAngleDegrees = 0f,
+                    sweepAngleDegrees = 90f,
+                    forceMoveTo = false,
+                )
+                lineTo(left, h)
+                close()
+            }
+            drawPath(path = path, color = stepBackground)
         }
 }
 

@@ -40,6 +40,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
@@ -258,12 +259,6 @@ private fun MarkdownQuoteBlock(block: MarkdownQuote, scope: MarkdownRenderScope)
     // 引用里的文字保持原亮度，靠底色和竖条区分层级，不把字调灰。
     val barColor = scope.style.quoteBarColor
     val content = scope.style.quoteBackground
-    val fillShape = RoundedCornerShape(
-        topStart = QuoteFillStartCorner,
-        bottomStart = QuoteFillStartCorner,
-        topEnd = QuoteFillRadiusEnd,
-        bottomEnd = QuoteFillRadiusEnd,
-    )
     val density = LocalDensity.current
     val barWidthPx = with(density) { QuoteBarWidth.toPx() }
     val barRadiusPx = with(density) { QuoteBarRadius.toPx() }
@@ -274,26 +269,30 @@ private fun MarkdownQuoteBlock(block: MarkdownQuote, scope: MarkdownRenderScope)
         compact = false,
         modifier = Modifier
             .fillMaxWidth()
-            .drawBehind {
+            .drawWithCache {
                 val barRadius = barRadiusPx.coerceAtMost(size.height / 2f)
-                drawRoundRect(
-                    color = barColor,
-                    topLeft = Offset(0f, 0f),
-                    size = Size(barWidthPx, size.height),
-                    cornerRadius = CornerRadius(barRadius, barRadius),
-                )
-                translate(left = barVisiblePx) {
-                    drawPath(
-                        path = fillShape.createOutline(
+                val fillPath = Path().apply {
+                    addOutline(
+                        QuoteFillShape.createOutline(
                             size = Size(
                                 (size.width - barVisiblePx).coerceAtLeast(0f),
                                 size.height,
                             ),
                             layoutDirection = layoutDirection,
-                            density = this,
-                        ).let { outline -> Path().apply { addOutline(outline) } },
-                        color = content,
+                            density = this@drawWithCache,
+                        ),
                     )
+                }
+                onDrawBehind {
+                    drawRoundRect(
+                        color = barColor,
+                        topLeft = Offset(0f, 0f),
+                        size = Size(barWidthPx, size.height),
+                        cornerRadius = CornerRadius(barRadius, barRadius),
+                    )
+                    translate(left = barVisiblePx) {
+                        drawPath(path = fillPath, color = content)
+                    }
                 }
             }
             .padding(start = QuoteBarVisibleWidth + 9.dp, end = 10.dp, top = 6.dp, bottom = 6.dp),
@@ -596,3 +595,11 @@ private val MarkdownColumnAlign.textAlign: TextAlign
 
 private val TableMinColumnWidth = 72.dp
 private val TableMaxColumnWidth = 260.dp
+
+/** 引用条横条的轮廓：左小右大的不规则圆角，与竖条拼出「｜」嵌进长条的形状。 */
+private val QuoteFillShape = RoundedCornerShape(
+    topStart = QuoteFillStartCorner,
+    bottomStart = QuoteFillStartCorner,
+    topEnd = QuoteFillRadiusEnd,
+    bottomEnd = QuoteFillRadiusEnd,
+)

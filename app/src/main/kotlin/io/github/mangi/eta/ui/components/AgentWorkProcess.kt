@@ -48,6 +48,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
@@ -521,6 +522,14 @@ private val WorkQuoteFillStartCorner = 4.dp
 /** 展开后的步骤之间用一条很淡的分隔线切开，而不是各自成卡片。 */
 private val WorkStepDividerColor = Color(0x1AFFFFFF)
 
+/** 横条的轮廓：左小右大的不规则圆角，与竖条拼出一段「｜」嵌进长条的形状。 */
+private val WorkQuoteFillShape = RoundedCornerShape(
+    topStart = WorkQuoteFillStartCorner,
+    bottomStart = WorkQuoteFillStartCorner,
+    topEnd = WorkQuoteFillRadiusEnd,
+    bottomEnd = WorkQuoteFillRadiusEnd,
+)
+
 /**
  * 过程引用条的背景：最左边一条带圆角的竖条，右边贴着不规则圆角（左小右大）的横条。
  *
@@ -532,35 +541,37 @@ private val WorkStepDividerColor = Color(0x1AFFFFFF)
 private fun Modifier.workQuoteBar(): Modifier {
     val barColor = AetherChatColors.quoteBar()
     val fillColor = AetherChatColors.quoteFill()
-    val fillShape = RoundedCornerShape(
-        topStart = WorkQuoteFillStartCorner,
-        bottomStart = WorkQuoteFillStartCorner,
-        topEnd = WorkQuoteFillRadiusEnd,
-        bottomEnd = WorkQuoteFillRadiusEnd,
-    )
+    val fillShape = WorkQuoteFillShape
     val density = LocalDensity.current
     val barWidthPx = with(density) { WorkQuoteBarWidth.toPx() }
     val barRadiusPx = with(density) { WorkQuoteBarRadius.toPx() }
     val barVisiblePx = with(density) { WorkQuoteBarVisibleWidth.toPx() }
-    return this.drawBehind {
-        // 竖条：先画，圆角竖条，右侧一截会被下面的横条压住。
+    // 流式输出时这个条的高度每帧都在涨，drawBehind 也就每帧重跑一次。轮廓换算
+    // （createOutline + addOutline）和 Path 分配放在 drawWithCache 的缓存块里，
+    // 只在尺寸变化时才重建；颜色变化走 drawBlock 的捕获值，只触发重画不触发重建。
+    return this.drawWithCache {
         val barRadius = barRadiusPx.coerceAtMost(size.height / 2f)
-        drawRoundRect(
-            color = barColor,
-            topLeft = Offset(0f, 0f),
-            size = Size(barWidthPx, size.height),
-            cornerRadius = CornerRadius(barRadius, barRadius),
-        )
-        // 横条：从露出宽度处起笔，盖在竖条右半边上面。
-        translate(left = barVisiblePx) {
-            drawPath(
-                path = fillShape.createOutline(
+        val fillPath = Path().apply {
+            addOutline(
+                fillShape.createOutline(
                     size = Size((size.width - barVisiblePx).coerceAtLeast(0f), size.height),
                     layoutDirection = layoutDirection,
-                    density = this,
-                ).let { outline -> Path().apply { addOutline(outline) } },
-                color = fillColor,
+                    density = this@drawWithCache,
+                ),
             )
+        }
+        onDrawBehind {
+            // 竖条：先画，圆角竖条，右侧一截会被下面的横条压住。
+            drawRoundRect(
+                color = barColor,
+                topLeft = Offset(0f, 0f),
+                size = Size(barWidthPx, size.height),
+                cornerRadius = CornerRadius(barRadius, barRadius),
+            )
+            // 横条：从露出宽度处起笔，盖在竖条右半边上面。
+            translate(left = barVisiblePx) {
+                drawPath(path = fillPath, color = fillColor)
+            }
         }
     }
 }

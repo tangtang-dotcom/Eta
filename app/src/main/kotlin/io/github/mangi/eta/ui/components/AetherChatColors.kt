@@ -152,8 +152,8 @@ internal object AetherChatColors {
     @Composable
     fun quoteFill(): Color = when {
         monet -> MiuixTheme.colorScheme.surfaceContainerHigh
-        dark -> Color(0xFF453760)
-        else -> Color(0xFFF3EDF9)
+        dark -> Color(0xFF3A2E52)
+        else -> Color(0xFFE7DEF5)
     }
 
     /** 引用条 / 工作过程左侧竖条：比底色更亮一档的紫，形成“亮竖条 + 中亮横条”的层次。 */

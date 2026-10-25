@@ -264,7 +264,18 @@ private fun AgentWorkHeader(
     }
     Row(
         modifier = barModifier
-            .clip(RoundedCornerShape(if (quoted) WorkQuoteCorner else 10.dp))
+            .clip(
+                if (quoted) {
+                    RoundedCornerShape(
+                        topStart = WorkQuoteStartCorner,
+                        bottomStart = WorkQuoteStartCorner,
+                        topEnd = WorkQuoteCorner,
+                        bottomEnd = WorkQuoteCorner,
+                    )
+                } else {
+                    RoundedCornerShape(10.dp)
+                },
+            )
             .clickable(onClick = onClick),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -445,8 +456,19 @@ private fun WorkStep(
 /** 过程块左侧竖条宽度：比 Markdown 引用条的 3dp 更宽，正好包住左侧圆角。 */
 private val WorkQuoteBarWidth = 6.dp
 
-/** 过程步骤底色块的圆角，与聊天气泡的 24dp 保持一致。 */
+/** 过程条右侧圆角：保持与聊天气泡一致的 24dp。 */
 private val WorkQuoteCorner = 24.dp
+
+/** 过程条左侧圆角：竖条包边处收小，避免左端显得过圆。 */
+private val WorkQuoteStartCorner = 8.dp
+
+/** 过程条形状：左侧小圆角、右侧保持气泡圆角。 */
+private fun quoteBarShape() = RoundedCornerShape(
+    topStart = WorkQuoteStartCorner,
+    bottomStart = WorkQuoteStartCorner,
+    topEnd = WorkQuoteCorner,
+    bottomEnd = WorkQuoteCorner,
+)
 
 /**
  * 过程引用条的背景与竖条：折叠行和展开后的每一步都走这一处。
@@ -459,18 +481,19 @@ private fun Modifier.workQuoteBar(): Modifier {
     val barColor = AetherChatColors.quoteBar()
     val stepBackground = AetherChatColors.quoteFill()
     return this
-        .clip(RoundedCornerShape(WorkQuoteCorner))
+        .clip(quoteBarShape())
         .background(barColor)
         .drawBehind {
-            // 圆角半径与 WorkQuoteCorner 一致，内侧形状从竖条右缘开始，
-            // 两者左侧用同一半径，横条就正好被竖条包住左半圈。
-            val radius = WorkQuoteCorner.toPx()
+            // 内侧横条从竖条右缘开始，右侧沿用 24dp，左侧换成更小的半径：
+            // 左侧仍被竖条整圈包住，只是左端不再那么圆。
+            val startRadius = WorkQuoteStartCorner.toPx()
+            val endRadius = WorkQuoteCorner.toPx()
             val left = WorkQuoteBarWidth.toPx()
             drawRoundRect(
                 color = stepBackground,
                 topLeft = Offset(left, 0f),
                 size = Size((size.width - left).coerceAtLeast(0f), size.height),
-                cornerRadius = CornerRadius(radius, radius),
+                cornerRadius = CornerRadius(startRadius, endRadius),
             )
         }
 }

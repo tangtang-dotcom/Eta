@@ -1,7 +1,6 @@
 package io.github.mangi.eta.ui.markdown
 
 import androidx.compose.foundation.background
-import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -16,7 +15,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.GenericShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Check
@@ -40,13 +38,14 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
-import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -63,8 +62,8 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextMotion
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Constraints
-import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.Density
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import io.github.mangi.eta.R
 import io.github.mangi.eta.ui.components.StatusSuccess
@@ -253,113 +252,48 @@ private fun CopyButton(text: String, tint: Color) {
 
 @Composable
 private fun MarkdownQuoteBlock(block: MarkdownQuote, scope: MarkdownRenderScope) {
-    // 引用条与工作过程同一套形状：整块一个圆角，左侧更亮的紫竖条包住左半圈，
-    // 横条与竖条等高。对比来自“亮竖条 + 中亮横条”落在深紫气泡上，而不是整块涂成高亮紫。
+    // 与工作过程同一套画法：一个竖条圆角矩形 + 一个横条圆角矩形，两块等高叠在一起。
     // 引用里的文字保持原亮度，靠底色和竖条区分层级，不把字调灰。
     val barColor = scope.style.quoteBarColor
     val content = scope.style.quoteBackground
+    val density = LocalDensity.current
+    val radiusPx = with(density) { QuoteRadius.toPx() }
+    val barWidthPx = with(density) { QuoteBarWidth.toPx() }
+    val overlapPx = with(density) { QuoteOverlap.toPx() }
     MarkdownBlockColumn(
         blocks = block.blocks,
         scope = scope,
         compact = false,
         modifier = Modifier
             .fillMaxWidth()
-            // 引用块可能在流式输出时逐字变大，用普通圆角背景而不是着色器 mask，
-            // 避免每次尺寸变化都重跑一遍 runtime shader。
-            // 形状与工作过程一致：左缘竖直直线，上下各一个小圆角，右端 24dp。
-            .clip(quoteBarShape())
-            .background(barColor)
             .drawBehind {
-                val endRadius = QuoteCorner.toPx().coerceAtMost(size.width / 2f)
-                val left = QuoteBarWidth.toPx()
-                val w = size.width
-                val h = size.height
-                if (w - left <= endRadius) return@drawBehind
-                val path = Path().apply {
-                    moveTo(left, 0f)
-                    lineTo(w - endRadius, 0f)
-                    arcTo(
-                        rect = Rect(w - endRadius * 2f, 0f, w, endRadius * 2f),
-                        startAngleDegrees = 270f,
-                        sweepAngleDegrees = 90f,
-                        forceMoveTo = false,
-                    )
-                    lineTo(w, h - endRadius)
-                    arcTo(
-                        rect = Rect(w - endRadius * 2f, h - endRadius * 2f, w, h),
-                        startAngleDegrees = 0f,
-                        sweepAngleDegrees = 90f,
-                        forceMoveTo = false,
-                    )
-                    lineTo(left, h)
-                    close()
-                }
-                drawPath(path = path, color = content)
+                val corner = CornerRadius(radiusPx, radiusPx)
+                drawRoundRect(
+                    color = barColor,
+                    topLeft = Offset(0f, 0f),
+                    size = Size(barWidthPx, size.height),
+                    cornerRadius = corner,
+                )
+                val left = (barWidthPx - overlapPx).coerceAtLeast(0f)
+                drawRoundRect(
+                    color = content,
+                    topLeft = Offset(left, 0f),
+                    size = Size((size.width - left).coerceAtLeast(0f), size.height),
+                    cornerRadius = corner,
+                )
             }
             .padding(start = QuoteBarWidth + 9.dp, end = 10.dp, top = 6.dp, bottom = 6.dp),
     )
 }
 
-/** 引用条左侧竖条宽度，与工作过程步骤保持一致。 */
+/** 引用条左侧竖条宽度。 */
 private val QuoteBarWidth = 6.dp
 
-/** 引用条圆角，与工作过程步骤保持一致。 */
-private val QuoteCorner = 24.dp
+/** 竖条与横条的圆角半径。 */
+private val QuoteRadius = 6.dp
 
-/** 引用条左上/左下的小圆角：左缘保持直线，只把两个角磨圆。 */
-private val QuoteStartCorner = 8.dp
-
-/**
- * 引用条轮廓：左边一条竖直直线，上下小圆角过渡，右端保留气泡大圆角。
- *
- * GenericShape 的构造 lambda 只有 (Path, Size, LayoutDirection)，拿不到 Density，
- * 所以两个圆角按当前屏幕密度预先换算成像素再传进来。
- */
-@Composable
-private fun quoteBarShape(): Shape {
-    val density = LocalDensity.current
-    val startRadiusPx = with(density) { QuoteStartCorner.toPx() }
-    val endRadiusPx = with(density) { QuoteCorner.toPx() }
-    return remember(startRadiusPx, endRadiusPx) {
-        quoteBarShape(startRadiusPx, endRadiusPx)
-    }
-}
-
-private fun quoteBarShape(startRadiusPx: Float, endRadiusPx: Float) = GenericShape { size, _ ->
-    val startRadius = startRadiusPx.coerceAtMost(size.width / 2f)
-    val endRadius = endRadiusPx.coerceAtMost(size.width / 2f)
-    val w = size.width
-    val h = size.height
-    moveTo(0f, startRadius)
-    arcTo(
-        rect = Rect(0f, 0f, startRadius * 2f, startRadius * 2f),
-        startAngleDegrees = 180f,
-        sweepAngleDegrees = 90f,
-        forceMoveTo = false,
-    )
-    lineTo(w - endRadius, 0f)
-    arcTo(
-        rect = Rect(w - endRadius * 2f, 0f, w, endRadius * 2f),
-        startAngleDegrees = 270f,
-        sweepAngleDegrees = 90f,
-        forceMoveTo = false,
-    )
-    lineTo(w, h - endRadius)
-    arcTo(
-        rect = Rect(w - endRadius * 2f, h - endRadius * 2f, w, h),
-        startAngleDegrees = 0f,
-        sweepAngleDegrees = 90f,
-        forceMoveTo = false,
-    )
-    lineTo(startRadius, h)
-    arcTo(
-        rect = Rect(0f, h - startRadius * 2f, startRadius * 2f, h),
-        startAngleDegrees = 90f,
-        sweepAngleDegrees = 90f,
-        forceMoveTo = false,
-    )
-    close()
-}
+/** 横条压在竖条上的重叠量。 */
+private val QuoteOverlap = 3.dp
 
 @Composable
 private fun MarkdownAlertBlock(block: MarkdownAlert, scope: MarkdownRenderScope) {

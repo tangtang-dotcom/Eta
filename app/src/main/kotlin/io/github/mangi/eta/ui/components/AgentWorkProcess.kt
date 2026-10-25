@@ -29,7 +29,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.GenericShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Build
@@ -50,16 +49,14 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.graphics.Path
-import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -190,7 +187,7 @@ internal fun AgentWorkProcess(
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .workQuoteBar(solo = false)
+                        .workQuoteBar()
                         .padding(
                             start = WorkQuoteBarWidth + 12.dp,
                             end = 10.dp,
@@ -292,14 +289,12 @@ private fun AgentWorkHeader(
     }
     // 单行模式下整条过程只有这一行：引用条自带底色、竖条与圆角，
     // 不再额外叠一层步骤列表，多条工具/思考合并成“一条、一行”。
-    // 展开时这一行和下方步骤拼成同一块面板：底边不做圆角，也不留间距。
-    val joinedBelow = quoted && expanded
     val barModifier = if (quoted) {
         Modifier
             .fillMaxWidth()
-            .then(if (joinedBelow) Modifier else Modifier.padding(bottom = 2.dp))
-            // 竖条直接把左侧圆角包住：整张卡只有一个 shape。
-            .workQuoteBar(solo = !joinedBelow)
+            .padding(bottom = 2.dp)
+            // 竖条 + 横条两块圆角矩形自己画，不裁外层形状。
+            .workQuoteBar()
             .padding(start = WorkQuoteBarWidth + 8.dp, end = 10.dp, top = 7.dp, bottom = 7.dp)
     } else {
         Modifier
@@ -310,7 +305,7 @@ private fun AgentWorkHeader(
     }
     Row(
         modifier = barModifier
-            .clip(if (quoted) quoteBarShape() else RoundedCornerShape(10.dp))
+            .clip(RoundedCornerShape(10.dp))
             .clickable(onClick = onClick),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -488,134 +483,49 @@ private fun WorkStep(
     }
 }
 
-/** 过程块左侧竖条宽度：收窄到 4dp，仍然包住左侧圆角但不再显粗。 */
+/** 过程块左侧竖条宽度。 */
 private val WorkQuoteBarWidth = 4.dp
+
+/** 竖条与横条的圆角半径。 */
+private val WorkQuoteBarRadius = 6.dp
+
+/** 横条压在竖条上的重叠量：两块拼在一起，不留缝。 */
+private val WorkQuoteOverlap = 3.dp
 
 /** 展开后的步骤之间用一条很淡的分隔线切开，而不是各自成卡片。 */
 private val WorkStepDividerColor = Color(0x1AFFFFFF)
 
-/** 过程条右侧圆角：保持与聊天气泡一致的 24dp。 */
-private val WorkQuoteCorner = 24.dp
-
-/** 过程条左侧两角的小圆角：左缘保持竖直直线，只把上下两个角磨圆。 */
-private val WorkQuoteStartCorner = 8.dp
-
 /**
- * 过程引用条的形状：左缘是一条竖直直线，只有左上/左下两个角是小圆角，
- * 右侧保持气泡的 24dp。中间整段边缘没有弧线，看起来就是“左边切直的一条”。
+ * 过程引用条的背景：先画一个竖条圆角矩形，再在上面叠一个横条圆角矩形。
  *
- * GenericShape 的构造 lambda 只有 (Path, Size, LayoutDirection)，拿不到 Density，
- * 所以两个圆角在这里按当前屏幕密度预先换算成像素再传进来。
+ * 两块都是最普通的圆角矩形，竖条贴最左、横条从左边靠右一点起笔并压住竖条一小截，
+ * 高度完全一致，所以合成一块之后左缘看起来就是一条直线，右侧是圆角。
  */
 @Composable
-private fun quoteBarShape(roundBottom: Boolean = true): Shape {
-    val density = LocalDensity.current
-    val startRadiusPx = with(density) { WorkQuoteStartCorner.toPx() }
-    val endRadiusPx = with(density) { WorkQuoteCorner.toPx() }
-    return remember(startRadiusPx, endRadiusPx, roundBottom) {
-        quoteBarShape(startRadiusPx, endRadiusPx, roundBottom)
-    }
-}
-
-private fun quoteBarShape(
-    startRadiusPx: Float,
-    endRadiusPx: Float,
-    roundBottom: Boolean = true,
-) = GenericShape { size, _ ->
-    val startRadius = startRadiusPx.coerceAtMost(size.width / 2f)
-    // 右端圆角要按高度收缩：过程条只有 30dp 上下高，若纵向也强塞 24dp，
-    // 上下两个弧会在中间挤成尖角，看起来像奶嘴。纵向最多占一半高度。
-    val endRadius = endRadiusPx.coerceAtMost(size.width / 2f)
-    val endRadiusY = endRadius.coerceAtMost(size.height / 2f)
-    // 与上一块拼接时底边是直角，不做圆弧。
-    val bottomRadiusY = if (roundBottom) endRadiusY else 0f
-    val bottomStartRadius = if (roundBottom) startRadius else 0f
-    val w = size.width
-    val h = size.height
-    // 左上角：从直边起弧，再落到顶部直线。
-    moveTo(0f, startRadius)
-    arcTo(
-        rect = Rect(0f, 0f, startRadius * 2f, startRadius * 2f),
-        startAngleDegrees = 180f,
-        sweepAngleDegrees = 90f,
-        forceMoveTo = false,
-    )
-    lineTo(w - endRadius, 0f)
-    arcTo(
-        rect = Rect(w - endRadius * 2f, 0f, w, endRadiusY * 2f),
-        startAngleDegrees = 270f,
-        sweepAngleDegrees = 90f,
-        forceMoveTo = false,
-    )
-    lineTo(w, h - bottomRadiusY)
-    if (bottomRadiusY > 0f) {
-        arcTo(
-            rect = Rect(w - endRadius * 2f, h - bottomRadiusY * 2f, w, h),
-            startAngleDegrees = 0f,
-            sweepAngleDegrees = 90f,
-            forceMoveTo = false,
-        )
-    }
-    lineTo(startRadius, h)
-    if (bottomStartRadius > 0f) {
-        arcTo(
-            rect = Rect(0f, h - bottomStartRadius * 2f, bottomStartRadius * 2f, h),
-            startAngleDegrees = 90f,
-            sweepAngleDegrees = 90f,
-            forceMoveTo = false,
-        )
-    }
-    // 左边回到起点：这一整条是竖直直线。
-    close()
-}
-
-/**
- * 过程引用条的背景与竖条：折叠行和展开后的每一步都走这一处。
- *
- * 外层按 [quoteBarShape] 裁出“左边直、右端圆”的轮廓并铺满竖条色；
- * 内侧再铺一块同轮廓的横条色，只是不从最左边起笔——
- * 横条自身的左缘是垂直的，右端才带 24dp 圆角，于是竖条与横条拼成一块，中间没有缝。
- */
-@Composable
-private fun Modifier.workQuoteBar(solo: Boolean = true): Modifier {
+private fun Modifier.workQuoteBar(): Modifier {
     val barColor = AetherChatColors.quoteBar()
-    val stepBackground = AetherChatColors.quoteFill()
-    return this
-        .clip(quoteBarShape(roundBottom = !solo))
-        .background(barColor)
-        .drawBehind {
-            // 内侧横条从竖条右缘起笔：左缘垂直向下，右端沿用气泡圆角。
-            // 竖条宽度落在裁切轮廓内，因此两者的上下边缘完全重合，不会露出阶梯。
-            val endRadius = WorkQuoteCorner.toPx().coerceAtMost(size.width / 2f)
-            val endRadiusY = endRadius.coerceAtMost(size.height / 2f)
-            val bottomRadiusY = if (solo) endRadiusY else 0f
-            val left = WorkQuoteBarWidth.toPx()
-            val w = size.width
-            val h = size.height
-            if (w - left <= endRadius) return@drawBehind
-            val path = Path().apply {
-                moveTo(left, 0f)
-                lineTo(w - endRadius, 0f)
-                arcTo(
-                    rect = Rect(w - endRadius * 2f, 0f, w, endRadiusY * 2f),
-                    startAngleDegrees = 270f,
-                    sweepAngleDegrees = 90f,
-                    forceMoveTo = false,
-                )
-                lineTo(w, h - bottomRadiusY)
-                if (bottomRadiusY > 0f) {
-                    arcTo(
-                        rect = Rect(w - endRadius * 2f, h - bottomRadiusY * 2f, w, h),
-                        startAngleDegrees = 0f,
-                        sweepAngleDegrees = 90f,
-                        forceMoveTo = false,
-                    )
-                }
-                lineTo(left, h)
-                close()
-            }
-            drawPath(path = path, color = stepBackground)
-        }
+    val fillColor = AetherChatColors.quoteFill()
+    val radiusPx = with(LocalDensity.current) { WorkQuoteBarRadius.toPx() }
+    val barWidthPx = with(LocalDensity.current) { WorkQuoteBarWidth.toPx() }
+    val overlapPx = with(LocalDensity.current) { WorkQuoteOverlap.toPx() }
+    return this.drawBehind {
+        val corner = CornerRadius(radiusPx, radiusPx)
+        // 竖条：贴最左边，和整块等高。
+        drawRoundRect(
+            color = barColor,
+            topLeft = Offset(0f, 0f),
+            size = Size(barWidthPx, size.height),
+            cornerRadius = corner,
+        )
+        // 横条：从竖条右缘往回压一点起笔，右侧留出圆角。
+        val left = (barWidthPx - overlapPx).coerceAtLeast(0f)
+        drawRoundRect(
+            color = fillColor,
+            topLeft = Offset(left, 0f),
+            size = Size((size.width - left).coerceAtLeast(0f), size.height),
+            cornerRadius = corner,
+        )
+    }
 }
 
 internal enum class WorkNodeTone { Running, Done, Failed }

@@ -416,8 +416,9 @@ private fun ToolActivityDetail(
                     overflow = TextOverflow.Ellipsis,
                     modifier = Modifier
                         .fillMaxWidth()
+                        // 终端输出与过程条共用同一个背景色，展开后不再是一块突兀的深灰。
                         .squircleSurface(
-                            color = MiuixTheme.colorScheme.surfaceContainer,
+                            color = AetherChatColors.quoteFill(),
                             cornerRadius = 10.dp,
                         )
                         .padding(horizontal = 12.dp, vertical = 10.dp),
@@ -587,8 +588,9 @@ private fun ToolCommandBlock(
     Column(
         modifier = modifier
             .fillMaxWidth()
+            // 命令块也跟过程条同一个背景，展开终端时整块是一种材质。
             .squircleSurface(
-                color = MiuixTheme.colorScheme.surface,
+                color = AetherChatColors.quoteFill(),
                 cornerRadius = 10.dp,
             )
             .squircleBorder(

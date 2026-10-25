@@ -48,7 +48,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -74,8 +76,6 @@ import io.github.mangi.eta.ui.model.ToolSummaryMessageUi
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.theme.MiuixTheme
-import kotlin.math.max
-import kotlin.math.min
 
 /**
  * 把连续的思考与工具调用收束为一条可展开的工作过程：折叠时只是一行摘要，展开后是
@@ -252,10 +252,9 @@ private fun AgentWorkHeader(
         Modifier
             .fillMaxWidth()
             .padding(bottom = 2.dp)
-            .background(AetherChatColors.assistantBubble(), RoundedCornerShape(WorkQuoteCorner))
-            .padding(WorkQuoteInset)
-            .workQuoteSurface()
-            .padding(start = WorkQuoteBarWidth + 7.dp, end = 4.dp, top = 6.dp, bottom = 6.dp)
+            // 竖条直接把左侧圆角包住：整张卡只有一个 shape。
+            .workQuoteBar()
+            .padding(start = WorkQuoteBarWidth + 8.dp, end = 10.dp, top = 7.dp, bottom = 7.dp)
     } else {
         Modifier
             .fillMaxWidth()
@@ -423,10 +422,9 @@ private fun WorkStep(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(top = 2.dp)
-                .background(AetherChatColors.assistantBubble(), RoundedCornerShape(WorkQuoteCorner))
-                .padding(WorkQuoteInset)
-                .workQuoteSurface()
-                .padding(start = WorkQuoteBarWidth + 7.dp, end = 8.dp, top = 4.dp, bottom = 4.dp),
+                // 与折叠行同一个背景，不再“深底 + 亮条”两层分开。
+                .workQuoteBar()
+                .padding(start = WorkQuoteBarWidth + 8.dp, end = 8.dp, top = 4.dp, bottom = 4.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             // 徽章居中对齐：单行时徽章与文字中线对齐。
@@ -444,47 +442,38 @@ private fun WorkStep(
     }
 }
 
-/** 过程块左侧竖条宽度，与 Markdown 引用块的 3dp 保持一致。 */
-private val WorkQuoteBarWidth = 3.dp
-
-/** 竖条两端相对背景块的内缩，避免线头贴着圆角边。 */
-private val WorkQuoteBarEdge = 5.dp
+/** 过程块左侧竖条宽度：比 Markdown 引用条的 3dp 更宽，正好包住左侧圆角。 */
+private val WorkQuoteBarWidth = 6.dp
 
 /** 过程步骤底色块的圆角，与聊天气泡的 24dp 保持一致。 */
 private val WorkQuoteCorner = 24.dp
 
-/** 亮条相对外层深紫卡的内缩：3dp 留边正好露出一圈气泡底色，形成对比。 */
-private val WorkQuoteInset = 3.dp
-
 /**
- * 过程引用条的底色与竖条。折叠行、展开后的每一步都走这一处，颜色只在常量里改一次。
+ * 过程引用条的背景与竖条：折叠行和展开后的每一步都走这一处。
  *
- * 底色取模型气泡的深紫（而不是某个固定的亮紫），竖条取用户气泡的紫：
- * 两者同源，嵌在气泡里时既压得住正文，又能和用户一侧形成呼应。
+ * 整张卡只有一个圆角形状，左侧那条竖条就是这层形状向外露出的部分：
+ * 竖条与横条等高、自然包住左侧圆角，不再是浮在中间的一根细线。
  */
 @Composable
-private fun Modifier.workQuoteSurface(): Modifier {
-    val barColor = AetherChatColors.userBubble()
+private fun Modifier.workQuoteBar(): Modifier {
+    val barColor = AetherChatColors.quoteBar()
     val stepBackground = AetherChatColors.quoteFill()
     return this
-        .background(stepBackground, RoundedCornerShape(WorkQuoteCorner))
+        .clip(RoundedCornerShape(WorkQuoteCorner))
+        .background(barColor)
         .drawBehind {
-            // 竖条高度直接等于背景块高度，两端只内缩一点点；
-            // 24dp 圆角远大于行高，按圆角半径内缩会算出负高度。
-            val barWidth = WorkQuoteBarWidth.toPx()
-            val edge = WorkQuoteBarEdge.toPx()
-            val top = min(edge, (size.height - barWidth) / 2f)
-            val bottom = max(size.height - edge, top + barWidth)
-            drawLine(
-                color = barColor,
-                start = Offset(barWidth / 2f, top),
-                end = Offset(barWidth / 2f, bottom),
-                strokeWidth = barWidth,
-                cap = StrokeCap.Round,
+            // 圆角半径与 WorkQuoteCorner 一致，内侧形状从竖条右缘开始，
+            // 两者左侧用同一半径，横条就正好被竖条包住左半圈。
+            val radius = WorkQuoteCorner.toPx()
+            val left = WorkQuoteBarWidth.toPx()
+            drawRoundRect(
+                color = stepBackground,
+                topLeft = Offset(left, 0f),
+                size = Size((size.width - left).coerceAtLeast(0f), size.height),
+                cornerRadius = CornerRadius(radius, radius),
             )
         }
 }
-
 
 internal enum class WorkNodeTone { Running, Done, Failed }
 

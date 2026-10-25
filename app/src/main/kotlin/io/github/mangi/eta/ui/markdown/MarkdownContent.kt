@@ -1,6 +1,7 @@
 package io.github.mangi.eta.ui.markdown
 
 import androidx.compose.foundation.background
+import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -39,6 +40,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
@@ -71,8 +73,6 @@ import top.yukonga.miuix.kmp.squircle.squircleBorder
 import top.yukonga.miuix.kmp.squircle.squircleClip
 import top.yukonga.miuix.kmp.squircle.squircleSurface
 import top.yukonga.miuix.kmp.theme.MiuixTheme
-import kotlin.math.max
-import kotlin.math.min
 
 /**
  * 绘制一份已解析的 [MarkdownDocument]。
@@ -249,44 +249,40 @@ private fun CopyButton(text: String, tint: Color) {
 
 @Composable
 private fun MarkdownQuoteBlock(block: MarkdownQuote, scope: MarkdownRenderScope) {
-    // 引用条：外层是对话气泡的深紫，内层横条提亮一档，左侧一根深紫竖条贯穿整条高度。
-    // 对比来自“深底 + 亮条 + 深竖条”三层，而不是把整块引用涂成高亮紫。
+    // 引用条与工作过程同一套形状：整块一个圆角，左侧更亮的紫竖条包住左半圈，
+    // 横条与竖条等高。对比来自“亮竖条 + 中亮横条”落在深紫气泡上，而不是整块涂成高亮紫。
     // 引用里的文字保持原亮度，靠底色和竖条区分层级，不把字调灰。
     val barColor = scope.style.quoteBarColor
-    Column(
+    val content = scope.style.quoteBackground
+    MarkdownBlockColumn(
+        blocks = block.blocks,
+        scope = scope,
+        compact = false,
         modifier = Modifier
             .fillMaxWidth()
-            .background(scope.style.quoteCardBackground, RoundedCornerShape(12.dp))
-            .padding(3.dp),
-    ) {
-        MarkdownBlockColumn(
-            blocks = block.blocks,
-            scope = scope,
-            compact = false,
-            modifier = Modifier
-                .fillMaxWidth()
-                // 引用块可能在流式输出时逐字变大，用普通圆角背景而不是着色器 mask，
-                // 避免每次尺寸变化都重跑一遍 runtime shader。
-                .background(scope.style.quoteBackground, RoundedCornerShape(10.dp))
-                .drawBehind {
-                    // 竖条高度等于横条高度，两端只缩一点点：圆角远大于行高，
-                    // 按圆角半径内缩会算出负高度。
-                    val width = 3.dp.toPx()
-                    val edge = 5.dp.toPx()
-                    val top = min(edge, (size.height - width) / 2f)
-                    val bottom = max(size.height - edge, top + width)
-                    drawLine(
-                        color = barColor,
-                        start = Offset(width / 2, top),
-                        end = Offset(width / 2, bottom),
-                        strokeWidth = width,
-                        cap = StrokeCap.Round,
-                    )
-                }
-                .padding(start = 12.dp, end = 10.dp, top = 6.dp, bottom = 6.dp),
-        )
-    }
+            // 引用块可能在流式输出时逐字变大，用普通圆角背景而不是着色器 mask，
+            // 避免每次尺寸变化都重跑一遍 runtime shader。
+            .clip(RoundedCornerShape(QuoteCorner))
+            .background(barColor)
+            .drawBehind {
+                val radius = QuoteCorner.toPx()
+                val left = QuoteBarWidth.toPx()
+                drawRoundRect(
+                    color = content,
+                    topLeft = Offset(left, 0f),
+                    size = Size((size.width - left).coerceAtLeast(0f), size.height),
+                    cornerRadius = CornerRadius(radius, radius),
+                )
+            }
+            .padding(start = QuoteBarWidth + 9.dp, end = 10.dp, top = 6.dp, bottom = 6.dp),
+    )
 }
+
+/** 引用条左侧竖条宽度，与工作过程步骤保持一致。 */
+private val QuoteBarWidth = 6.dp
+
+/** 引用条圆角，与工作过程步骤保持一致。 */
+private val QuoteCorner = 24.dp
 
 @Composable
 private fun MarkdownAlertBlock(block: MarkdownAlert, scope: MarkdownRenderScope) {

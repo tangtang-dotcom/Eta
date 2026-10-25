@@ -9,7 +9,6 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.ui.graphics.lerp
 import io.github.mangi.eta.ui.app.LocalAppearanceSettings
 import io.github.mangi.eta.ui.app.LocalIsDarkTheme
@@ -145,17 +144,24 @@ internal object AetherChatColors {
     }
 
     /**
-     * 引用条 / 工作过程横条的底色：在模型气泡上提亮一档。
+     * 引用条 / 工作过程横条的底色：在模型气泡的紫上调亮一档。
      *
-     * 深色下模型气泡本身已经很深，再叠主题色的高亮紫会整块发亮；
-     * 这里只在气泡自身色调上提亮，和左竖条（用户气泡紫）一起形成
-     * “浅底横条 + 深竖条”落在深紫大气泡上的层次。
+     * 深色下模型气泡本身已经很深，直接叠主题色那种高亮紫会整块发跳；
+     * 这里只在气泡色相上提亮，保留紫调但不刺眼，让左侧竖条压得住。
      */
     @Composable
     fun quoteFill(): Color = when {
         monet -> MiuixTheme.colorScheme.surfaceContainerHigh
-        dark -> Color.White.copy(alpha = 0.085f).compositeOver(assistantBubble())
+        dark -> Color(0xFF453760)
         else -> Color(0xFFF3EDF9)
+    }
+
+    /** 引用条 / 工作过程左侧竖条：比底色更亮一档的紫，形成“亮竖条 + 中亮横条”的层次。 */
+    @Composable
+    fun quoteBar(): Color = when {
+        monet -> MiuixTheme.colorScheme.primary
+        dark -> Color(0xFF6C52AE)
+        else -> Color(0xFF9B7FD6)
     }
 
     /**

@@ -67,7 +67,7 @@ internal fun rememberMarkdownStyle(tone: MarkdownTone): MarkdownStyle {
     val colors = MiuixTheme.colorScheme
     val textStyles = MiuixTheme.textStyles
     // @Composable 取值必须在组合期完成，不能留在 remember 的 lambda 里。
-    val quoteBar = AetherChatColors.userBubble()
+    val quoteBar = AetherChatColors.quoteBar()
     val quoteFill = AetherChatColors.quoteFill()
     val quoteCard = AetherChatColors.assistantBubble()
     return remember(tone, colors, textStyles, quoteBar, quoteFill, quoteCard) {

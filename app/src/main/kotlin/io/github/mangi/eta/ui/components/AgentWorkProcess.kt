@@ -183,25 +183,64 @@ internal fun AgentWorkProcess(
                 ),
             ),
         ) {
-            // 竖条与底色改由每一步自己画：
-            // 整组一条竖线会被拉到全部步骤的总高，看起来像一根柱子；
-            // 探索过程本来就是一行一条的短记录，每步各带底色更接近“引用一句话”。
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(bottom = 6.dp),
-            ) {
-                visibleSteps.forEachIndexed { index, step ->
-                    key(step.key) {
-                        AgentWorkStepNode(
-                            step = step,
-                            isLast = index == visibleSteps.lastIndex,
-                            quoted = embedded,
-                            oneLine = singleRow,
-                            onOpenBrowser = onOpenBrowser,
-                            currentBrowserMessageId = currentBrowserMessageId,
-                            retainedStreamingStates = retainedStreamingStates,
-                        )
+            if (embedded) {
+                // 展开后接在折叠行下方，和折叠行拼成同一块面板：
+                // 外框只画一次底色与竖条，步骤之间只用细分隔线切开，
+                // 不再每一步各套一条引用条（否则看起来像一堆分开的卡片）。
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .workQuoteBar(solo = false)
+                        .padding(
+                            start = WorkQuoteBarWidth + 12.dp,
+                            end = 10.dp,
+                            top = 2.dp,
+                            bottom = 6.dp,
+                        ),
+                ) {
+                    visibleSteps.forEachIndexed { index, step ->
+                        if (index > 0) {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 2.dp)
+                                    .height(1.dp)
+                                    .background(WorkStepDividerColor),
+                            )
+                        }
+                        key(step.key) {
+                            AgentWorkStepNode(
+                                step = step,
+                                isLast = index == visibleSteps.lastIndex,
+                                quoted = false,
+                                // 展开后仍是一步一行，参数和结果收进各自的展开区。
+                                oneLine = true,
+                                onOpenBrowser = onOpenBrowser,
+                                currentBrowserMessageId = currentBrowserMessageId,
+                                retainedStreamingStates = retainedStreamingStates,
+                            )
+                        }
+                    }
+                }
+            } else {
+                // 非气泡嵌入式（独立卡片、语音浮层）保留原来的时间线布局。
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 6.dp),
+                ) {
+                    visibleSteps.forEachIndexed { index, step ->
+                        key(step.key) {
+                            AgentWorkStepNode(
+                                step = step,
+                                isLast = index == visibleSteps.lastIndex,
+                                quoted = false,
+                                oneLine = singleRow,
+                                onOpenBrowser = onOpenBrowser,
+                                currentBrowserMessageId = currentBrowserMessageId,
+                                retainedStreamingStates = retainedStreamingStates,
+                            )
+                        }
                     }
                 }
             }
@@ -253,12 +292,14 @@ private fun AgentWorkHeader(
     }
     // 单行模式下整条过程只有这一行：引用条自带底色、竖条与圆角，
     // 不再额外叠一层步骤列表，多条工具/思考合并成“一条、一行”。
+    // 展开时这一行和下方步骤拼成同一块面板：底边不做圆角，也不留间距。
+    val joinedBelow = quoted && expanded
     val barModifier = if (quoted) {
         Modifier
             .fillMaxWidth()
-            .padding(bottom = 2.dp)
+            .then(if (joinedBelow) Modifier else Modifier.padding(bottom = 2.dp))
             // 竖条直接把左侧圆角包住：整张卡只有一个 shape。
-            .workQuoteBar()
+            .workQuoteBar(solo = !joinedBelow)
             .padding(start = WorkQuoteBarWidth + 8.dp, end = 10.dp, top = 7.dp, bottom = 7.dp)
     } else {
         Modifier
@@ -450,6 +491,9 @@ private fun WorkStep(
 /** 过程块左侧竖条宽度：收窄到 4dp，仍然包住左侧圆角但不再显粗。 */
 private val WorkQuoteBarWidth = 4.dp
 
+/** 展开后的步骤之间用一条很淡的分隔线切开，而不是各自成卡片。 */
+private val WorkStepDividerColor = Color(0x1AFFFFFF)
+
 /** 过程条右侧圆角：保持与聊天气泡一致的 24dp。 */
 private val WorkQuoteCorner = 24.dp
 
@@ -464,18 +508,28 @@ private val WorkQuoteStartCorner = 8.dp
  * 所以两个圆角在这里按当前屏幕密度预先换算成像素再传进来。
  */
 @Composable
-private fun quoteBarShape(): Shape {
+private fun quoteBarShape(roundBottom: Boolean = true): Shape {
     val density = LocalDensity.current
     val startRadiusPx = with(density) { WorkQuoteStartCorner.toPx() }
     val endRadiusPx = with(density) { WorkQuoteCorner.toPx() }
-    return remember(startRadiusPx, endRadiusPx) {
-        quoteBarShape(startRadiusPx, endRadiusPx)
+    return remember(startRadiusPx, endRadiusPx, roundBottom) {
+        quoteBarShape(startRadiusPx, endRadiusPx, roundBottom)
     }
 }
 
-private fun quoteBarShape(startRadiusPx: Float, endRadiusPx: Float) = GenericShape { size, _ ->
+private fun quoteBarShape(
+    startRadiusPx: Float,
+    endRadiusPx: Float,
+    roundBottom: Boolean = true,
+) = GenericShape { size, _ ->
     val startRadius = startRadiusPx.coerceAtMost(size.width / 2f)
+    // 右端圆角要按高度收缩：过程条只有 30dp 上下高，若纵向也强塞 24dp，
+    // 上下两个弧会在中间挤成尖角，看起来像奶嘴。纵向最多占一半高度。
     val endRadius = endRadiusPx.coerceAtMost(size.width / 2f)
+    val endRadiusY = endRadius.coerceAtMost(size.height / 2f)
+    // 与上一块拼接时底边是直角，不做圆弧。
+    val bottomRadiusY = if (roundBottom) endRadiusY else 0f
+    val bottomStartRadius = if (roundBottom) startRadius else 0f
     val w = size.width
     val h = size.height
     // 左上角：从直边起弧，再落到顶部直线。
@@ -488,25 +542,29 @@ private fun quoteBarShape(startRadiusPx: Float, endRadiusPx: Float) = GenericSha
     )
     lineTo(w - endRadius, 0f)
     arcTo(
-        rect = Rect(w - endRadius * 2f, 0f, w, endRadius * 2f),
+        rect = Rect(w - endRadius * 2f, 0f, w, endRadiusY * 2f),
         startAngleDegrees = 270f,
         sweepAngleDegrees = 90f,
         forceMoveTo = false,
     )
-    lineTo(w, h - endRadius)
-    arcTo(
-        rect = Rect(w - endRadius * 2f, h - endRadius * 2f, w, h),
-        startAngleDegrees = 0f,
-        sweepAngleDegrees = 90f,
-        forceMoveTo = false,
-    )
+    lineTo(w, h - bottomRadiusY)
+    if (bottomRadiusY > 0f) {
+        arcTo(
+            rect = Rect(w - endRadius * 2f, h - bottomRadiusY * 2f, w, h),
+            startAngleDegrees = 0f,
+            sweepAngleDegrees = 90f,
+            forceMoveTo = false,
+        )
+    }
     lineTo(startRadius, h)
-    arcTo(
-        rect = Rect(0f, h - startRadius * 2f, startRadius * 2f, h),
-        startAngleDegrees = 90f,
-        sweepAngleDegrees = 90f,
-        forceMoveTo = false,
-    )
+    if (bottomStartRadius > 0f) {
+        arcTo(
+            rect = Rect(0f, h - bottomStartRadius * 2f, bottomStartRadius * 2f, h),
+            startAngleDegrees = 90f,
+            sweepAngleDegrees = 90f,
+            forceMoveTo = false,
+        )
+    }
     // 左边回到起点：这一整条是竖直直线。
     close()
 }
@@ -519,16 +577,18 @@ private fun quoteBarShape(startRadiusPx: Float, endRadiusPx: Float) = GenericSha
  * 横条自身的左缘是垂直的，右端才带 24dp 圆角，于是竖条与横条拼成一块，中间没有缝。
  */
 @Composable
-private fun Modifier.workQuoteBar(): Modifier {
+private fun Modifier.workQuoteBar(solo: Boolean = true): Modifier {
     val barColor = AetherChatColors.quoteBar()
     val stepBackground = AetherChatColors.quoteFill()
     return this
-        .clip(quoteBarShape())
+        .clip(quoteBarShape(roundBottom = !solo))
         .background(barColor)
         .drawBehind {
             // 内侧横条从竖条右缘起笔：左缘垂直向下，右端沿用气泡圆角。
             // 竖条宽度落在裁切轮廓内，因此两者的上下边缘完全重合，不会露出阶梯。
             val endRadius = WorkQuoteCorner.toPx().coerceAtMost(size.width / 2f)
+            val endRadiusY = endRadius.coerceAtMost(size.height / 2f)
+            val bottomRadiusY = if (solo) endRadiusY else 0f
             val left = WorkQuoteBarWidth.toPx()
             val w = size.width
             val h = size.height
@@ -537,18 +597,20 @@ private fun Modifier.workQuoteBar(): Modifier {
                 moveTo(left, 0f)
                 lineTo(w - endRadius, 0f)
                 arcTo(
-                    rect = Rect(w - endRadius * 2f, 0f, w, endRadius * 2f),
+                    rect = Rect(w - endRadius * 2f, 0f, w, endRadiusY * 2f),
                     startAngleDegrees = 270f,
                     sweepAngleDegrees = 90f,
                     forceMoveTo = false,
                 )
-                lineTo(w, h - endRadius)
-                arcTo(
-                    rect = Rect(w - endRadius * 2f, h - endRadius * 2f, w, h),
-                    startAngleDegrees = 0f,
-                    sweepAngleDegrees = 90f,
-                    forceMoveTo = false,
-                )
+                lineTo(w, h - bottomRadiusY)
+                if (bottomRadiusY > 0f) {
+                    arcTo(
+                        rect = Rect(w - endRadius * 2f, h - bottomRadiusY * 2f, w, h),
+                        startAngleDegrees = 0f,
+                        sweepAngleDegrees = 90f,
+                        forceMoveTo = false,
+                    )
+                }
                 lineTo(left, h)
                 close()
             }

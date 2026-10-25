@@ -71,6 +71,8 @@ import top.yukonga.miuix.kmp.squircle.squircleBorder
 import top.yukonga.miuix.kmp.squircle.squircleClip
 import top.yukonga.miuix.kmp.squircle.squircleSurface
 import top.yukonga.miuix.kmp.theme.MiuixTheme
+import kotlin.math.max
+import kotlin.math.min
 
 /**
  * 绘制一份已解析的 [MarkdownDocument]。
@@ -247,30 +249,43 @@ private fun CopyButton(text: String, tint: Color) {
 
 @Composable
 private fun MarkdownQuoteBlock(block: MarkdownQuote, scope: MarkdownRenderScope) {
-    // 与 chatcube 的 ChatMarkdownHybridRenderer 对齐：浅底色 + 圆角 + 主题色竖条，
-    // 引用里的文字保持原亮度，靠底色和竖条区分层级，而不是把字调灰。
+    // 引用条：外层是对话气泡的深紫，内层横条提亮一档，左侧一根深紫竖条贯穿整条高度。
+    // 对比来自“深底 + 亮条 + 深竖条”三层，而不是把整块引用涂成高亮紫。
+    // 引用里的文字保持原亮度，靠底色和竖条区分层级，不把字调灰。
     val barColor = scope.style.quoteBarColor
-    MarkdownBlockColumn(
-        blocks = block.blocks,
-        scope = scope,
-        compact = false,
+    Column(
         modifier = Modifier
             .fillMaxWidth()
-            // 引用块可能在流式输出时逐字变大，用普通圆角背景而不是着色器 mask，
-            // 避免每次尺寸变化都重跑一遍 runtime shader。
-            .background(scope.style.quoteBackground, RoundedCornerShape(10.dp))
-            .drawBehind {
-                val width = 3.dp.toPx()
-                drawLine(
-                    color = barColor,
-                    start = Offset(width / 2, 8.dp.toPx()),
-                    end = Offset(width / 2, size.height - 8.dp.toPx()),
-                    strokeWidth = width,
-                    cap = StrokeCap.Round,
-                )
-            }
-            .padding(start = 12.dp, end = 10.dp, top = 6.dp, bottom = 6.dp),
-    )
+            .background(scope.style.quoteCardBackground, RoundedCornerShape(12.dp))
+            .padding(3.dp),
+    ) {
+        MarkdownBlockColumn(
+            blocks = block.blocks,
+            scope = scope,
+            compact = false,
+            modifier = Modifier
+                .fillMaxWidth()
+                // 引用块可能在流式输出时逐字变大，用普通圆角背景而不是着色器 mask，
+                // 避免每次尺寸变化都重跑一遍 runtime shader。
+                .background(scope.style.quoteBackground, RoundedCornerShape(10.dp))
+                .drawBehind {
+                    // 竖条高度等于横条高度，两端只缩一点点：圆角远大于行高，
+                    // 按圆角半径内缩会算出负高度。
+                    val width = 3.dp.toPx()
+                    val edge = 5.dp.toPx()
+                    val top = min(edge, (size.height - width) / 2f)
+                    val bottom = max(size.height - edge, top + width)
+                    drawLine(
+                        color = barColor,
+                        start = Offset(width / 2, top),
+                        end = Offset(width / 2, bottom),
+                        strokeWidth = width,
+                        cap = StrokeCap.Round,
+                    )
+                }
+                .padding(start = 12.dp, end = 10.dp, top = 6.dp, bottom = 6.dp),
+        )
+    }
 }
 
 @Composable

@@ -251,8 +251,11 @@ private fun AgentWorkHeader(
     val barModifier = if (quoted) {
         Modifier
             .fillMaxWidth()
+            .padding(bottom = 2.dp)
+            .background(AetherChatColors.assistantBubble(), RoundedCornerShape(WorkQuoteCorner))
+            .padding(WorkQuoteInset)
             .workQuoteSurface()
-            .padding(start = WorkQuoteBarWidth + 7.dp, end = 4.dp, top = 7.dp, bottom = 7.dp)
+            .padding(start = WorkQuoteBarWidth + 7.dp, end = 4.dp, top = 6.dp, bottom = 6.dp)
     } else {
         Modifier
             .fillMaxWidth()
@@ -420,8 +423,10 @@ private fun WorkStep(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(top = 2.dp)
+                .background(AetherChatColors.assistantBubble(), RoundedCornerShape(WorkQuoteCorner))
+                .padding(WorkQuoteInset)
                 .workQuoteSurface()
-                .padding(start = WorkQuoteBarWidth + 7.dp, end = 8.dp, top = 6.dp, bottom = 6.dp),
+                .padding(start = WorkQuoteBarWidth + 7.dp, end = 8.dp, top = 4.dp, bottom = 4.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             // 徽章居中对齐：单行时徽章与文字中线对齐。
@@ -448,6 +453,9 @@ private val WorkQuoteBarEdge = 5.dp
 /** 过程步骤底色块的圆角，与聊天气泡的 24dp 保持一致。 */
 private val WorkQuoteCorner = 24.dp
 
+/** 亮条相对外层深紫卡的内缩：3dp 留边正好露出一圈气泡底色，形成对比。 */
+private val WorkQuoteInset = 3.dp
+
 /**
  * 过程引用条的底色与竖条。折叠行、展开后的每一步都走这一处，颜色只在常量里改一次。
  *
@@ -457,7 +465,7 @@ private val WorkQuoteCorner = 24.dp
 @Composable
 private fun Modifier.workQuoteSurface(): Modifier {
     val barColor = AetherChatColors.userBubble()
-    val stepBackground = AetherChatColors.assistantBubble()
+    val stepBackground = AetherChatColors.quoteFill()
     return this
         .background(stepBackground, RoundedCornerShape(WorkQuoteCorner))
         .drawBehind {

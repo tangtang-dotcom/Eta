@@ -4,6 +4,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.graphics.Color
+import io.github.mangi.eta.ui.components.AetherChatColors
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -33,6 +34,8 @@ internal class MarkdownStyle(
     val quoteBarColor: Color,
     /** 引用块整体底色：与正文拉开一层，浮出来但不抢戏。 */
     val quoteBackground: Color,
+    /** 引用块最外层承载色：深色下就是模型气泡本身，底色靠提亮的那一层压出来。 */
+    val quoteCardBackground: Color,
     val codeBackground: Color,
     val tableHeaderBackground: Color,
     val inline: MarkdownInlineStyle,
@@ -52,6 +55,7 @@ internal class MarkdownStyle(
         dividerColor = dividerColor,
         quoteBarColor = quoteBarColor,
         quoteBackground = quoteBackground,
+        quoteCardBackground = quoteCardBackground,
         codeBackground = codeBackground,
         tableHeaderBackground = tableHeaderBackground,
         inline = inline,
@@ -96,9 +100,12 @@ internal fun rememberMarkdownStyle(tone: MarkdownTone): MarkdownStyle {
             secondaryColor = colors.onSurfaceVariantSummary,
             markerColor = if (answer) colors.onSurface.copy(alpha = 0.55f) else colors.onSurfaceVariantSummary,
             dividerColor = colors.outline.copy(alpha = 0.6f),
-            // 引用块：主题色竖条 + 一层极浅的主题色底，复刻 chatcube 的视觉分量。
-            quoteBarColor = colors.primary.copy(alpha = 0.75f),
-            quoteBackground = colors.primary.copy(alpha = if (answer) 0.06f else 0.04f),
+            // 引用块与工作过程（工具/思考）共用一套：竖条用用户气泡的紫，
+            // 底色是在模型气泡上提亮一档，形成“底色横条 + 竖条”与大气泡的对比，
+            // 不再用主题色的高亮紫铺底——那样在深紫气泡上会亮得发跳。
+            quoteBarColor = AetherChatColors.userBubble(),
+            quoteBackground = AetherChatColors.quoteFill(),
+            quoteCardBackground = AetherChatColors.assistantBubble(),
             codeBackground = colors.surfaceContainer,
             tableHeaderBackground = colors.surfaceContainer,
             inline = MarkdownInlineStyle(

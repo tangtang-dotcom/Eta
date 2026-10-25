@@ -799,16 +799,18 @@ private fun AgentMessageBlock(
             },
         ) {
             if (showBubble && turnBlocks.isNotEmpty()) {
-                // 按真实生成时序渲染：过程块（思考/工具）留在它发生的位置，正文统一
-                // 由合并后的 answer 在末尾渲染一次。
+                // 按真实生成时序交错渲染：过程块留在它发生的位置，正文也留在它被说出的
+                // 位置，形成「过程 → 正文 → 过程 → 正文」的节奏，而不是把过程全堆在顶部、
+                // 正文全堆到末尾。整轮仍然只占一个气泡、副头像和一个模型名。
                 //
-                // 这里不能逐块渲染 AgentTurnBlock.Content：调用方传进来的 message 就是
-                // mergeTurnAnswers() 把本轮所有正文段落拼好的结果，再把每个 Content 块
-                // 各渲染一遍，整段回答就会在气泡里重复出现（多段正文重复多次）。
+                // 每个正文块只渲染自己那一段，不重复合并后的全文：调用方传进来的 message
+                // 是 mergeTurnAnswers() 拼好的整轮答复，只用来承载气泡身份、操作行定位
+                // 与复制内容，不参与逐块渲染，因此不会出现整段回答重复。
                 val lastProcedureIndex = turnBlocks.indexOfLast { it is AgentTurnBlock.Procedure }
                 turnBlocks.forEachIndexed { index, block ->
-                    if (block is AgentTurnBlock.Procedure) {
-                        AssistantWorkBubble(
+                    val isLast = index == turnBlocks.lastIndex
+                    when (block) {
+                        is AgentTurnBlock.Procedure -> AssistantWorkBubble(
                             messages = block.steps,
                             // 只有最后一个过程块在生成中才自动播报进度。
                             active = workActive && index == lastProcedureIndex,
@@ -817,18 +819,29 @@ private fun AgentMessageBlock(
                             currentBrowserMessageId = currentBrowserMessageId,
                             retainedStreamingStates = workStreamingStates,
                         )
+                        is AgentTurnBlock.Content -> {
+                            val blockAnswer = block.message as? AgentMessageUi
+                            // 每段正文用自己的渲染会话：正在流式的段按自己的 id 取打字机
+                            // 状态，已定稿的段直接走静态 Markdown，彼此不串台。
+                            val blockStreamingState = blockAnswer
+                                ?.takeIf { it.isStreaming }
+                                ?.let { workStreamingStates[it.id] }
+                            AgentAnswerText(
+                                answer = blockAnswer,
+                                fallbackContent = null,
+                                streamingState = blockStreamingState,
+                                message = message,
+                                revealComplete = blockAnswer == null ||
+                                    blockAnswer.id != message.id || revealComplete,
+                                completedDocument = blockAnswer
+                                    ?.takeIf { it.id == message.id }
+                                    ?.let { completedDocument },
+                                onRevealCompleteChange = { streamingRevealComplete = it },
+                                modifier = Modifier.padding(bottom = if (isLast) 0.dp else 10.dp),
+                            )
+                        }
                     }
                 }
-                // 过程块自带 10dp 底部间距，正文不需要再补顶部间距。
-                AgentAnswerText(
-                    answer = message,
-                    fallbackContent = null,
-                    streamingState = streamingState,
-                    message = message,
-                    revealComplete = revealComplete,
-                    completedDocument = completedDocument,
-                    onRevealCompleteChange = { streamingRevealComplete = it },
-                )
             } else {
                 if (showBubble && workMessages.isNotEmpty()) {
                     AssistantWorkBubble(
@@ -943,8 +956,11 @@ private fun AgentAnswerText(
     modifier: Modifier = Modifier,
 ) {
     val content = answer?.content ?: fallbackContent.orEmpty()
-    val streaming = answer?.isStreaming ?: message.isStreaming
-    val useStreamingView = streamingState != null && answer?.id == message.id && !revealComplete
+    // 有具体正文段时只看它自己的流式标记；只有整条兜底消息才回落到 message。
+    val streaming = answer?.isStreaming ?: (fallbackContent != null && message.isStreaming)
+    // 交错渲染时同一气泡里有多段正文，每段按各自的 id 判定是否走流式视图；
+    // 沿用的 message 只是气泡身份代表，不能再拿来比较。
+    val useStreamingView = streamingState != null && !revealComplete
     Column(modifier = modifier.fillMaxWidth()) {
         when {
             content.isBlank() && streaming -> {

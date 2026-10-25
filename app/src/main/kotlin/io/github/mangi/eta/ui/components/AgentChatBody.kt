@@ -888,6 +888,11 @@ internal fun AgentConversationMessages(
                                 streamingMarkdownCache.getOrCreate(message.id)
                             }
                         }
+                        // 交错渲染时每段正文各自持有一个渲染会话，这里按段预建：
+                        // 只建正在流式的那一段，已定稿的段走静态 Markdown，不占状态。
+                        entry.answers.filterIsInstance<AgentMessageUi>().forEach { segment ->
+                            if (segment.isStreaming) streamingMarkdownCache.getOrCreate(segment.id)
+                        }
                         // 气泡主体按段交替渲染，这里给出一条代表消息承载身份与操作行定位。
                         val answer = entry.answers.mergeTurnAnswers(entry.key)
                         val answerAgent = answer as? AgentMessageUi

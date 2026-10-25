@@ -56,6 +56,8 @@ import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.CompositingStrategy
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.addOutline
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.lerp
@@ -486,58 +488,42 @@ private fun WorkStep(
 /** 过程块左侧竖条宽度：加宽一档，颜色够深时靠宽度立住这一条。 */
 private val WorkQuoteBarWidth = 6.dp
 
-/** 竖条圆角半径。 */
-private val WorkQuoteBarRadius = 6.dp
-
 /** 横条右端圆角半径。 */
 private val WorkQuoteFillRadiusEnd = 14.dp
 
 /** 横条左端圆角半径：比右端小，左侧更像一条直边的起点。 */
 private val WorkQuoteFillStartCorner = 4.dp
 
-/** 横条左缘与竖条的重叠量：让两块拼成一体，不留缝。 */
-private val WorkQuoteOverlap = 2.dp
-
 /** 展开后的步骤之间用一条很淡的分隔线切开，而不是各自成卡片。 */
 private val WorkStepDividerColor = Color(0x1AFFFFFF)
 
 /**
- * 过程引用条的背景：先画一个竖条圆角矩形，再在上面叠一个横条圆角矩形。
+ * 过程引用条的背景：竖条垫在最下面，横条盖在上面。
  *
- * 两块都是最普通的圆角矩形，竖条贴最左、横条从左边靠右一点起笔并压住竖条一小截，
- * 高度完全一致，所以合成一块之后左缘看起来就是一条直线，右侧是圆角。
+ * 两块都是圆角矩形，高度一致；横条直接从最左边起笔，用不规则圆角
+ * （左边小、右边大）自己裁出形状，所以左缘看起来是一条直线，
+ * 右端是圆弧。竖条只作为最左侧那一道深色底色露出。
  */
 @Composable
 private fun Modifier.workQuoteBar(): Modifier {
     val barColor = AetherChatColors.quoteBar()
     val fillColor = AetherChatColors.quoteFill()
-    val density = LocalDensity.current
-    val barRadiusPx = with(density) { WorkQuoteBarRadius.toPx() }
-    val fillRadiusEndPx = with(density) { WorkQuoteFillRadiusEnd.toPx() }
-    val fillRadiusStartPx = with(density) { WorkQuoteFillStartCorner.toPx() }
-    val barWidthPx = with(density) { WorkQuoteBarWidth.toPx() }
-    val overlapPx = with(density) { WorkQuoteOverlap.toPx() }
-    return this.drawBehind {
-        val halfHeight = size.height / 2f
-        // 先画竖条，压在下面。
-        val barRadius = barRadiusPx.coerceAtMost(halfHeight)
-        drawRoundRect(
-            color = barColor,
-            topLeft = Offset(0f, 0f),
-            size = Size(barWidthPx, size.height),
-            cornerRadius = CornerRadius(barRadius, barRadius),
-        )
-        // 后画横条，盖在上面：左端小圆角、右端大圆角。
-        val left = (barWidthPx - overlapPx).coerceAtLeast(0f)
-        val startRadius = fillRadiusStartPx.coerceAtMost(halfHeight)
-        val endRadius = fillRadiusEndPx.coerceAtMost(halfHeight)
-        drawRoundRect(
-            color = fillColor,
-            topLeft = Offset(left, 0f),
-            size = Size((size.width - left).coerceAtLeast(0f), size.height),
-            cornerRadius = CornerRadius(startRadius, endRadius),
-        )
-    }
+    val fillShape = RoundedCornerShape(
+        topStart = WorkQuoteFillStartCorner,
+        bottomStart = WorkQuoteFillStartCorner,
+        topEnd = WorkQuoteFillRadiusEnd,
+        bottomEnd = WorkQuoteFillRadiusEnd,
+    )
+    return this
+        .background(barColor)
+        .drawBehind {
+            drawPath(
+                path = fillShape.createOutline(size, layoutDirection, this).let { outline ->
+                    Path().apply { addOutline(outline) }
+                },
+                color = fillColor,
+            )
+        }
 }
 
 internal enum class WorkNodeTone { Running, Done, Failed }

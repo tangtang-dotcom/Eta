@@ -254,7 +254,7 @@ private fun CopyButton(text: String, tint: Color) {
 
 @Composable
 private fun MarkdownQuoteBlock(block: MarkdownQuote, scope: MarkdownRenderScope) {
-    // 与工作过程同一套画法：最左边一条细竖线，右边挨着一个不规则圆角（左小右大）的横条。
+    // 与工作过程同一套画法：左边一条圆角竖条，右边压着不规则圆角（左小右大）的横条。
     // 引用里的文字保持原亮度，靠底色和竖条区分层级，不把字调灰。
     val barColor = scope.style.quoteBarColor
     val content = scope.style.quoteBackground
@@ -264,7 +264,10 @@ private fun MarkdownQuoteBlock(block: MarkdownQuote, scope: MarkdownRenderScope)
         topEnd = QuoteFillRadiusEnd,
         bottomEnd = QuoteFillRadiusEnd,
     )
-    val barWidthPx = with(LocalDensity.current) { QuoteBarWidth.toPx() }
+    val density = LocalDensity.current
+    val barWidthPx = with(density) { QuoteBarWidth.toPx() }
+    val barRadiusPx = with(density) { QuoteBarRadius.toPx() }
+    val barVisiblePx = with(density) { QuoteBarVisibleWidth.toPx() }
     MarkdownBlockColumn(
         blocks = block.blocks,
         scope = scope,
@@ -272,15 +275,20 @@ private fun MarkdownQuoteBlock(block: MarkdownQuote, scope: MarkdownRenderScope)
         modifier = Modifier
             .fillMaxWidth()
             .drawBehind {
-                drawRect(
+                val barRadius = barRadiusPx.coerceAtMost(size.height / 2f)
+                drawRoundRect(
                     color = barColor,
                     topLeft = Offset(0f, 0f),
                     size = Size(barWidthPx, size.height),
+                    cornerRadius = CornerRadius(barRadius, barRadius),
                 )
-                translate(left = barWidthPx) {
+                translate(left = barVisiblePx) {
                     drawPath(
                         path = fillShape.createOutline(
-                            size = Size((size.width - barWidthPx).coerceAtLeast(0f), size.height),
+                            size = Size(
+                                (size.width - barVisiblePx).coerceAtLeast(0f),
+                                size.height,
+                            ),
                             layoutDirection = layoutDirection,
                             density = this,
                         ).let { outline -> Path().apply { addOutline(outline) } },
@@ -288,12 +296,18 @@ private fun MarkdownQuoteBlock(block: MarkdownQuote, scope: MarkdownRenderScope)
                     )
                 }
             }
-            .padding(start = QuoteBarWidth + 9.dp, end = 10.dp, top = 6.dp, bottom = 6.dp),
+            .padding(start = QuoteBarVisibleWidth + 9.dp, end = 10.dp, top = 6.dp, bottom = 6.dp),
     )
 }
 
-/** 引用条左侧竖条宽度，与工作过程保持一致。 */
-private val QuoteBarWidth = 4.dp
+/** 引用条左侧竖条总宽度，与工作过程保持一致。 */
+private val QuoteBarWidth = 8.dp
+
+/** 竖条露出宽度，横条从这条线右侧盖住竖条剩下的一半。 */
+private val QuoteBarVisibleWidth = 4.dp
+
+/** 竖条圆角半径。 */
+private val QuoteBarRadius = 6.dp
 
 /** 横条右端圆角半径。 */
 private val QuoteFillRadiusEnd = 14.dp

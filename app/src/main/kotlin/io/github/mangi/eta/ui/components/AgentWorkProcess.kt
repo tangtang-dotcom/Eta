@@ -486,8 +486,14 @@ private fun WorkStep(
     }
 }
 
-/** 过程块左侧竖条宽度：细的一条，贴在最左边。 */
-private val WorkQuoteBarWidth = 4.dp
+/** 过程块左侧竖条宽度：露出 4dp，另有一半被横条压住，形成「｜」嵌进长条的效果。 */
+private val WorkQuoteBarWidth = 8.dp
+
+/** 竖条露出的宽度：横条从这条线右侧起笔，盖住竖条右边那一半。 */
+private val WorkQuoteBarVisibleWidth = 4.dp
+
+/** 竖条圆角半径。 */
+private val WorkQuoteBarRadius = 6.dp
 
 /** 横条右端圆角半径。 */
 private val WorkQuoteFillRadiusEnd = 14.dp
@@ -499,10 +505,11 @@ private val WorkQuoteFillStartCorner = 4.dp
 private val WorkStepDividerColor = Color(0x1AFFFFFF)
 
 /**
- * 过程引用条的背景：最左边一条细竖线，右边挨着一个不规则圆角（左小右大）的横条。
+ * 过程引用条的背景：最左边一条带圆角的竖条，右边贴着不规则圆角（左小右大）的横条。
  *
- * 竖条整条贴在最左边，横条从竖条右缘起笔、不和它重叠，因此竖条始终是完整的 4dp，
- * 不会被横条吃掉；两块等高，拼起来就是「｜ + 长条」的样子。
+ * 竖条画得比露出的宽度更宽（[WorkQuoteBarWidth]），横条从 [WorkQuoteBarVisibleWidth]
+ * 处起笔、压在竖条右半边上面：左边露出 4dp 的圆角竖条，右边那一半被横条盖住，
+ * 两块等高，看起来就是一小段「｜」嵌进长条里。
  */
 @Composable
 private fun Modifier.workQuoteBar(): Modifier {
@@ -514,19 +521,24 @@ private fun Modifier.workQuoteBar(): Modifier {
         topEnd = WorkQuoteFillRadiusEnd,
         bottomEnd = WorkQuoteFillRadiusEnd,
     )
-    val barWidthPx = with(LocalDensity.current) { WorkQuoteBarWidth.toPx() }
+    val density = LocalDensity.current
+    val barWidthPx = with(density) { WorkQuoteBarWidth.toPx() }
+    val barRadiusPx = with(density) { WorkQuoteBarRadius.toPx() }
+    val barVisiblePx = with(density) { WorkQuoteBarVisibleWidth.toPx() }
     return this.drawBehind {
-        // 细竖条：贴最左边、与整块等高。
-        drawRect(
+        // 竖条：先画，圆角竖条，右侧一截会被下面的横条压住。
+        val barRadius = barRadiusPx.coerceAtMost(size.height / 2f)
+        drawRoundRect(
             color = barColor,
             topLeft = Offset(0f, 0f),
             size = Size(barWidthPx, size.height),
+            cornerRadius = CornerRadius(barRadius, barRadius),
         )
-        // 横条：从竖条右缘开始，左端小圆角、右端大圆角。
-        translate(left = barWidthPx) {
+        // 横条：从露出宽度处起笔，盖在竖条右半边上面。
+        translate(left = barVisiblePx) {
             drawPath(
                 path = fillShape.createOutline(
-                    size = Size((size.width - barWidthPx).coerceAtLeast(0f), size.height),
+                    size = Size((size.width - barVisiblePx).coerceAtLeast(0f), size.height),
                     layoutDirection = layoutDirection,
                     density = this,
                 ).let { outline -> Path().apply { addOutline(outline) } },

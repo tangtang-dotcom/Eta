@@ -910,9 +910,19 @@ internal class AgentRuntimeService : Service(), LifecycleOwner, SavedStateRegist
     private fun publishExecutionState() {
         val guiState = guiControl.state.value
         val owner = guiState.ownerRunId?.let(runs::get)
+        // 没有 GUI owner 不代表没有任务在跑。多会话之后 ownerRunId 只在真正持有
+        // 屏幕操作权时才非空，推理、请求、等待工具返回这些时候它都是 null；
+        // 若此时直接传 null，状态栏与流体云就只剩「N 项任务正在运行」的静态摘要。
+        // 这里的兜底是：没有 owner 时取最近活跃的那个 run，让后台运行中的 Agent
+        // 依然以实时状态出现在状态栏胶囊与流体云里。
+        val fallback = owner ?: runs.all().lastOrNull { !it.session.isTerminal }
+        val status = when {
+            guiState.userPaused -> AgentOverlayStatus.Paused
+            else -> fallback?.overlayState?.status
+        }
         AgentExecutionService.updateRunStatus(
             this,
-            if (guiState.userPaused) AgentOverlayStatus.Paused else owner?.overlayState?.status,
+            status,
             activeRunCount = runs.snapshots().size,
         )
     }

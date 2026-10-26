@@ -153,8 +153,12 @@ internal class AgentExecutionService : Service() {
                 this.activeRunCount = activeRunCount
                 val count = if (activeRunCount > 0) activeRunCount else leases.count()
                 val text = executionText(context, status, count)
-                if (text == publishedStatusText) return@post
-                publishedStatusText = text
+                // 去重键要把「是否申请提升为实时动态」一起算进去：状态从无到有、
+                // 或从有到无时，文案可能恰好相同，但通知的形态必须重建，
+                // 否则会卡在静态摘要上，流体云再也不亮。
+                val signature = "$text|${status != null}"
+                if (signature == publishedStatusText) return@post
+                publishedStatusText = signature
                 instance?.takeIf { it.foregroundActive }?.refreshNotification()
             }
         }

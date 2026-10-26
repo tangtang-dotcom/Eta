@@ -64,7 +64,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -1266,6 +1268,9 @@ internal fun ThinkingRow(
     compact: Boolean = false,
     // 单行形态：只保留“思考中/已思考 N 秒”一行，摘要折进展开里。
     oneLine: Boolean = false,
+    // 展开的思考内容要继续画时间线竖线（末步为 false），并与步骤文字左对齐。
+    lineContinues: Boolean = false,
+    alignToTimeline: Boolean = false,
 ) {
     DisposableEffect(retainedStreamingState) {
         retainedStreamingState?.attachContent()
@@ -1385,10 +1390,32 @@ internal fun ThinkingRow(
                             .background(MiuixTheme.colorScheme.outline.copy(alpha = 0.45f)),
                     )
                 }
+                // 展开的思考摘要在时间线里也是这一步的一部分：缩进到文字列起点，
+                // 并把节点下方的竖线接到详情底部，读起来仍是一条连续的过程。
+                val inTimeline = compact && alignToTimeline
                 val contentModifier = Modifier
                     .fillMaxWidth()
+                    .then(
+                        if (inTimeline) {
+                            Modifier
+                                .drawBehind {
+                                    if (lineContinues) {
+                                        val x = WorkGutterWidth.toPx() / 2f
+                                        drawLine(
+                                            color = WorkLineColor,
+                                            start = Offset(x, -12.dp.toPx()),
+                                            end = Offset(x, size.height),
+                                            strokeWidth = 1.dp.toPx(),
+                                        )
+                                    }
+                                }
+                        } else {
+                            Modifier
+                        },
+                    )
                     .padding(
-                        start = if (compact) 0.dp else 12.dp,
+                        // 时间线里缩进到文字列，否则沿用原来的左内边距。
+                        start = if (inTimeline) WorkGutterWidth + WorkGutterGap else if (compact) 0.dp else 12.dp,
                         end = if (compact) 8.dp else 12.dp,
                         top = if (compact) 0.dp else 8.dp,
                         bottom = if (compact) 8.dp else 12.dp,

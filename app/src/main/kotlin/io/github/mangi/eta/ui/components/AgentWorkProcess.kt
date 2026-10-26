@@ -4,6 +4,7 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.LinearOutSlowInEasing
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.animateFloatAsState
@@ -42,6 +43,7 @@ import androidx.compose.runtime.State
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.ReadOnlyComposable
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
@@ -206,11 +208,10 @@ internal fun AgentWorkProcess(
             )
             AnimatedVisibility(
                 visible = showSteps,
+                \/\/ 展开动画改成随手指跟随的 tween：spring 在长列表里会一边测高一边回弹，
+                \/\/ 竖线重绘也更抖；这里只要一个定长、可预测的高度增长。
                 enter = fadeIn(tween(160)) + expandVertically(
-                    animationSpec = spring(
-                        dampingRatio = Spring.DampingRatioNoBouncy,
-                        stiffness = Spring.StiffnessMediumLow,
-                    ),
+                    animationSpec = tween(durationMillis = 220, easing = LinearOutSlowInEasing),
                 ),
                 exit = fadeOut(tween(120)) + shrinkVertically(
                     animationSpec = spring(
@@ -454,8 +455,14 @@ private fun AgentWorkStepNode(
             },
             isLast = isLast,
             quoted = quoted,
-        ) {
-            ToolGroupRow(group = step, onOpenBrowser = onOpenBrowser, oneLine = oneLine)
+        ) { timeline ->
+            ToolGroupRow(
+                group = step,
+                onOpenBrowser = onOpenBrowser,
+                oneLine = oneLine,
+                lineContinues = !isLast,
+                alignToTimeline = timeline,
+            )
         }
 
         is AgentWorkStep.Single -> when (val message = step.message) {
@@ -464,12 +471,14 @@ private fun AgentWorkStepNode(
                 tone = message.status.nodeTone(),
                 isLast = isLast,
                 quoted = quoted,
-            ) {
+            ) { timeline ->
                 ToolActivityRow(
                     message = message,
                     onOpenBrowser = onOpenBrowser,
                     showBrowserShortcut = message.id == currentBrowserMessageId,
                     oneLine = oneLine,
+                    lineContinues = !isLast,
+                    alignToTimeline = timeline,
                 )
             }
 
@@ -478,12 +487,14 @@ private fun AgentWorkStepNode(
                 tone = if (message.isStreaming) WorkNodeTone.Running else WorkNodeTone.Done,
                 isLast = isLast,
                 quoted = quoted,
-            ) {
+            ) { timeline ->
                 ThinkingRow(
                     message = message,
                     retainedStreamingState = retainedStreamingStates[message.id],
                     compact = true,
                     oneLine = oneLine,
+                    lineContinues = !isLast,
+                    alignToTimeline = timeline,
                 )
             }
 
@@ -568,7 +579,7 @@ private fun WorkStep(
     tone: WorkNodeTone,
     isLast: Boolean,
     quoted: Boolean,
-    content: @Composable () -> Unit,
+    content: @Composable (Boolean) -> Unit,
 ) {
     if (quoted) {
         // 底色与竖条统一走 workQuoteSurface()：折叠行和展开后的每一步保持同一套颜色。
@@ -588,11 +599,12 @@ private fun WorkStep(
             }
             Spacer(modifier = Modifier.width(7.dp))
             Box(modifier = Modifier.weight(1f)) {
-                content()
+                content(false)
             }
         }
     } else {
-        WorkTimelineNode(icon = icon, tone = tone, isLast = isLast) { content() }
+        // 详情区要接着画这条竖线时，把「这一步是否还有后文」交给内容自己决定底部留白。
+        WorkTimelineNode(icon = icon, tone = tone, isLast = isLast) { content(true) }
     }
 }
 
@@ -696,7 +708,7 @@ internal fun WorkTimelineNode(
     connectTop: Boolean = true,
     content: @Composable () -> Unit,
 ) {
-    val lineColor = MiuixTheme.colorScheme.outline.copy(alpha = 0.6f)
+    val lineColor = WorkLineColor
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -856,6 +868,11 @@ internal fun ExpandChevron(
         tint = tint ?: MiuixTheme.colorScheme.onSurfaceVariantSummary.copy(alpha = 0.6f),
     )
 }
+
+/** 时间线竖线的颜色：节点之间的连线与展开详情的续线共用，保证是同一条线。 */
+internal val WorkLineColor: Color
+    @Composable @ReadOnlyComposable
+    get() = MiuixTheme.colorScheme.outline.copy(alpha = 0.6f)
 
 /** 时间线标题行与节点徽章共用的几何尺寸，保证图标中心与首行文字中线对齐。 */
 internal val WorkRowHeight: Dp = 32.dp

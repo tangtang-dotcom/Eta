@@ -37,6 +37,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalClipboardManager
@@ -103,6 +105,9 @@ internal fun ToolActivityRow(
     showTitle: Boolean = true,
     // 单行形态：结论拼到标题后面，不再占第二行；命令与完整结果仍在展开里。
     oneLine: Boolean = false,
+    // 展开的详情要继续画时间线竖线（末步为 false），并与步骤文字左对齐。
+    lineContinues: Boolean = false,
+    alignToTimeline: Boolean = false,
 ) {
     var expanded by rememberSaveable(message.id) { mutableStateOf(false) }
     // 只有「当前浏览器」条目订阅实时会话快照，避免每个工具行都跟随快照重组。
@@ -242,6 +247,8 @@ internal fun ToolActivityRow(
                 showBrowserShortcut = showBrowserShortcut,
                 argumentsDetail = argumentsDetail,
                 onOpenBrowser = onOpenBrowser,
+                alignToTimeline = alignToTimeline,
+                lineContinues = lineContinues,
             )
         }
     }
@@ -257,6 +264,9 @@ internal fun ToolGroupRow(
     modifier: Modifier = Modifier,
     // 单行形态：失败计数拼在标题后面，进行中的参数摘要不占第二行。
     oneLine: Boolean = false,
+    // 展开后的调用列表继续画时间线竖线，并与步骤文字左对齐（末步为 false）。
+    lineContinues: Boolean = false,
+    alignToTimeline: Boolean = false,
 ) {
     var expanded by rememberSaveable(group.key) { mutableStateOf(false) }
     val running = group.running
@@ -349,7 +359,30 @@ internal fun ToolGroupRow(
             )
         }
         AnimatedVisibility(visible = expanded) {
-            Column(modifier = Modifier.padding(bottom = 4.dp)) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .then(
+                        if (alignToTimeline) {
+                            Modifier
+                                .drawBehind {
+                                    val x = WorkGutterWidth.toPx() / 2f
+                                    if (lineContinues) {
+                                        drawLine(
+                                            color = WorkLineColor,
+                                            start = Offset(x, 0f),
+                                            end = Offset(x, size.height),
+                                            strokeWidth = 1.dp.toPx(),
+                                        )
+                                    }
+                                }
+                                .padding(start = WorkGutterWidth + WorkGutterGap, end = 4.dp)
+                        } else {
+                            Modifier
+                        },
+                    )
+                    .padding(bottom = 4.dp),
+            ) {
                 group.calls.forEach { call ->
                     Row(verticalAlignment = Alignment.Top) {
                         Box(
@@ -364,6 +397,8 @@ internal fun ToolGroupRow(
                             onOpenBrowser = onOpenBrowser,
                             showBrowserShortcut = false,
                             modifier = Modifier.weight(1f),
+                            // 分组内的行已经缩进到文字列，不再各自缩进或续画主线。
+                            alignToTimeline = false,
                         )
                     }
                 }
@@ -380,9 +415,30 @@ private fun ToolActivityDetail(
     // 调用参数：收起态不显示，展开后才和结果一起看。
     argumentsDetail: String?,
     onOpenBrowser: () -> Unit,
+    // 嵌在过程时间线里时，详情缩进到文字列起点，并接管这一步的竖向连线。
+    alignToTimeline: Boolean = false,
+    // 展开的详情是否继续画左侧的竖向连线（末步不画）。
+    lineContinues: Boolean = true,
 ) {
+    val timelineModifier = if (alignToTimeline) {
+        Modifier
+            .fillMaxWidth()
+            .drawBehind {
+                val x = WorkGutterWidth.toPx() / 2f
+                val stroke = 1.dp.toPx()
+                // 从上一行（工具名所在行）落笔，接上节点徽章下方的断口；
+                // 末步不再往下画，其余一直画到详情底部，与下一步的连线相接。
+                // 再往上多画 12dp，盖住展开动画期间露出的空档，避免线断一截。
+                if (lineContinues) {
+                    drawLine(WorkLineColor, Offset(x, -12.dp.toPx()), Offset(x, size.height), stroke)
+                }
+            }
+            .padding(start = WorkGutterWidth + WorkGutterGap)
+    } else {
+        Modifier
+    }
     Column(
-        modifier = Modifier
+        modifier = timelineModifier
             .fillMaxWidth()
             .padding(top = 2.dp, bottom = 8.dp, end = 4.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp),

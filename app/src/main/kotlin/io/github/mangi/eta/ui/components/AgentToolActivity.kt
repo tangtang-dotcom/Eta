@@ -388,13 +388,14 @@ internal fun ToolGroupRow(
                     )
                     .padding(bottom = 4.dp),
             ) {
-                group.calls.forEachIndexed { index, call ->
-                    // 子步骤之间留 6dp：原来逐个紧贴排列，多条终端输出叠在一起
-                    // 就是一片糊住的灰字，看不出哪行属于哪一次调用。
-                    if (index > 0) {
-                        Spacer(modifier = Modifier.height(6.dp))
-                    }
-                    Row(verticalAlignment = Alignment.Top) {
+                group.calls.forEach { call ->
+                    // 间距照 RikkaHub 的 ChainOfThoughtStepContent：每个步骤行
+                    // 自己带 vertical = 8dp，而不是靠外部 Spacer 补齐。
+                    // 行内边距参与点击区域，整行都可点，不会只点到文字。
+                    Row(
+                        modifier = Modifier.padding(vertical = 8.dp),
+                        verticalAlignment = Alignment.Top,
+                    ) {
                         Box(
                             modifier = Modifier
                                 .padding(top = 13.dp, end = 8.dp)

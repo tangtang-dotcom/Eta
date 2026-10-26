@@ -149,6 +149,13 @@ private val TRIVIAL_SUCCESS = setOf("完成", "执行完成")
 @Composable
 internal fun toolStepTitle(toolName: String, argumentsSummary: String): String {
     val summary = argumentsSummary.trim()
+    // 命令类工具的摘要本身就已经是「执行命令 · Linux」这种完整短语，
+    // 再套一次动词就会变成「执行 执行命令 · Linux」——同一个意思说两遍，
+    // 标题被撑长一大截，这正是终端行显得拥挤的主因。
+    // 这类摘要直接原样用作标题，不再加前缀。
+    val alreadyDescriptive = toolName in COMMAND_TOOLS && summary.isNotEmpty()
+    if (alreadyDescriptive) return shortenToolArgument(summary)
+
     val detail = summary.takeIf { it.isNotEmpty() }?.let(::shortenToolArgument)
     return when (toolName) {
         "web_search" -> detail
@@ -163,12 +170,13 @@ internal fun toolStepTitle(toolName: String, argumentsSummary: String): String {
         "read_file", "list_directory", "stat_file", "grep_files", "glob_files" -> detail
             ?.let { stringResource(R.string.tool_step_read, it) }
             ?: stringResource(R.string.tool_step_read_empty)
-        "terminal", "terminal_job", "terminal_daemon", "run_command" -> detail
-            ?.let { stringResource(R.string.tool_step_run, it) }
-            ?: stringResource(R.string.tool_step_run_empty)
+        in COMMAND_TOOLS -> stringResource(R.string.tool_step_run_empty)
         else -> toolDisplayName(toolName)
     }
 }
+
+/** 命令类工具：摘要本身就是一句完整描述，不再叠加动词前缀。 */
+private val COMMAND_TOOLS = setOf("terminal", "terminal_job", "terminal_daemon", "run_command")
 
 /**
  * 参数摘要的显示长度上限。

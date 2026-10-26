@@ -17,6 +17,7 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -50,6 +51,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.drawWithCache
@@ -78,6 +80,9 @@ import androidx.compose.ui.unit.dp
 import io.github.mangi.eta.R
 import io.github.mangi.eta.agent.overlay.toolDisplayName
 import io.github.mangi.eta.ui.markdown.StreamingMarkdownState
+import me.rerere.hugeicons.HugeIcons
+import me.rerere.hugeicons.stroke.Bulb
+import me.rerere.hugeicons.stroke.Tools
 import io.github.mangi.eta.ui.model.AgentChatMessageUi
 import io.github.mangi.eta.ui.model.AgentMessageUi
 import io.github.mangi.eta.ui.model.ThinkingMessageUi
@@ -321,8 +326,8 @@ private fun AgentWorkHeader(
         else -> base
     }
     val icon = when {
-        runningTool != null -> iconForTool(runningTool.toolName)
-        working -> Icons.Rounded.Lightbulb
+        runningTool != null -> hugeIconForTool(runningTool.toolName)
+        working -> HugeIcons.Bulb
         else -> Icons.Rounded.Checklist
     }
     // 单行模式下整条过程只有这一行：引用条自带底色、竖条与圆角，
@@ -447,7 +452,7 @@ private fun AgentWorkStepNode(
 ) {
     when (step) {
         is AgentWorkStep.ToolGroup -> WorkStep(
-            icon = iconForTool(step.toolName),
+            icon = hugeIconForTool(step.toolName),
             tone = when {
                 step.running -> WorkNodeTone.Running
                 step.failedCount > 0 -> WorkNodeTone.Failed
@@ -467,7 +472,7 @@ private fun AgentWorkStepNode(
 
         is AgentWorkStep.Single -> when (val message = step.message) {
             is ToolActivityMessageUi -> WorkStep(
-                icon = iconForTool(message.toolName),
+                icon = hugeIconForTool(message.toolName),
                 tone = message.status.nodeTone(),
                 isLast = isLast,
                 quoted = quoted,
@@ -483,7 +488,7 @@ private fun AgentWorkStepNode(
             }
 
             is ThinkingMessageUi -> WorkStep(
-                icon = Icons.Rounded.Lightbulb,
+                icon = HugeIcons.Bulb,
                 tone = if (message.isStreaming) WorkNodeTone.Running else WorkNodeTone.Done,
                 isLast = isLast,
                 quoted = quoted,
@@ -499,7 +504,7 @@ private fun AgentWorkStepNode(
             }
 
             is ToolSummaryMessageUi -> WorkStep(
-                icon = Icons.Rounded.Build,
+                icon = HugeIcons.Tools,
                 tone = WorkNodeTone.Done,
                 isLast = isLast,
                 quoted = quoted,
@@ -767,19 +772,48 @@ internal fun WorkTimelineNode(
  */
 @Composable
 private fun WorkNodeIcon(icon: ImageVector, tone: WorkNodeTone) {
-    val tint = when (tone) {
-        WorkNodeTone.Running -> MiuixTheme.colorScheme.primary
-        WorkNodeTone.Failed -> StatusError
-        WorkNodeTone.Done -> MiuixTheme.colorScheme.onSurfaceVariantSummary
+    // 参照 rikkahub：执行中的节点不显示静态图标，改成一个呼吸的圆点，
+    // 一眼就能看出「这一步正在进行」；结束后才换成对应工具的图标。
+    if (tone == WorkNodeTone.Running) {
+        DotLoading(
+            modifier = Modifier.size(WorkIconSize),
+            color = AetherChatColors.workStepIcon(),
+        )
+        return
     }
-    val pulse = rememberDrawPhasePulse(active = tone == WorkNodeTone.Running)
     Icon(
         imageVector = icon,
         contentDescription = null,
-        modifier = Modifier
-            .size(WorkIconSize)
-            .graphicsLayer { alpha = pulse?.value ?: 1f },
-        tint = tint,
+        modifier = Modifier.size(WorkIconSize),
+        tint = if (tone == WorkNodeTone.Failed) {
+            StatusError
+        } else {
+            AetherChatColors.workStepIcon()
+        },
+    )
+}
+
+/** 呼吸圆点：与 rikkahub 的 DotLoading 一致，只做透明度循环，不参与测量。 */
+@Composable
+private fun DotLoading(
+    modifier: Modifier = Modifier,
+    color: Color,
+    animationDuration: Int = 600,
+) {
+    val infiniteTransition = rememberInfiniteTransition(label = "work_dot_loading")
+    val alpha by infiniteTransition.animateFloat(
+        initialValue = 0.3f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = animationDuration),
+            repeatMode = RepeatMode.Reverse,
+        ),
+        label = "work_dot_alpha",
+    )
+    Box(
+        modifier = modifier
+            .alpha(alpha)
+            .background(color = color, shape = CircleShape),
     )
 }
 
@@ -904,7 +938,7 @@ internal val WorkIconLabelGap: Dp = 8.dp
 /** 单步内容的上下留白：行距由它撑开，不再靠固定行高。 */
 internal val WorkStepVerticalPadding: Dp = 8.dp
 /** 节点图标尺寸。 */
-private val WorkIconSize: Dp = 14.dp
+private val WorkIconSize: Dp = 16.dp
 /** 节点视觉占位：连线在它上下各留断口。 */
 private val WorkNodeSize: Dp = 20.dp
 /** 连线在节点上下留出的断口长度。 */

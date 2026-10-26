@@ -161,6 +161,11 @@ dependencies {
     implementation(libs.miuix.blur)
     implementation(libs.miuix.nav)
     implementation(libs.miuix.preference)
+    // HugeIcons：与 rikkahub 同源的图标集，只用于过程步骤；排除纯 View 体系的传递依赖。
+    implementation(libs.hugeicons.compose) {
+        exclude(group = "androidx.appcompat")
+        exclude(group = "com.google.android.material")
+    }
     implementation(libs.material.icons.extended)
     implementation(libs.androidx.navigationevent)
     implementation(libs.androidx.lifecycle.runtime.compose)

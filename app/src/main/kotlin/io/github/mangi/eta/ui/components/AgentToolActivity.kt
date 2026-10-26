@@ -148,10 +148,11 @@ internal fun ToolActivityRow(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
+                // 时间线里不再设固定行高：行距由外层节点的上下留白提供，
+                // 与 rikkahub 的「内容自适应 + 每步 8dp」保持一致。
                 .heightIn(min = if (oneLine) 0.dp else WorkRowHeight)
                 .clip(RoundedCornerShape(10.dp))
-                .then(if (hasDetail) Modifier.clickable { expanded = !expanded } else Modifier)
-                .padding(vertical = if (oneLine) 2.dp else 6.dp),
+                .then(if (hasDetail) Modifier.clickable { expanded = !expanded } else Modifier),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Column(modifier = Modifier.weight(1f)) {
@@ -230,12 +231,14 @@ internal fun ToolActivityRow(
                 )
             }
             if (hasDetail) {
+                // 与 rikkahub 一致：行尾一个 16dp 的上下箭头，表示这一步能不能点开。
                 ExpandChevron(
                     expanded = expanded,
                     contentDescription = stringResource(
                         if (expanded) R.string.tool_details_collapse else R.string.tool_details_expand,
                     ),
                     modifier = Modifier.padding(start = 6.dp, end = 8.dp),
+                    vertical = true,
                 )
             }
         }
@@ -292,8 +295,7 @@ internal fun ToolGroupRow(
                 .fillMaxWidth()
                 .heightIn(min = if (oneLine) 0.dp else WorkRowHeight)
                 .clip(RoundedCornerShape(10.dp))
-                .clickable { expanded = !expanded }
-                .padding(vertical = if (oneLine) 2.dp else 6.dp),
+                .clickable { expanded = !expanded },
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Column(modifier = Modifier.weight(1f)) {
@@ -358,6 +360,7 @@ internal fun ToolGroupRow(
                     if (expanded) R.string.tool_details_collapse else R.string.tool_details_expand,
                 ),
                 modifier = Modifier.padding(start = 6.dp, end = 8.dp),
+                vertical = true,
             )
         }
         AnimatedVisibility(visible = expanded) {

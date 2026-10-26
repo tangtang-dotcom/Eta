@@ -19,6 +19,7 @@ import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -29,7 +30,6 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Build
@@ -594,10 +594,13 @@ private fun WorkStep(
         ) {
             // 徽章居中对齐：单行时徽章与文字中线对齐。
             // 两行时也不会像顶部对齐那样悬在行首上方。
-            Box(contentAlignment = Alignment.Center) {
+            Box(
+                modifier = Modifier.width(WorkIconColumn),
+                contentAlignment = Alignment.Center,
+            ) {
                 WorkNodeBadge(icon = icon, tone = tone)
             }
-            Spacer(modifier = Modifier.width(7.dp))
+            Spacer(modifier = Modifier.width(WorkIconLabelGap))
             Box(modifier = Modifier.weight(1f)) {
                 content(false)
             }
@@ -700,6 +703,16 @@ internal fun ToolActivityStatusUi.nodeTone(): WorkNodeTone = when (this) {
  * 时间线节点：左侧固定宽度的槽位放图标徽章，连线在绘制阶段画出，不参与测量。
  * 节点默认向上接到工作过程标题图标，最后一个节点不向下延伸。
  */
+/**
+ * 时间线节点，几何参数照 rikkahub 的 ChainOfThought 逐项对齐：
+ *
+ * - 行高由内容 + [WorkStepVerticalPadding] 撑开，不再用固定行高；
+ * - 左侧图标槽固定 [WorkIconColumn]（24dp），图标本身 [WorkIconSize]（14dp）；
+ * - 连线画在槽位中线（12dp），只在节点上下各留 [WorkLineNodeGap] 的断口；
+ * - 图标不带底色圆块，只用主色 tint，运行中保留呼吸脉冲。
+ *
+ * 这些数值与 rikkahub 一致，改任何一项都会让行距/对齐和参照物对不上。
+ */
 @Composable
 internal fun WorkTimelineNode(
     icon: ImageVector,
@@ -713,59 +726,67 @@ internal fun WorkTimelineNode(
         modifier = Modifier
             .fillMaxWidth()
             .drawBehind {
-                val x = WorkGutterWidth.toPx() / 2f
+                // 节点区域的上下断口：节点高 20dp，中线处留出 gap。
+                val x = WorkIconColumn.toPx() / 2f
                 val stroke = 1.dp.toPx()
-                val gap = 3.dp.toPx()
-                val nodeTop = (WorkRowHeight - WorkNodeSize).toPx() / 2f
-                val nodeBottom = nodeTop + WorkNodeSize.toPx()
+                val gap = WorkLineNodeGap.toPx()
+                val centerY = size.height / 2f
                 if (connectTop) {
-                    drawLine(lineColor, Offset(x, 0f), Offset(x, nodeTop - gap), stroke)
+                    drawLine(lineColor, Offset(x, 0f), Offset(x, centerY - gap), stroke)
                 }
                 if (!isLast) {
-                    drawLine(lineColor, Offset(x, nodeBottom + gap), Offset(x, size.height), stroke)
+                    drawLine(lineColor, Offset(x, centerY + gap), Offset(x, size.height), stroke)
                 }
-            },
+            }
+            .padding(vertical = WorkStepVerticalPadding),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(WorkIconLabelGap),
     ) {
         Box(
-            modifier = Modifier
-                .width(WorkGutterWidth)
-                .height(WorkRowHeight),
+            modifier = Modifier.width(WorkIconColumn),
             contentAlignment = Alignment.Center,
         ) {
-            WorkNodeBadge(icon = icon, tone = tone)
+            Box(
+                modifier = Modifier.size(WorkNodeSize),
+                contentAlignment = Alignment.Center,
+            ) {
+                WorkNodeIcon(icon = icon, tone = tone)
+            }
         }
-        Spacer(modifier = Modifier.width(WorkGutterGap))
         Box(modifier = Modifier.weight(1f)) {
             content()
         }
     }
 }
 
+/**
+ * 时间线节点图标：照 rikkahub 的做法，只有图标本身，不再垫一层圆形底色。
+ *
+ * 底色圆块会让每一步都像一枚独立的徽章，反而把「同一条过程」割成一颗颗；
+ * 纯图标 + 连续竖线才是一条完整的时间线。
+ */
 @Composable
-private fun WorkNodeBadge(icon: ImageVector, tone: WorkNodeTone) {
-    val (background, tint) = when (tone) {
-        WorkNodeTone.Running -> MiuixTheme.colorScheme.primary.copy(alpha = 0.14f) to
-            MiuixTheme.colorScheme.primary
-        WorkNodeTone.Failed -> StatusError.copy(alpha = 0.12f) to StatusError
-        WorkNodeTone.Done -> MiuixTheme.colorScheme.surfaceContainer to
-            MiuixTheme.colorScheme.onSurfaceVariantSummary
+private fun WorkNodeIcon(icon: ImageVector, tone: WorkNodeTone) {
+    val tint = when (tone) {
+        WorkNodeTone.Running -> MiuixTheme.colorScheme.primary
+        WorkNodeTone.Failed -> StatusError
+        WorkNodeTone.Done -> MiuixTheme.colorScheme.onSurfaceVariantSummary
     }
     val pulse = rememberDrawPhasePulse(active = tone == WorkNodeTone.Running)
-    Box(
+    Icon(
+        imageVector = icon,
+        contentDescription = null,
         modifier = Modifier
-            .size(WorkNodeSize)
-            .graphicsLayer { alpha = pulse?.value ?: 1f }
-            .clip(CircleShape)
-            .background(background),
-        contentAlignment = Alignment.Center,
-    ) {
-        Icon(
-            imageVector = icon,
-            contentDescription = null,
-            modifier = Modifier.size(12.dp),
-            tint = tint,
-        )
-    }
+            .size(WorkIconSize)
+            .graphicsLayer { alpha = pulse?.value ?: 1f },
+        tint = tint,
+    )
+}
+
+/** 兼容旧调用点：折叠行等位置仍按徽章形态使用，此处走同一套纯图标。 */
+@Composable
+private fun WorkNodeBadge(icon: ImageVector, tone: WorkNodeTone) {
+    WorkNodeIcon(icon = icon, tone = tone)
 }
 
 /** 呼吸动画只返回 State，由调用方在 graphicsLayer 中读取，帧间不触发重组。 */
@@ -876,6 +897,18 @@ internal val WorkLineColor: Color
 
 /** 时间线标题行与节点徽章共用的几何尺寸，保证图标中心与首行文字中线对齐。 */
 internal val WorkRowHeight: Dp = 32.dp
-internal val WorkGutterWidth: Dp = 22.dp
-internal val WorkGutterGap: Dp = 8.dp
+/** 图标槽宽度：与 rikkahub 一致，连线画在它的中线（12dp）。 */
+internal val WorkIconColumn: Dp = 24.dp
+/** 图标与文字之间的间距。 */
+internal val WorkIconLabelGap: Dp = 8.dp
+/** 单步内容的上下留白：行距由它撑开，不再靠固定行高。 */
+internal val WorkStepVerticalPadding: Dp = 8.dp
+/** 节点图标尺寸。 */
+private val WorkIconSize: Dp = 14.dp
+/** 节点视觉占位：连线在它上下各留断口。 */
 private val WorkNodeSize: Dp = 20.dp
+/** 连线在节点上下留出的断口长度。 */
+private val WorkLineNodeGap: Dp = 10.dp
+/** 兼容旧调用的别名，语义同 [WorkIconColumn]。 */
+internal val WorkGutterWidth: Dp = WorkIconColumn
+internal val WorkGutterGap: Dp = WorkIconLabelGap

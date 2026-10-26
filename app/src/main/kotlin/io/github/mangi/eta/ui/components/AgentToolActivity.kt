@@ -13,6 +13,8 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.IntrinsicSize
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -48,6 +50,7 @@ import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import io.github.mangi.eta.R
 import io.github.mangi.eta.agent.browser.BrowserSessionSnapshot
 import io.github.mangi.eta.agent.overlay.toolDisplayName
@@ -644,24 +647,14 @@ private fun ToolCommandBlock(
         }
     }
 
-    Column(
-        modifier = modifier
-            .fillMaxWidth()
-            // 命令块也跟过程条同一个背景，展开终端时整块是一种材质。
-            .squircleSurface(
-                color = AetherChatColors.quoteFill(),
-                cornerRadius = 10.dp,
-            )
-            .squircleBorder(
-                width = 0.5.dp,
-                color = MiuixTheme.colorScheme.outline.copy(alpha = 0.5f),
-                cornerRadius = 10.dp,
-            ),
-    ) {
+    // 命令块不再叠一层自己的底色与外框：它本来就嵌在过程条里，而过程条已经画了
+    // 底色。两层不同深浅的底加一道边框叠在一起，看起来就是块突兀的色差补丁。
+    // 改用左侧一条细竖线作分隔，材质与整条过程保持一致，只靠线区分「这是命令」。
+    Column(modifier = modifier.fillMaxWidth()) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(start = 12.dp, end = 2.dp, top = 2.dp, bottom = 2.dp),
+                .padding(start = 10.dp, end = 2.dp, top = 6.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(
@@ -696,23 +689,38 @@ private fun ToolCommandBlock(
                 )
             }
         }
-        Box(
+        Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 12.dp)
-                .height(0.5.dp)
-                .background(MiuixTheme.colorScheme.outline.copy(alpha = 0.45f)),
-        )
-        SelectionContainer {
-            Text(
-                text = command,
-                style = MiuixTheme.textStyles.footnote2.copy(fontFamily = FontFamily.Monospace),
-                color = MiuixTheme.colorScheme.onSurface,
+                .height(IntrinsicSize.Min)
+                .padding(start = 10.dp, top = 6.dp, bottom = 8.dp),
+        ) {
+            // 左侧细竖线：与整条过程的时间线同一套语言，标明「下面这段是命令本体」。
+            // 高度取父 Row 的最小子高度，随命令行数自动伸缩。
+            Box(
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .horizontalScroll(rememberScrollState())
-                    .padding(horizontal = 12.dp, vertical = 10.dp),
+                    .width(2.dp)
+                    .fillMaxHeight()
+                    .background(
+                        color = AetherChatColors.workLine(),
+                        shape = RoundedCornerShape(1.dp),
+                    ),
             )
+            SelectionContainer {
+                Text(
+                    text = command,
+                    style = MiuixTheme.textStyles.footnote2.copy(fontFamily = FontFamily.Monospace),
+                    color = MiuixTheme.colorScheme.onSurface,
+                    // 行高放大一点：等宽字体在小字号下多行会黏在一起，
+                    // 终端输出本来就密，这里给行与行之间留出呼吸。
+                    lineHeight = 18.sp,
+                    modifier = Modifier
+                        .weight(1f)
+                        .horizontalScroll(rememberScrollState())
+                        // 行距与命令块的上下留白一起撑开，避免整块看起来被挤扁。
+                        .padding(start = 10.dp, end = 4.dp, top = 2.dp, bottom = 2.dp),
+                )
+            }
         }
     }
 }

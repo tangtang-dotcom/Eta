@@ -165,6 +165,20 @@ internal object AetherChatColors {
     }
 
     /**
+     * Markdown 代码块底色。
+     *
+     * 原来直接用主题的 surfaceContainer，绕过了莫奈开关：关掉莫奈时它仍然跟着
+     * 当前主题走，于是同一段代码在两种模式下深浅不一致，和周围气泡也不搭。
+     * 这里与引用块同一套三态，深色下用略高于气泡的灰，浅色下用极浅的灰。
+     */
+    @Composable
+    fun codeBlock(): Color = when {
+        monet -> MiuixTheme.colorScheme.surfaceContainer
+        dark -> Color(0xFF23262B)
+        else -> Color(0xFFF2F2F3)
+    }
+
+    /**
      * 过程块顶部收纳条的文字与箭头颜色。
      *
      * 参照 rikkahub 的 ChainOfThought：收纳控制统一用主色，把「这里还能展开」

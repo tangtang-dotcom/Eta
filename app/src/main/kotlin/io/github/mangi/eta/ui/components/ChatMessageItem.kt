@@ -813,11 +813,17 @@ private fun AgentMessageBlock(
                 // 末段留底部圆角，中间的段上下都直边。这样模型边做事边插几句话时，
                 // 界面不会冒出一排各自独立的小条，读起来仍是一条过程。
                 val procedureIndexes = turnBlocks.indices.filter { turnBlocks[it] is AgentTurnBlock.Procedure }
+                // 正文块的位置集合：用来判断某段过程是不是夹在前后两段正文之间。
+                val contentIndexes = turnBlocks.indices.filter { turnBlocks[it] is AgentTurnBlock.Content }
                 turnBlocks.forEachIndexed { index, block ->
                     val isLast = index == turnBlocks.lastIndex
                     when (block) {
                         is AgentTurnBlock.Procedure -> {
                             val procedurePosition = procedureIndexes.indexOf(index)
+                            // 夹在中间：前面有正文，后面也有正文。这种过程块收尾后不会
+                            // 接着下一段过程连成一条，横条两端都裸露，间距必须自己补。
+                            val sandwiched = contentIndexes.any { it < index } &&
+                                contentIndexes.any { it > index }
                             AssistantWorkBubble(
                                 messages = block.steps,
                                 // 只有最后一个过程块在生成中才自动播报进度。
@@ -828,6 +834,7 @@ private fun AgentMessageBlock(
                                 retainedStreamingStates = workStreamingStates,
                                 connectsTop = procedurePosition > 0,
                                 connectsBottom = procedurePosition in 0 until procedureIndexes.lastIndex,
+                                sandwiched = sandwiched,
                             )
                         }
                         is AgentTurnBlock.Content -> {
@@ -1036,6 +1043,10 @@ private fun AssistantWorkBubble(
     // 与相邻过程块连通时，只在整组首尾保留圆角，中间的段直边相接。
     connectsTop: Boolean = false,
     connectsBottom: Boolean = false,
+    // 这段过程夹在两段正文中间（上一块与下一块都是独立正文）。
+    // 这种位置的过程块上下都没有「同一块面板」可以依附，收起态的横条会直接贴住
+    // 前后的正文，几乎看不出留白；只有这里需要额外补间距。
+    sandwiched: Boolean = false,
 ) {
     // 不再给过程单独套灰色圆角卡片：展开时由 AgentWorkProcess 自己画一条主题色竖线，
     // 与 Markdown 引用块同一套视觉语言，气泡里只剩一层文字，不会被内层卡片压厚。
@@ -1046,7 +1057,14 @@ private fun AssistantWorkBubble(
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(bottom = if (connectsBottom) 0.dp else 10.dp)
+            .padding(
+                top = if (sandwiched) ProcessSandwichGapTop else 0.dp,
+                bottom = when {
+                    connectsBottom -> 0.dp
+                    sandwiched -> ProcessSandwichGapBottom
+                    else -> 10.dp
+                },
+            )
     ) {
         AgentWorkProcess(
             id = messages.first().id,
@@ -1072,6 +1090,16 @@ private fun AssistantWorkBubble(
 
 /** 回答气泡圆角：与用户气泡保持一致，两边气泡形状才对得上。 */
 private val AssistantBubbleCorner = 24.dp
+
+/**
+ * 夹在正文中间的过程条与上下正文之间的留白。
+ *
+ * 上面比下面略大：过程条自身底部已经带了几 dp 的边距（横条与外缘之间），
+ * 上下取同一个值反而会显得头重脚轻。数值按气泡内的正文行距取，
+ * 既不会把「过程 → 正文 → 过程」拆成两段，也能让横条从正文里脱开。
+ */
+private val ProcessSandwichGapTop = 12.dp
+private val ProcessSandwichGapBottom = 10.dp
 
 /**
  * 这条消息是不是「模型的回答」，从而该包在回答气泡里。

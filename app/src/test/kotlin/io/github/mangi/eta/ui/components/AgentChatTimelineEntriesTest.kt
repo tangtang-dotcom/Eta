@@ -372,6 +372,47 @@ class AgentChatTimelineEntriesTest {
     }
 }
 
+/**
+ * 回归：过程块夹在两段正文中间时必须能识别出来，好让界面给它补上下留白。
+ *
+ * 「正文 → 过程 → 正文」中间那段过程收起后横条两端都裸露，前后都是正文，
+ * 曾经只有 2dp 底边距，横条几乎直接压在正文上。这里锁定块结构，
+ * 保证 sandwiched 判定拿到的仍是 Process 夹在两个 Content 之间。
+ */
+@Test
+fun procedureBetweenContentsIsSandwiched() {
+    val longText = "这是一段足够长的正文，长度超过旁白阈值，因此必须独立成块。".repeat(4)
+    val entries = listOf(
+        AgentTimelineEntry.Message(UserMessageUi("user-1", "列一下文件")),
+        AgentTimelineEntry.Message(AgentMessageUi("a-1", longText)),
+        AgentTimelineEntry.WorkProcess(
+            key = "w-1",
+            messages = listOf(
+                ToolActivityMessageUi(
+                    id = "t-1",
+                    toolName = "terminal",
+                    status = ToolActivityStatusUi.Success,
+                    argumentsSummary = "ls",
+                ),
+            ),
+        ),
+        AgentTimelineEntry.Message(AgentMessageUi("a-2", longText)),
+    ).mergeTurnTurns()
+
+    val turn = entries.filterIsInstance<AgentTimelineEntry.Turn>().single()
+    val kinds = turn.blocks.map { block ->
+        when (block) {
+            is AgentTurnBlock.Content -> "content"
+            is AgentTurnBlock.Procedure -> "procedure"
+        }
+    }
+    // 结构必须是「正文 → 过程 → 正文」，中间的 Process 才需要补间距。
+    assertEquals(listOf("content", "procedure", "content"), kinds)
+    val procedureIndex = kinds.indexOf("procedure")
+    assertTrue(kinds.take(procedureIndex).contains("content"))
+    assertTrue(kinds.drop(procedureIndex + 1).contains("content"))
+}
+
 /** 测试内的小包装：把消息序列走一遍真实的轮次合并。 */
 private fun List<AgentTimelineEntry>.mergeTurnTurns(): List<AgentTimelineEntry> =
     mergeWorkIntoAnswers()

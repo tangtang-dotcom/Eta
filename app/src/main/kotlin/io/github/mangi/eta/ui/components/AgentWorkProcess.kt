@@ -335,7 +335,7 @@ private fun AgentWorkHeader(
         Modifier
             .fillMaxWidth()
             // 展开时整块由外层画，这里不留底边间距，两块才能连成一体。
-            .then(if (quotedBackground) Modifier.padding(bottom = 2.dp) else Modifier)
+            .then(if (quotedBackground) Modifier.padding(bottom = WorkQuoteBarEdgeGap) else Modifier)
             // 竖条 + 横条自己画；整块由外层画时这一步跳过。
             .then(
                 if (quotedBackground) {
@@ -631,6 +631,15 @@ private val WorkQuoteBarVisibleWidth = 4.dp
 
 /** 竖条圆角半径。 */
 private val WorkQuoteBarRadius = 6.dp
+
+/**
+ * 过程条外侧的上下留白。
+ *
+ * 收起态的横条紧贴着自己的外缘绘制，这段留白就是横条与正文之间的呼吸空间。
+ * 过程块夹在两段正文中间时没有相邻过程可依附，由外层（[AssistantWorkBubble]）
+ * 在此基础上再补间距。
+ */
+private val WorkQuoteBarEdgeGap = 8.dp
 
 /** 横条右端圆角半径。 */
 private val WorkQuoteFillRadiusEnd = 14.dp

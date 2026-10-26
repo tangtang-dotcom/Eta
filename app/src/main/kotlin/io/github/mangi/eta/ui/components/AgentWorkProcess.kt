@@ -44,7 +44,6 @@ import androidx.compose.runtime.State
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.ReadOnlyComposable
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
@@ -964,7 +963,10 @@ internal fun ExpandChevron(
  * 不再单独依赖 outline，避免在某些主题下几乎看不见。
  */
 internal val WorkLineColor: Color
-    @Composable @ReadOnlyComposable
+    // 不能标 @ReadOnlyComposable：它调用的 AetherChatColors.workLine() 是普通
+    // @Composable（内部要读 LocalAppearanceSettings 判断莫奈开关），
+    // 只读 composable 只允许调用同样只读的 composable。
+    @Composable
     get() = AetherChatColors.workLine()
 
 /** 时间线标题行与节点徽章共用的几何尺寸，保证图标中心与首行文字中线对齐。 */

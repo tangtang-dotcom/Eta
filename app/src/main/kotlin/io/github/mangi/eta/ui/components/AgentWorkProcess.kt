@@ -81,8 +81,7 @@ import io.github.mangi.eta.R
 import io.github.mangi.eta.agent.overlay.toolDisplayName
 import io.github.mangi.eta.ui.markdown.StreamingMarkdownState
 import me.rerere.hugeicons.HugeIcons
-import me.rerere.hugeicons.stroke.Bulb
-import me.rerere.hugeicons.stroke.Tools
+import me.rerere.hugeicons.stroke.Idea01
 import io.github.mangi.eta.ui.model.AgentChatMessageUi
 import io.github.mangi.eta.ui.model.AgentMessageUi
 import io.github.mangi.eta.ui.model.ThinkingMessageUi
@@ -327,7 +326,7 @@ private fun AgentWorkHeader(
     }
     val icon = when {
         runningTool != null -> hugeIconForTool(runningTool.toolName)
-        working -> HugeIcons.Bulb
+        working -> WorkIcons.Reasoning
         else -> Icons.Rounded.Checklist
     }
     // 单行模式下整条过程只有这一行：引用条自带底色、竖条与圆角，
@@ -488,10 +487,12 @@ private fun AgentWorkStepNode(
             }
 
             is ThinkingMessageUi -> WorkStep(
-                icon = HugeIcons.Bulb,
+                icon = WorkIcons.Reasoning,
                 tone = if (message.isStreaming) WorkNodeTone.Running else WorkNodeTone.Done,
                 isLast = isLast,
                 quoted = quoted,
+                // 思考始终显示灯泡：rikkahub 的思考步骤图标是常驻的，不会被加载点顶替。
+                spinnerWhileRunning = false,
             ) { timeline ->
                 ThinkingRow(
                     message = message,
@@ -504,7 +505,7 @@ private fun AgentWorkStepNode(
             }
 
             is ToolSummaryMessageUi -> WorkStep(
-                icon = HugeIcons.Tools,
+                icon = WorkIcons.Tool,
                 tone = WorkNodeTone.Done,
                 isLast = isLast,
                 quoted = quoted,
@@ -584,6 +585,7 @@ private fun WorkStep(
     tone: WorkNodeTone,
     isLast: Boolean,
     quoted: Boolean,
+    spinnerWhileRunning: Boolean = true,
     content: @Composable (Boolean) -> Unit,
 ) {
     if (quoted) {
@@ -603,7 +605,7 @@ private fun WorkStep(
                 modifier = Modifier.width(WorkIconColumn),
                 contentAlignment = Alignment.Center,
             ) {
-                WorkNodeBadge(icon = icon, tone = tone)
+                WorkNodeBadge(icon = icon, tone = tone, spinnerWhileRunning = spinnerWhileRunning)
             }
             Spacer(modifier = Modifier.width(WorkIconLabelGap))
             Box(modifier = Modifier.weight(1f)) {
@@ -612,7 +614,12 @@ private fun WorkStep(
         }
     } else {
         // 详情区要接着画这条竖线时，把「这一步是否还有后文」交给内容自己决定底部留白。
-        WorkTimelineNode(icon = icon, tone = tone, isLast = isLast) { content(true) }
+        WorkTimelineNode(
+            icon = icon,
+            tone = tone,
+            isLast = isLast,
+            spinnerWhileRunning = spinnerWhileRunning,
+        ) { content(true) }
     }
 }
 
@@ -724,6 +731,8 @@ internal fun WorkTimelineNode(
     tone: WorkNodeTone,
     isLast: Boolean,
     connectTop: Boolean = true,
+    // 执行中是否用呼吸圆点顶替图标。rikkahub 只对工具这么做，思考始终显示灯泡。
+    spinnerWhileRunning: Boolean = true,
     content: @Composable () -> Unit,
 ) {
     val lineColor = WorkLineColor
@@ -755,7 +764,7 @@ internal fun WorkTimelineNode(
                 modifier = Modifier.size(WorkNodeSize),
                 contentAlignment = Alignment.Center,
             ) {
-                WorkNodeIcon(icon = icon, tone = tone)
+                WorkNodeIcon(icon = icon, tone = tone, spinnerWhileRunning = spinnerWhileRunning)
             }
         }
         Box(modifier = Modifier.weight(1f)) {
@@ -771,10 +780,14 @@ internal fun WorkTimelineNode(
  * 纯图标 + 连续竖线才是一条完整的时间线。
  */
 @Composable
-private fun WorkNodeIcon(icon: ImageVector, tone: WorkNodeTone) {
-    // 参照 rikkahub：执行中的节点不显示静态图标，改成一个呼吸的圆点，
-    // 一眼就能看出「这一步正在进行」；结束后才换成对应工具的图标。
-    if (tone == WorkNodeTone.Running) {
+private fun WorkNodeIcon(
+    icon: ImageVector,
+    tone: WorkNodeTone,
+    spinnerWhileRunning: Boolean = true,
+) {
+    // 参照 rikkahub：只有「工具」在执行中换成呼吸圆点，思考始终显示灯泡。
+    // （ChatMessageReasoning 的图标常驻，ChatMessageToolStep 才用 DotLoading 顶替。）
+    if (spinnerWhileRunning && tone == WorkNodeTone.Running) {
         DotLoading(
             modifier = Modifier.size(WorkIconSize),
             color = AetherChatColors.workStepIcon(),
@@ -819,8 +832,12 @@ private fun DotLoading(
 
 /** 兼容旧调用点：折叠行等位置仍按徽章形态使用，此处走同一套纯图标。 */
 @Composable
-private fun WorkNodeBadge(icon: ImageVector, tone: WorkNodeTone) {
-    WorkNodeIcon(icon = icon, tone = tone)
+private fun WorkNodeBadge(
+    icon: ImageVector,
+    tone: WorkNodeTone,
+    spinnerWhileRunning: Boolean = true,
+) {
+    WorkNodeIcon(icon = icon, tone = tone, spinnerWhileRunning = spinnerWhileRunning)
 }
 
 /** 呼吸动画只返回 State，由调用方在 graphicsLayer 中读取，帧间不触发重组。 */

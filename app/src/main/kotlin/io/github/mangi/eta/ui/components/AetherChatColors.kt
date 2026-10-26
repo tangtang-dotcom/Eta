@@ -165,6 +165,30 @@ internal object AetherChatColors {
     }
 
     /**
+     * 过程块顶部收纳条的文字与箭头颜色。
+     *
+     * 参照 rikkahub 的 ChainOfThought：收纳控制统一用主色，把「这里还能展开」
+     * 表达成一个可点的动作，而不是一行与正文同色的灰字。
+     * 莫奈开跟随主题主色，关则用与竖条同族的深紫，保证与引用条是一套。
+     */
+    @Composable
+    fun workToggleAccent(): Color = when {
+        monet -> MiuixTheme.colorScheme.primary
+        dark -> Color(0xFFB9A4FF)
+        else -> Color(0xFF6D4FB0)
+    }
+
+    /**
+     * 过程步骤的图标与连线颜色：比收纳条淡一档，避免整块都在抢注意力。
+     */
+    @Composable
+    fun workStepIcon(): Color = when {
+        monet -> MiuixTheme.colorScheme.primary
+        dark -> Color(0xFF9C8AD6)
+        else -> Color(0xFF7A5FBD)
+    }
+
+    /**
      * 把页面底色向用户气泡的紫轻轻推一点。
      * 掺比很小：气泡要“落在主背景的基调上”，紫色只作呼应，不能盖过背景的中性冷灰。
      */

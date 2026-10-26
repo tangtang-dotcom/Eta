@@ -1058,8 +1058,9 @@ private fun AssistantWorkBubble(
             // 生成中也保持收起：十几步过程全摊开会把气泡撑得很长，
             // 进行中的进度交给那一行摘要播报。
             autoExpandWhileActive = false,
-            // 气泡内的过程收成一条：折叠时就是那一行引用条，展开才铺时间线。
-            collapsedVisibleCount = 0,
+            // 对齐 rikkahub ChainOfThought：收起时保留尾部两步，
+            // 顶部收纳条给出「展开 N 步」，点开才铺完整时间线。
+            collapsedVisibleCount = 2,
             singleRow = true,
             connectsTop = connectsTop,
             connectsBottom = connectsBottom,

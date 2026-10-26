@@ -34,6 +34,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Build
 import androidx.compose.material.icons.rounded.Checklist
 import androidx.compose.material.icons.rounded.ChevronRight
+import androidx.compose.material.icons.rounded.KeyboardArrowDown
+import androidx.compose.material.icons.rounded.KeyboardArrowUp
 import androidx.compose.material.icons.rounded.Lightbulb
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.State
@@ -124,7 +126,10 @@ internal fun AgentWorkProcess(
     // running 会短暂为 false，按它收起会造成反复开合。展开态在组合期同步推导，与正文
     // 条目插入落在同一帧，不经 LaunchedEffect 晚一帧收起。语音浮层空间有限，自动模式不展开。
     val autoExpanded = active && !assistantOverlay && autoExpandWhileActive
-    val bodyVisible = manualExpanded ?: (autoExpanded || collapsedVisibleCount > 0)
+    // fullyExpanded 决定「铺开完整时间线」，bodyVisible 只决定「下面有没有东西要画」。
+    // 两者分开：收起态可以露出尾部两步，但折叠行仍显示为收起态、保留展开入口。
+    val fullyExpanded = manualExpanded ?: autoExpanded
+    val bodyVisible = fullyExpanded || collapsedVisibleCount > 0
 
     // 竖条颜色在组合期取一次：drawBehind 的 lambda 不是 @Composable 上下文，
     // 不能在绘制阶段读主题色。
@@ -133,13 +138,11 @@ internal fun AgentWorkProcess(
     // 否则模型跑工具时界面上看不到任何进展，容易误以为卡死。
     val visibleSteps = remember(
         steps,
-        bodyVisible,
-        manualExpanded,
-        autoExpanded,
+        fullyExpanded,
         autoExpandWhileActive,
         collapsedVisibleCount,
     ) {
-        if (bodyVisible && (manualExpanded == true || autoExpanded)) {
+        if (fullyExpanded) {
             steps
         } else {
             val keep = collapsedVisibleCount.coerceAtLeast(
@@ -168,7 +171,9 @@ internal fun AgentWorkProcess(
     ) {
         // 单行模式下折叠行就是那条引用条本身：气泡里不再显示任何步骤，
         // 只有用户主动点开时才在下方铺开时间线。
-        val showSteps = if (singleRow) bodyVisible && manualExpanded == true else bodyVisible
+        // 有步骤要画就画：收起态由 collapsedVisibleCount 决定露几条，
+        // 不再要求用户手动展开过才显示，否则收纳条会永远空着。
+        val showSteps = bodyVisible
         // 展开时折叠行与步骤共用外层的同一块画布：竖条只有一条，从上贯通到底。
         val joinedPanel = embedded && singleRow && showSteps
         Column(
@@ -188,7 +193,7 @@ internal fun AgentWorkProcess(
             AgentWorkHeader(
                 messages = messages,
                 working = active || running,
-                expanded = bodyVisible,
+                expanded = fullyExpanded,
                 compact = embedded,
                 hiddenStepCount = hiddenStepCount,
                 quoted = singleRow,
@@ -196,7 +201,8 @@ internal fun AgentWorkProcess(
                 quotedBackground = !joinedPanel,
                 connectsTop = connectsTop,
                 connectsBottom = connectsBottom,
-                onClick = { manualExpanded = !bodyVisible },
+                collapsedVisibleCount = collapsedVisibleCount,
+                onClick = { manualExpanded = !fullyExpanded },
             )
             AnimatedVisibility(
                 visible = showSteps,
@@ -214,34 +220,20 @@ internal fun AgentWorkProcess(
                 ),
             ) {
                 if (embedded) {
-                    // 展开后接在折叠行下方，属于同一块面板：底色与竖条由外层统一画，
-                    // 步骤之间只用细分隔线切开，不再每一步各套一条引用条。
+                    // 展开后接在折叠行下方，属于同一块面板：底色与竖条由外层统一画。
+                    // 参照 rikkahub，步骤之间不画任何分割线，靠时间线的节点与竖线区分，
+                    // 行距交给每步自己的垂直留白。
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(
                                 start = WorkQuoteBarWidth + 12.dp,
                                 end = 10.dp,
-                                top = 0.dp,
+                                top = 2.dp,
                                 bottom = 6.dp,
                             ),
                     ) {
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(1.dp)
-                                .background(WorkStepDividerColor),
-                        )
                         visibleSteps.forEachIndexed { index, step ->
-                            if (index > 0) {
-                                Box(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(vertical = 2.dp)
-                                        .height(1.dp)
-                                        .background(WorkStepDividerColor),
-                                )
-                            }
                             key(step.key) {
                                 AgentWorkStepNode(
                                     step = step,
@@ -298,6 +290,8 @@ private fun AgentWorkHeader(
     // 与相邻过程块连通：圆角只在整组首尾出现，中间的段保持直边。
     connectsTop: Boolean = false,
     connectsBottom: Boolean = false,
+    // 收起态保留可见的尾部步骤数，用于算「展开 N 步」里的 N。
+    collapsedVisibleCount: Int = 0,
     onClick: () -> Unit,
 ) {
     val runningTool = messages.lastOrNull { message ->
@@ -317,14 +311,12 @@ private fun AgentWorkHeader(
     }
     // 与 chatcube 的 ChainOfThought 一致：收起态提示还能展开多少步，
     // 展开态给「收起」，用户始终知道还能往哪个方向切换。
+    // 参照 rikkahub：整组过程只有「展开 N 步」与「收起」两种文案，
+    // 收纳控制是顶部一个明确的动作，而不是把摘要揉进标题里。
+    val canCollapse = stepCount > collapsedVisibleCount
     val text = when {
-        // 只藏了一两步时不提示「显示更多」：收起态本来就只留摘要行，
-        // 为此专门加一句会让每段过程都多出一个高频噪音。
-        hiddenStepCount >= WorkShowMoreThreshold && !expanded -> stringResource(
-            R.string.work_show_more_steps,
-            hiddenStepCount,
-        )
         expanded -> stringResource(R.string.work_hide_steps)
+        canCollapse -> stringResource(R.string.work_show_more_steps, stepCount - collapsedVisibleCount)
         else -> base
     }
     val icon = when {
@@ -358,6 +350,8 @@ private fun AgentWorkHeader(
             .heightIn(min = if (compact) 26.dp else WorkRowHeight)
             .clip(RoundedCornerShape(10.dp))
     }
+    // 收纳行沿用 rikkahub ChainOfThought 的排布：左侧固定 24dp 图标槽、
+    // 中间主色的「展开 N 步 / 收起」、右侧 16dp 箭头，整行可点。
     Row(
         modifier = barModifier
             .clip(RoundedCornerShape(10.dp))
@@ -365,17 +359,27 @@ private fun AgentWorkHeader(
         verticalAlignment = Alignment.CenterVertically,
     ) {
         if (quoted) {
-            Box(contentAlignment = Alignment.Center) {
-                WorkNodeBadge(
-                    icon = icon,
-                    tone = when {
-                        working -> WorkNodeTone.Running
-                        summary.failedCount > 0 -> WorkNodeTone.Failed
-                        else -> WorkNodeTone.Done
+            // 参照 rikkahub：图标槽固定 24dp，图标本身不带底色圆块，
+            // 只用主色 tint；运行中保留呼吸脉冲作为唯一的动态暗示。
+            val pulse = rememberDrawPhasePulse(active = working)
+            Box(
+                modifier = Modifier.width(24.dp),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    imageVector = icon,
+                    contentDescription = null,
+                    modifier = Modifier
+                        .size(15.dp)
+                        .graphicsLayer { alpha = pulse?.value ?: 1f },
+                    tint = if (summary.failedCount > 0) {
+                        StatusError
+                    } else {
+                        AetherChatColors.workStepIcon()
                     },
                 )
             }
-            Spacer(modifier = Modifier.width(7.dp))
+            Spacer(modifier = Modifier.width(8.dp))
         } else {
             Box(
                 modifier = Modifier.width(if (compact) 18.dp else WorkGutterWidth),
@@ -385,28 +389,29 @@ private fun AgentWorkHeader(
                     imageVector = icon,
                     contentDescription = null,
                     modifier = Modifier.size(if (compact) 13.dp else 15.dp),
-                    tint = if (working) {
-                        MiuixTheme.colorScheme.primary
-                    } else {
-                        MiuixTheme.colorScheme.onSurfaceVariantSummary
-                    },
+                    // 与收纳条同一主色系：图标、文字、箭头属于一组可点元素。
+                    tint = AetherChatColors.workStepIcon(),
                 )
             }
             Spacer(modifier = Modifier.width(if (compact) 4.dp else WorkGutterGap))
         }
+        // 收纳控制用主色，与正文字色区分开：一眼能看出这里可以点。
         ShimmerText(
             text = text,
             active = working,
             style = MiuixTheme.textStyles.body2,
-            color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+            color = AetherChatColors.workToggleAccent(),
             modifier = Modifier.weight(1f, fill = false),
         )
+        // 收纳行尾部：上下箭头与文字同为主色，与 rikkahub 的顶部控制条一致。
         ExpandChevron(
             expanded = expanded,
             contentDescription = stringResource(
                 if (expanded) R.string.work_collapse else R.string.work_expand,
             ),
             modifier = Modifier.padding(start = 4.dp, end = if (quoted) 6.dp else 8.dp),
+            vertical = quoted,
+            tint = AetherChatColors.workToggleAccent(),
         )
     }
 }
@@ -511,9 +516,6 @@ private fun AgentWorkStepNode(
     }
 }
 
-/** 收起态隐藏步数达到这个量级才提示「显示更多 N 步」，避免高频噪音。 */
-private const val WorkShowMoreThreshold = 3
-
 /** 这个时间线节点是不是被并入过程块的短旁白（而非真正的动作）。 */
 private fun AgentWorkStep.isAsideStep(): Boolean =
     this is AgentWorkStep.Single && message is AgentMessageUi
@@ -608,9 +610,6 @@ private val WorkQuoteFillRadiusEnd = 14.dp
 
 /** 横条左端圆角半径：比右端小，左侧更像一条直边的起点。 */
 private val WorkQuoteFillStartCorner = 4.dp
-
-/** 展开后的步骤之间用一条很淡的分隔线切开，而不是各自成卡片。 */
-private val WorkStepDividerColor = Color(0x1AFFFFFF)
 
 /** 横条的轮廓：左小右大的不规则圆角，与竖条拼出一段「｜」嵌进长条的形状。 */
 private val WorkQuoteFillShape = RoundedCornerShape(
@@ -829,7 +828,20 @@ internal fun ExpandChevron(
     expanded: Boolean,
     contentDescription: String?,
     modifier: Modifier = Modifier,
+    // rikkahub 形态：过程块收纳用「向下 / 向上」箭头，方向直接对应展开收起，
+    // 不再靠一个 chevron 旋转 90 度来表达。
+    vertical: Boolean = false,
+    tint: Color? = null,
 ) {
+    if (vertical) {
+        Icon(
+            imageVector = if (expanded) Icons.Rounded.KeyboardArrowUp else Icons.Rounded.KeyboardArrowDown,
+            contentDescription = contentDescription,
+            modifier = modifier.size(16.dp),
+            tint = tint ?: MiuixTheme.colorScheme.onSurfaceVariantSummary.copy(alpha = 0.6f),
+        )
+        return
+    }
     val rotation by animateFloatAsState(
         targetValue = if (expanded) 90f else 0f,
         animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
@@ -841,7 +853,7 @@ internal fun ExpandChevron(
         modifier = modifier
             .size(14.dp)
             .graphicsLayer { rotationZ = rotation },
-        tint = MiuixTheme.colorScheme.onSurfaceVariantSummary.copy(alpha = 0.6f),
+        tint = tint ?: MiuixTheme.colorScheme.onSurfaceVariantSummary.copy(alpha = 0.6f),
     )
 }
 

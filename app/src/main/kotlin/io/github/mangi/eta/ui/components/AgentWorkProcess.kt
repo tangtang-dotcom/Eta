@@ -124,10 +124,7 @@ internal fun AgentWorkProcess(
     // running 会短暂为 false，按它收起会造成反复开合。展开态在组合期同步推导，与正文
     // 条目插入落在同一帧，不经 LaunchedEffect 晚一帧收起。语音浮层空间有限，自动模式不展开。
     val autoExpanded = active && !assistantOverlay && autoExpandWhileActive
-    // fullyExpanded 是“铺开完整时间线”；bodyVisible 只是“下面有没有东西要画”。
-    // 两者分开：收起态可以露两步，但折叠行仍要显示成收起态、提供展开入口。
-    val fullyExpanded = manualExpanded ?: autoExpanded
-    val bodyVisible = fullyExpanded || collapsedVisibleCount > 0
+    val bodyVisible = manualExpanded ?: (autoExpanded || collapsedVisibleCount > 0)
 
     // 竖条颜色在组合期取一次：drawBehind 的 lambda 不是 @Composable 上下文，
     // 不能在绘制阶段读主题色。
@@ -136,11 +133,13 @@ internal fun AgentWorkProcess(
     // 否则模型跑工具时界面上看不到任何进展，容易误以为卡死。
     val visibleSteps = remember(
         steps,
-        fullyExpanded,
+        bodyVisible,
+        manualExpanded,
+        autoExpanded,
         autoExpandWhileActive,
         collapsedVisibleCount,
     ) {
-        if (fullyExpanded) {
+        if (bodyVisible && (manualExpanded == true || autoExpanded)) {
             steps
         } else {
             val keep = collapsedVisibleCount.coerceAtLeast(
@@ -167,9 +166,9 @@ internal fun AgentWorkProcess(
                 vertical = if (embedded) 0.dp else 2.dp,
             ),
     ) {
-        // 气泡内：收起时也只留标题行，步骤全部收进折叠行；展开才铺时间线。
-        // 下面那部分「收起态露两步」的可见性由 collapsedVisibleCount 控制。
-        val showSteps = bodyVisible
+        // 单行模式下折叠行就是那条引用条本身：气泡里不再显示任何步骤，
+        // 只有用户主动点开时才在下方铺开时间线。
+        val showSteps = if (singleRow) bodyVisible && manualExpanded == true else bodyVisible
         // 展开时折叠行与步骤共用外层的同一块画布：竖条只有一条，从上贯通到底。
         val joinedPanel = embedded && singleRow && showSteps
         Column(
@@ -189,7 +188,7 @@ internal fun AgentWorkProcess(
             AgentWorkHeader(
                 messages = messages,
                 working = active || running,
-                expanded = fullyExpanded,
+                expanded = bodyVisible,
                 compact = embedded,
                 hiddenStepCount = hiddenStepCount,
                 quoted = singleRow,
@@ -197,7 +196,7 @@ internal fun AgentWorkProcess(
                 quotedBackground = !joinedPanel,
                 connectsTop = connectsTop,
                 connectsBottom = connectsBottom,
-                onClick = { manualExpanded = !fullyExpanded },
+                onClick = { manualExpanded = !bodyVisible },
             )
             AnimatedVisibility(
                 visible = showSteps,
@@ -223,34 +222,37 @@ internal fun AgentWorkProcess(
                             .padding(
                                 start = WorkQuoteBarWidth + 12.dp,
                                 end = 10.dp,
-                                // 去掉分隔线后，靠这一点顶部留白把首步与折叠行分开，
-                                // 否则两行文字会直接贴在一起。
-                                top = 6.dp,
+                                top = 0.dp,
                                 bottom = 6.dp,
                             ),
                     ) {
-                        // 展开后步骤直接接在折叠行下方，不再用分割线切开：
-                        // 时间线本身的节点与竖线已经把每一步分清了，多一条横线反而显碎。
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(1.dp)
+                                .background(WorkStepDividerColor),
+                        )
                         visibleSteps.forEachIndexed { index, step ->
-                            key(step.key) {
-                                // 原来靠一条 1dp 分割线 + 上下 2dp 撑开行距；线去掉后，
-                                // 把这份间距还给每步自己，行与行之间才不会挤在一起。
+                            if (index > 0) {
                                 Box(
-                                    modifier = Modifier.padding(
-                                        top = if (index == 0) 0.dp else 4.dp,
-                                    ),
-                                ) {
-                                    AgentWorkStepNode(
-                                        step = step,
-                                        isLast = index == visibleSteps.lastIndex,
-                                        quoted = false,
-                                        // 展开后仍是一步一行，参数和结果收进各自的展开区。
-                                        oneLine = true,
-                                        onOpenBrowser = onOpenBrowser,
-                                        currentBrowserMessageId = currentBrowserMessageId,
-                                        retainedStreamingStates = retainedStreamingStates,
-                                    )
-                                }
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(vertical = 2.dp)
+                                        .height(1.dp)
+                                        .background(WorkStepDividerColor),
+                                )
+                            }
+                            key(step.key) {
+                                AgentWorkStepNode(
+                                    step = step,
+                                    isLast = index == visibleSteps.lastIndex,
+                                    quoted = false,
+                                    // 展开后仍是一步一行，参数和结果收进各自的展开区。
+                                    oneLine = true,
+                                    onOpenBrowser = onOpenBrowser,
+                                    currentBrowserMessageId = currentBrowserMessageId,
+                                    retainedStreamingStates = retainedStreamingStates,
+                                )
                             }
                         }
                     }
@@ -289,7 +291,7 @@ private fun AgentWorkHeader(
     compact: Boolean = false,
     // 收起态下被折进标题行的步骤数，展开后为 0。
     hiddenStepCount: Int = 0,
-    // 单行模式：这一行自己就是过程引用条。
+    // 单行模式：这一行自己就是过程引用条，折叠时不再叠任何步骤。
     quoted: Boolean = false,
     // 这一行是否自己画底色与竖条；展开时整块由外层统一画，这里传 false。
     quotedBackground: Boolean = true,
@@ -316,9 +318,9 @@ private fun AgentWorkHeader(
     // 与 chatcube 的 ChainOfThought 一致：收起态提示还能展开多少步，
     // 展开态给「收起」，用户始终知道还能往哪个方向切换。
     val text = when {
-        // 收起态已经露出末端两步，只要还有更早的步骤没显示，就把数量点出来，
-        // 否则用户看不出上面还折叠着东西。
-        hiddenStepCount > 0 && !expanded -> stringResource(
+        // 只藏了一两步时不提示「显示更多」：收起态本来就只留摘要行，
+        // 为此专门加一句会让每段过程都多出一个高频噪音。
+        hiddenStepCount >= WorkShowMoreThreshold && !expanded -> stringResource(
             R.string.work_show_more_steps,
             hiddenStepCount,
         )
@@ -509,6 +511,9 @@ private fun AgentWorkStepNode(
     }
 }
 
+/** 收起态隐藏步数达到这个量级才提示「显示更多 N 步」，避免高频噪音。 */
+private const val WorkShowMoreThreshold = 3
+
 /** 这个时间线节点是不是被并入过程块的短旁白（而非真正的动作）。 */
 private fun AgentWorkStep.isAsideStep(): Boolean =
     this is AgentWorkStep.Single && message is AgentMessageUi
@@ -603,6 +608,9 @@ private val WorkQuoteFillRadiusEnd = 14.dp
 
 /** 横条左端圆角半径：比右端小，左侧更像一条直边的起点。 */
 private val WorkQuoteFillStartCorner = 4.dp
+
+/** 展开后的步骤之间用一条很淡的分隔线切开，而不是各自成卡片。 */
+private val WorkStepDividerColor = Color(0x1AFFFFFF)
 
 /** 横条的轮廓：左小右大的不规则圆角，与竖条拼出一段「｜」嵌进长条的形状。 */
 private val WorkQuoteFillShape = RoundedCornerShape(

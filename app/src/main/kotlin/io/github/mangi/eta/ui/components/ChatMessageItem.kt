@@ -211,8 +211,6 @@ internal fun ChatMessageItem(
     workMessages: List<AgentChatMessageUi> = emptyList(),
     workActive: Boolean = false,
     workStreamingStates: Map<String, StreamingMarkdownState> = emptyMap(),
-    // 轮内分块：过程子气泡与正文按发生顺序交替，非空时优先于 workMessages。
-    turnBlocks: List<AgentTurnBlock> = emptyList(),
     currentBrowserMessageId: String? = null,
     messageActionsEnabled: Boolean = true,
     isEditing: Boolean = false,
@@ -239,7 +237,6 @@ internal fun ChatMessageItem(
             workMessages = workMessages,
             workActive = workActive,
             workStreamingStates = workStreamingStates,
-            turnBlocks = turnBlocks,
             currentBrowserMessageId = currentBrowserMessageId,
             onOpenBrowser = onOpenBrowser,
             assistantOverlay = assistantOverlay,
@@ -692,8 +689,6 @@ private fun AgentMessageBlock(
     workMessages: List<AgentChatMessageUi> = emptyList(),
     workActive: Boolean = false,
     workStreamingStates: Map<String, StreamingMarkdownState> = emptyMap(),
-    // 轮内分块：过程子气泡与正文按发生顺序交替，非空时优先于 workMessages。
-    turnBlocks: List<AgentTurnBlock> = emptyList(),
     currentBrowserMessageId: String? = null,
     onOpenBrowser: () -> Unit = {},
     // 系统提示（已停止、任务中断等）也要落在气泡里，但它没有正文可渲染。
@@ -800,95 +795,29 @@ private fun AgentMessageBlock(
                 Modifier.fillMaxWidth()
             },
         ) {
-            if (showBubble && turnBlocks.isNotEmpty()) {
-                // 按真实生成时序交错渲染：过程块留在它发生的位置，正文也留在它被说出的
-                // 位置，形成「过程 → 正文 → 过程 → 正文」的节奏，而不是把过程全堆在顶部、
-                // 正文全堆到末尾。整轮仍然只占一个气泡、副头像和一个模型名。
-                //
-                // 每个正文块只渲染自己那一段，不重复合并后的全文：调用方传进来的 message
-                // 是 mergeTurnAnswers() 拼好的整轮答复，只用来承载气泡身份、操作行定位
-                // 与复制内容，不参与逐块渲染，因此不会出现整段回答重复。
-                val lastProcedureIndex = turnBlocks.indexOfLast { it is AgentTurnBlock.Procedure }
-                // 被正文隔开的多段过程，视觉上拼成同一条引用：整轮只有首段留顶部圆角、
-                // 末段留底部圆角，中间的段上下都直边。这样模型边做事边插几句话时，
-                // 界面不会冒出一排各自独立的小条，读起来仍是一条过程。
-                val procedureIndexes = turnBlocks.indices.filter { turnBlocks[it] is AgentTurnBlock.Procedure }
-                // 正文块的位置集合：用来判断某段过程是不是夹在前后两段正文之间。
-                val contentIndexes = turnBlocks.indices.filter { turnBlocks[it] is AgentTurnBlock.Content }
-                turnBlocks.forEachIndexed { index, block ->
-                    val isLast = index == turnBlocks.lastIndex
-                    when (block) {
-                        is AgentTurnBlock.Procedure -> {
-                            val procedurePosition = procedureIndexes.indexOf(index)
-                            // 夹在中间：前面有正文，后面也有正文。这种过程块收尾后不会
-                            // 接着下一段过程连成一条，横条两端都裸露，间距必须自己补。
-                            val sandwiched = contentIndexes.any { it < index } &&
-                                contentIndexes.any { it > index }
-                            AssistantWorkBubble(
-                                messages = block.steps,
-                                // 只有最后一个过程块在生成中才自动播报进度。
-                                active = workActive && index == lastProcedureIndex,
-                                assistantOverlay = assistantOverlay,
-                                onOpenBrowser = onOpenBrowser,
-                                currentBrowserMessageId = currentBrowserMessageId,
-                                retainedStreamingStates = workStreamingStates,
-                                connectsTop = procedurePosition > 0,
-                                connectsBottom = procedurePosition in 0 until procedureIndexes.lastIndex,
-                                sandwiched = sandwiched,
-                            )
-                        }
-                        is AgentTurnBlock.Content -> {
-                            val blockAnswer = block.message as? AgentMessageUi
-                            // 每段正文用自己的渲染会话：正在流式的段按自己的 id 取打字机
-                            // 状态，已定稿的段直接走静态 Markdown，彼此不串台。
-                            val blockStreamingState = blockAnswer
-                                ?.takeIf { it.isStreaming }
-                                ?.let { workStreamingStates[it.id] }
-                            AgentAnswerText(
-                                answer = blockAnswer,
-                                fallbackContent = null,
-                                streamingState = blockStreamingState,
-                                message = message,
-                                revealComplete = blockAnswer == null ||
-                                    blockAnswer.id != message.id || revealComplete,
-                                completedDocument = blockAnswer
-                                    ?.takeIf { it.id == message.id }
-                                    ?.let { completedDocument },
-                                onRevealCompleteChange = { streamingRevealComplete = it },
-                                // 这段正文后面还接着过程块时不留底边间距：中间那句话
-                                // 本来就夹在同一条过程里，留缝会把竖条切成两截。
-                                modifier = Modifier.padding(
-                                    bottom = if (isLast || procedureIndexes.any { it > index }) {
-                                        0.dp
-                                    } else {
-                                        10.dp
-                                    },
-                                ),
-                            )
-                        }
-                    }
-                }
-            } else {
-                if (showBubble && workMessages.isNotEmpty()) {
-                    AssistantWorkBubble(
-                        messages = workMessages,
-                        active = workActive,
-                        assistantOverlay = assistantOverlay,
-                        onOpenBrowser = onOpenBrowser,
-                        currentBrowserMessageId = currentBrowserMessageId,
-                        retainedStreamingStates = workStreamingStates,
-                    )
-                }
-                AgentAnswerText(
-                    answer = message,
-                    fallbackContent = null,
-                    streamingState = streamingState,
-                    message = message,
-                    revealComplete = revealComplete,
-                    completedDocument = completedDocument,
-                    onRevealCompleteChange = { streamingRevealComplete = it },
+            // 一轮的过程块整体排在正文上方，不再与正文交错：
+            // 交错需要把一轮切成多个块再拼回去，任何一处判断错位都会让正文
+            // 整段不渲染（气泡空白或被吞）。回到「过程在上、正文在下」的单一
+            // 路径，过程块自身的收纳交互不受影响。
+            if (showBubble && workMessages.isNotEmpty()) {
+                AssistantWorkBubble(
+                    messages = workMessages,
+                    active = workActive,
+                    assistantOverlay = assistantOverlay,
+                    onOpenBrowser = onOpenBrowser,
+                    currentBrowserMessageId = currentBrowserMessageId,
+                    retainedStreamingStates = workStreamingStates,
                 )
             }
+            AgentAnswerText(
+                answer = message,
+                fallbackContent = null,
+                streamingState = streamingState,
+                message = message,
+                revealComplete = revealComplete,
+                completedDocument = completedDocument,
+                onRevealCompleteChange = { streamingRevealComplete = it },
+            )
 
         }
 
@@ -1040,13 +969,6 @@ private fun AssistantWorkBubble(
     onOpenBrowser: () -> Unit,
     currentBrowserMessageId: String?,
     retainedStreamingStates: Map<String, StreamingMarkdownState>,
-    // 与相邻过程块连通时，只在整组首尾保留圆角，中间的段直边相接。
-    connectsTop: Boolean = false,
-    connectsBottom: Boolean = false,
-    // 这段过程夹在两段正文中间（上一块与下一块都是独立正文）。
-    // 这种位置的过程块上下都没有「同一块面板」可以依附，收起态的横条会直接贴住
-    // 前后的正文，几乎看不出留白；只有这里需要额外补间距。
-    sandwiched: Boolean = false,
 ) {
     // 不再给过程单独套灰色圆角卡片：展开时由 AgentWorkProcess 自己画一条主题色竖线，
     // 与 Markdown 引用块同一套视觉语言，气泡里只剩一层文字，不会被内层卡片压厚。
@@ -1057,14 +979,7 @@ private fun AssistantWorkBubble(
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(
-                top = if (sandwiched) ProcessSandwichGapTop else 0.dp,
-                bottom = when {
-                    connectsBottom -> 0.dp
-                    sandwiched -> ProcessSandwichGapBottom
-                    else -> 10.dp
-                },
-            )
+            .padding(bottom = 10.dp)
     ) {
         AgentWorkProcess(
             id = messages.first().id,
@@ -1082,24 +997,12 @@ private fun AssistantWorkBubble(
             // 顶部收纳条给出「展开 N 步」，点开才铺完整时间线。
             collapsedVisibleCount = 2,
             singleRow = true,
-            connectsTop = connectsTop,
-            connectsBottom = connectsBottom,
         )
     }
 }
 
 /** 回答气泡圆角：与用户气泡保持一致，两边气泡形状才对得上。 */
 private val AssistantBubbleCorner = 24.dp
-
-/**
- * 夹在正文中间的过程条与上下正文之间的留白。
- *
- * 上面比下面略大：过程条自身底部已经带了几 dp 的边距（横条与外缘之间），
- * 上下取同一个值反而会显得头重脚轻。数值按气泡内的正文行距取，
- * 既不会把「过程 → 正文 → 过程」拆成两段，也能让横条从正文里脱开。
- */
-private val ProcessSandwichGapTop = 12.dp
-private val ProcessSandwichGapBottom = 10.dp
 
 /**
  * 这条消息是不是「模型的回答」，从而该包在回答气泡里。

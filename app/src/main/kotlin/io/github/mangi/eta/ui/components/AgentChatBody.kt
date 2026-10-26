@@ -541,11 +541,22 @@ internal fun AgentConversationMessages(
     // 上一版条目只作复用比对，不参与组合观察。
     val previousTimelineEntries = remember { arrayOf(emptyList<AgentTimelineEntry>()) }
     val timelineEntries = remember(visibleMessages) {
+        // 先按官方规则把消息归成 Message / WorkProcess，再把同一轮聚合成一个 Turn：
+        // 一轮只画一个气泡、一个头像，过程与旁白收进同一张过程卡。
         visibleMessages.toTimelineEntries(previous = previousTimelineEntries[0])
+            .mergeIntoAgentTurns()
     }
     SideEffect { previousTimelineEntries[0] = timelineEntries }
     val activeWorkProcessKey = if (isStreaming) {
-        (timelineEntries.lastOrNull() as? AgentTimelineEntry.WorkProcess)?.key
+        when (val last = timelineEntries.lastOrNull()) {
+            is AgentTimelineEntry.WorkProcess -> last.key
+            // 聚合后一轮只剩一个 Turn，过程卡的活动态由它自己承接：
+            // 只要最后一块还是过程，就说明模型正在干活，卡片保持展开播报。
+            is AgentTimelineEntry.Turn -> last.key.takeIf {
+                last.groups.lastOrNull() is AgentTurnGroup.Process
+            }
+            else -> null
+        }
     } else {
         null
     }
@@ -875,6 +886,55 @@ internal fun AgentConversationMessages(
                         )
                     }
 
+                    is AgentTimelineEntry.Turn -> {
+                        // 一轮只画一个气泡：过程卡与正文按发生位置排在里面。
+                        // 气泡身份取「首段正文」，只用于操作行定位与复制，不参与渲染判定。
+                        // 取不到正文时退回本轮 key，仅作占位，因此不参与任何 id 比对。
+                        val identityAnswer = entry.answers.filterIsInstance<AgentMessageUi>()
+                            .firstOrNull()
+                        val identity = identityAnswer ?: AgentMessageUi(id = entry.key, content = "")
+                        // 逐段预建流式会话：旁白虽然在过程组里，同样可能是流式中的正文，
+                        // 漏建会让它退化成静态渲染、看起来卡住不动。
+                        entry.workMessages.filterIsInstance<AgentMessageUi>().forEach { segment ->
+                            if (segment.isStreaming) streamingMarkdownCache.getOrCreate(segment.id)
+                        }
+                        entry.answers.filterIsInstance<AgentMessageUi>().forEach { segment ->
+                            if (segment.isStreaming) streamingMarkdownCache.getOrCreate(segment.id)
+                        }
+                        val identityStreamingState = identity
+                            .takeIf { it.isStreaming || streamingMarkdownStates.containsKey(it.id) }
+                            ?.let { streamingMarkdownCache.getOrCreate(it.id) }
+                        ChatMessageItem(
+                            message = identity,
+                            assistantOverlay = assistantOverlay,
+                            retainedStreamingState = identityStreamingState,
+                            turnGroups = entry.groups,
+                            workActive = entry.key == activeWorkProcessKey,
+                            workStreamingStates = streamingMarkdownStates,
+                            currentBrowserMessageId = currentBrowserMessageId,
+                            onOpenBrowser = onOpenBrowser,
+                            onSuggestionClick = onSuggestionClick,
+                            onRunTraceClick = onRunTraceClick,
+                            showBrowserShortcut = false,
+                            assistantModel = assistantModel,
+                            // 没有真实正文时（本轮只有过程、还没有回答）不给操作行：
+                            // 此时的 identity 只是占位对象，复制出来会是空的。
+                            showCopyAction = identityAnswer != null &&
+                                (identityAnswer.characterEditable ||
+                                    identityAnswer.id in finalResultMessageIds),
+                            showMessageActions = identityAnswer != null &&
+                                (identityAnswer.characterEditable ||
+                                    identityAnswer.id in finalResultMessageIds),
+                            messageActionsEnabled = messageActionsEnabled,
+                            isEditing = identity.id == editTargetMessageId,
+                            onEditMessage = onEditMessage,
+                            onDeleteMessage = onDeleteMessage,
+                            onRegenerateMessage = onRegenerateMessage,
+                            onSelectReplyCandidate = onSelectReplyCandidate,
+                            modifier = itemModifier,
+                        )
+                    }
+
                     is AgentTimelineEntry.WorkProcess -> {
                         entry.messages.forEach { message ->
                             if (message is ThinkingMessageUi && message.isStreaming) {
@@ -1015,6 +1075,32 @@ internal sealed interface AgentTimelineEntry {
         override val key: String,
         val messages: List<AgentChatMessageUi>,
     ) : AgentTimelineEntry
+
+    /**
+     * 一整轮问答（一条用户消息到下一次用户消息之间）聚合成一个条目。
+     *
+     * 存在的理由是气泡粒度：投影层会把一轮里的正文、思考、工具调用拆成多条独立
+     * 消息，若按 [Message] / [WorkProcess] 逐条渲染，模型「说一句 → 调工具 → 再说
+     * 一句」就会变成三个气泡、三个头像。这里把一整轮收成一个条目，只画一个气泡。
+     *
+     * [groups] 由 [toAgentTurnGroups] 按 RikkaHub 的规则算出：过程步骤与夹在过程
+     * 之间的旁白收成一个 Process 组，最后一轮过程之后的正文才是 Content 组。
+     * 渲染只有这两种分支，各有一条明确的出口，不存在「哪个分支都没选中」的空白。
+     */
+    data class Turn(
+        override val key: String,
+        val groups: List<AgentTurnGroup>,
+    ) : AgentTimelineEntry {
+        /** 本轮全部过程步骤，按发生顺序；供渲染过程卡与复制取用。 */
+        val workMessages: List<AgentChatMessageUi>
+            get() = groups.filterIsInstance<AgentTurnGroup.Process>()
+                .flatMap { it.steps }
+
+        /** 本轮全部模型正文，按发生顺序。 */
+        val answers: List<AgentChatMessageUi>
+            get() = groups.filterIsInstance<AgentTurnGroup.Content>()
+                .map { it.message }
+    }
 }
 
 /**
@@ -1056,8 +1142,69 @@ internal fun List<AgentChatMessageUi>.toTimelineEntries(
     flushWorkProcess()
 }
 
+/**
+ * 在 [toTimelineEntries] 的结果上把同一轮的消息聚合成 [AgentTimelineEntry.Turn]。
+ *
+ * 这一步是「气泡粒度」的唯一来源：上一步产出的是逐条消息条目，一条正文一个条目；
+ * 这里以用户消息为边界重新成组，一轮只留一个条目，界面上也就只有一个气泡、一个头像。
+ *
+ * 聚合不改变消息实例、不重排发生顺序，只把它们交给 [toAgentTurnGroups] 按
+ * RikkaHub 的规则分组。条目 key 锚在本轮起点（用户消息 id）上——它在流式过程中
+ * 不会被增删，LazyColumn 因此不会把同一个气泡当成新条目重建。
+ *
+ * 系统提示（重试、中断、上下文压缩）不并入任何一轮：它们要独立成条，
+ * 否则文案会整条从界面上消失。
+ */
+internal fun List<AgentTimelineEntry>.mergeIntoAgentTurns(): List<AgentTimelineEntry> = buildList {
+    val turnMessages = mutableListOf<AgentChatMessageUi>()
+    // 本轮 key 的宿主：最近一条用户消息；null 表示这段输出还没有起点（历史页中段起读）。
+    var turnKey: String? = null
+
+    fun flushTurn() {
+        if (turnMessages.isEmpty()) return
+        val messages = turnMessages.toList()
+        turnMessages.clear()
+        // 历史页可能从某一轮的中间开始，此时没有用户消息可锚，退回用首个成员 id 兜底。
+        val key = turnKey ?: messages.first().id
+        turnKey = null
+        val groups = messages.toAgentTurnGroups()
+        if (groups.isEmpty()) return
+        add(AgentTimelineEntry.Turn(key = "turn-$key", groups = groups))
+    }
+
+    this@mergeIntoAgentTurns.forEach { entry ->
+        when (entry) {
+            is AgentTimelineEntry.WorkProcess -> turnMessages += entry.messages
+            is AgentTimelineEntry.Message -> when (val message = entry.message) {
+                is UserMessageUi -> {
+                    flushTurn()
+                    turnKey = message.id
+                    add(entry)
+                }
+                // 系统提示独立成条：并进 Turn 就只剩一个没有正文的块，文案会消失。
+                is SystemNoticeMessageUi -> {
+                    flushTurn()
+                    add(entry)
+                }
+                is AgentMessageUi -> turnMessages += message
+                // 其余过程类消息理论上已被上一步归进 WorkProcess，这里保守地当作过程。
+                else -> turnMessages += message
+            }
+            // 理论上不会出现嵌套 Turn，保守地摊回当前轮。
+            is AgentTimelineEntry.Turn -> entry.groups.forEach { group ->
+                when (group) {
+                    is AgentTurnGroup.Process -> turnMessages += group.steps
+                    is AgentTurnGroup.Content -> turnMessages += group.message
+                }
+            }
+        }
+    }
+    flushTurn()
+}
+
 private fun AgentTimelineEntry.contentType(): Any = when (this) {
     is AgentTimelineEntry.WorkProcess -> AgentTimelineEntry.WorkProcess::class
+    is AgentTimelineEntry.Turn -> AgentTimelineEntry.Turn::class
     is AgentTimelineEntry.Message -> message::class
 }
 

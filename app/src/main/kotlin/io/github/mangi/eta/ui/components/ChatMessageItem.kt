@@ -211,6 +211,9 @@ internal fun ChatMessageItem(
     workMessages: List<AgentChatMessageUi> = emptyList(),
     workActive: Boolean = false,
     workStreamingStates: Map<String, StreamingMarkdownState> = emptyMap(),
+    // 整轮分组：非空时按 RikkaHub 的分组渲染整个气泡（过程卡与正文按发生位置排列），
+    // 空则表示这是单条消息（用户消息、系统提示），走各自的渲染分支。
+    turnGroups: List<AgentTurnGroup> = emptyList(),
     currentBrowserMessageId: String? = null,
     messageActionsEnabled: Boolean = true,
     isEditing: Boolean = false,
@@ -237,6 +240,7 @@ internal fun ChatMessageItem(
             workMessages = workMessages,
             workActive = workActive,
             workStreamingStates = workStreamingStates,
+            turnGroups = turnGroups,
             currentBrowserMessageId = currentBrowserMessageId,
             onOpenBrowser = onOpenBrowser,
             assistantOverlay = assistantOverlay,
@@ -689,6 +693,7 @@ private fun AgentMessageBlock(
     workMessages: List<AgentChatMessageUi> = emptyList(),
     workActive: Boolean = false,
     workStreamingStates: Map<String, StreamingMarkdownState> = emptyMap(),
+    turnGroups: List<AgentTurnGroup> = emptyList(),
     currentBrowserMessageId: String? = null,
     onOpenBrowser: () -> Unit = {},
     // 系统提示（已停止、任务中断等）也要落在气泡里，但它没有正文可渲染。
@@ -795,29 +800,70 @@ private fun AgentMessageBlock(
                 Modifier.fillMaxWidth()
             },
         ) {
-            // 一轮的过程块整体排在正文上方，不再与正文交错：
-            // 交错需要把一轮切成多个块再拼回去，任何一处判断错位都会让正文
-            // 整段不渲染（气泡空白或被吞）。回到「过程在上、正文在下」的单一
-            // 路径，过程块自身的收纳交互不受影响。
-            if (showBubble && workMessages.isNotEmpty()) {
-                AssistantWorkBubble(
-                    messages = workMessages,
-                    active = workActive,
-                    assistantOverlay = assistantOverlay,
-                    onOpenBrowser = onOpenBrowser,
-                    currentBrowserMessageId = currentBrowserMessageId,
-                    retainedStreamingStates = workStreamingStates,
+            // 有整轮分组时按 RikkaHub 的规则渲染：过程卡与正文按发生位置排在
+            // 同一个气泡里。分组由 toAgentTurnGroups() 算出，只有 Process / Content
+            // 两种，各自的渲染出口固定，不存在「有内容却没画出来」的可能。
+            // 没有分组时退回单条消息渲染（系统提示、历史条目、悬浮窗）。
+            if (showBubble && turnGroups.isNotEmpty()) {
+                // 整轮分组渲染（对齐 RikkaHub 的 groupMessageParts）：过程卡与正文
+                // 按真实发生位置交替出现，同处一个气泡。每组的出口都是确定的——
+                // Process 交给 AgentWorkProcess，Content 交给 AgentAnswerText，
+                // 两者都会画出内容，不存在「有内容却一个分支都没选中」的空白。
+                val lastProcessIndex = turnGroups.indexOfLast { it is AgentTurnGroup.Process }
+                turnGroups.forEachIndexed { index, group ->
+                    when (group) {
+                        is AgentTurnGroup.Process -> AssistantWorkBubble(
+                            messages = group.steps,
+                            // 只有最后一个过程组在生成中才播报进度。
+                            active = workActive && index == lastProcessIndex,
+                            assistantOverlay = assistantOverlay,
+                            onOpenBrowser = onOpenBrowser,
+                            currentBrowserMessageId = currentBrowserMessageId,
+                            retainedStreamingStates = workStreamingStates,
+                        )
+                        is AgentTurnGroup.Content -> {
+                            val answer = group.message as? AgentMessageUi
+                            AgentAnswerText(
+                                answer = answer,
+                                fallbackContent = null,
+                                // 每段正文用自己的 id 取流式会话，不再借用气泡身份。
+                                streamingState = answer
+                                    ?.takeIf { it.isStreaming }
+                                    ?.let { workStreamingStates[it.id] },
+                                message = message,
+                                // 每段各自判定显现完成：只有整轮都收口了才跳过打字机。
+                                revealComplete = answer == null ||
+                                    answer.id != message.id ||
+                                    revealComplete,
+                                completedDocument = answer
+                                    ?.takeIf { it.id == message.id }
+                                    ?.let { completedDocument },
+                                onRevealCompleteChange = { streamingRevealComplete = it },
+                            )
+                        }
+                    }
+                }
+            } else {
+                if (showBubble && workMessages.isNotEmpty()) {
+                    AssistantWorkBubble(
+                        messages = workMessages,
+                        active = workActive,
+                        assistantOverlay = assistantOverlay,
+                        onOpenBrowser = onOpenBrowser,
+                        currentBrowserMessageId = currentBrowserMessageId,
+                        retainedStreamingStates = workStreamingStates,
+                    )
+                }
+                AgentAnswerText(
+                    answer = message,
+                    fallbackContent = null,
+                    streamingState = streamingState,
+                    message = message,
+                    revealComplete = revealComplete,
+                    completedDocument = completedDocument,
+                    onRevealCompleteChange = { streamingRevealComplete = it },
                 )
             }
-            AgentAnswerText(
-                answer = message,
-                fallbackContent = null,
-                streamingState = streamingState,
-                message = message,
-                revealComplete = revealComplete,
-                completedDocument = completedDocument,
-                onRevealCompleteChange = { streamingRevealComplete = it },
-            )
 
         }
 

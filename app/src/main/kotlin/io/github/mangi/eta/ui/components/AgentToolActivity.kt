@@ -284,6 +284,8 @@ internal fun ToolGroupRow(
         else -> failedText
     }
 
+    // 同上：展开区的续线颜色在组合期取好，供 drawBehind 捕获。
+    val groupLineColor = WorkLineColor
     Column(modifier = modifier.fillMaxWidth()) {
         Row(
             modifier = Modifier
@@ -369,7 +371,7 @@ internal fun ToolGroupRow(
                                     val x = WorkGutterWidth.toPx() / 2f
                                     if (lineContinues) {
                                         drawLine(
-                                            color = WorkLineColor,
+                                            color = groupLineColor,
                                             start = Offset(x, 0f),
                                             end = Offset(x, size.height),
                                             strokeWidth = 1.dp.toPx(),
@@ -420,6 +422,8 @@ private fun ToolActivityDetail(
     // 展开的详情是否继续画左侧的竖向连线（末步不画）。
     lineContinues: Boolean = true,
 ) {
+    // drawBehind 的 lambda 不是 @Composable 上下文，颜色必须在组合期取好再捕获进去。
+    val timelineLineColor = WorkLineColor
     val timelineModifier = if (alignToTimeline) {
         Modifier
             .fillMaxWidth()
@@ -430,7 +434,7 @@ private fun ToolActivityDetail(
                 // 末步不再往下画，其余一直画到详情底部，与下一步的连线相接。
                 // 再往上多画 12dp，盖住展开动画期间露出的空档，避免线断一截。
                 if (lineContinues) {
-                    drawLine(WorkLineColor, Offset(x, -12.dp.toPx()), Offset(x, size.height), stroke)
+                    drawLine(timelineLineColor, Offset(x, -12.dp.toPx()), Offset(x, size.height), stroke)
                 }
             }
             .padding(start = WorkGutterWidth + WorkGutterGap)

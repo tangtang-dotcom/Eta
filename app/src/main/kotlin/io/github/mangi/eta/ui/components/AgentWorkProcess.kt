@@ -208,8 +208,8 @@ internal fun AgentWorkProcess(
             )
             AnimatedVisibility(
                 visible = showSteps,
-                \/\/ 展开动画改成随手指跟随的 tween：spring 在长列表里会一边测高一边回弹，
-                \/\/ 竖线重绘也更抖；这里只要一个定长、可预测的高度增长。
+                // 展开动画用定长 tween：spring 在长列表里会一边测高一边回弹，
+                // 竖线重绘也更抖；这里只要一个可预测的高度增长。
                 enter = fadeIn(tween(160)) + expandVertically(
                     animationSpec = tween(durationMillis = 220, easing = LinearOutSlowInEasing),
                 ),

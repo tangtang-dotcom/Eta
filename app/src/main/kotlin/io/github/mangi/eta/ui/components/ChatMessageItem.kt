@@ -1393,6 +1393,8 @@ internal fun ThinkingRow(
                 // 展开的思考摘要在时间线里也是这一步的一部分：缩进到文字列起点，
                 // 并把节点下方的竖线接到详情底部，读起来仍是一条连续的过程。
                 val inTimeline = compact && alignToTimeline
+                // drawBehind 的 lambda 不是 @Composable 上下文，颜色必须在组合期取好。
+                val timelineLineColor = WorkLineColor
                 val contentModifier = Modifier
                     .fillMaxWidth()
                     .then(
@@ -1402,7 +1404,7 @@ internal fun ThinkingRow(
                                     if (lineContinues) {
                                         val x = WorkGutterWidth.toPx() / 2f
                                         drawLine(
-                                            color = WorkLineColor,
+                                            color = timelineLineColor,
                                             start = Offset(x, -12.dp.toPx()),
                                             end = Offset(x, size.height),
                                             strokeWidth = 1.dp.toPx(),

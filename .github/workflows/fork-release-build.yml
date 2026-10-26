@@ -29,8 +29,12 @@ on:
 permissions:
   contents: read
 
+# 并发粒度按「分支 + 提交」：不同提交各自跑，互不压队。
+# 原来只按分支分组并 cancel-in-progress，接连触发两次时后一次会把前一次
+# 压住（连 job 都不创建），表现为长时间 queued。同一提交重复触发才需要
+# 取消旧的，避免同一份代码重复占用 runner。
 concurrency:
-  group: fork-release-${{ github.ref }}
+  group: fork-release-${{ github.ref }}-${{ github.sha }}
   cancel-in-progress: true
 
 jobs:

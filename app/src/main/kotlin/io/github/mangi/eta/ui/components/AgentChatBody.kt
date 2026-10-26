@@ -1018,6 +1018,53 @@ internal sealed interface AgentTimelineEntry {
 }
 
 /**
+ * 投影层只替换真正变化的消息实例；工作过程分组若成员实例全部未变，就复用上一版条目，
+ * 让已结束的分组在正文流式刷新时保持参数同一性并跳过重组。
+ */
+internal fun List<AgentChatMessageUi>.toTimelineEntries(
+    previous: List<AgentTimelineEntry> = emptyList(),
+): List<AgentTimelineEntry> = buildList {
+    val previousWorkByMessageId = previous.asSequence()
+        .filterIsInstance<AgentTimelineEntry.WorkProcess>()
+        .flatMap { entry -> entry.messages.asSequence().map { it.id to entry } }
+        .toMap()
+    val workMessages = mutableListOf<AgentChatMessageUi>()
+
+    fun flushWorkProcess() {
+        if (workMessages.isEmpty()) return
+        // 历史页可能从同一工作过程的中间开始；前插补齐后保留已显示分组的身份和滚动锚点。
+        val messageIds = workMessages.mapTo(HashSet()) { it.id }
+        val previousEntry = workMessages.firstNotNullOfOrNull { previousWorkByMessageId[it.id] }
+            ?.takeIf { entry -> entry.messages.all { it.id in messageIds } }
+        val key = previousEntry?.key ?: "work-${workMessages.first().id}"
+        val reusable = previousEntry?.takeIf { entry ->
+            entry.messages.size == workMessages.size &&
+                entry.messages.indices.all { index -> entry.messages[index] === workMessages[index] }
+        }
+        add(reusable ?: AgentTimelineEntry.WorkProcess(key = key, messages = workMessages.toList()))
+        workMessages.clear()
+    }
+
+    this@toTimelineEntries.forEach { message ->
+        if (message.isWorkProcessMessage()) {
+            workMessages += message
+        } else {
+            flushWorkProcess()
+            add(AgentTimelineEntry.Message(message))
+        }
+    }
+    flushWorkProcess()
+}
+
+private fun AgentTimelineEntry.contentType(): Any = when (this) {
+    is AgentTimelineEntry.WorkProcess -> AgentTimelineEntry.WorkProcess::class
+    is AgentTimelineEntry.Message -> message::class
+}
+
+private fun AgentChatMessageUi.isWorkProcessMessage(): Boolean =
+    this is ThinkingMessageUi || this is ToolActivityMessageUi || this is ToolSummaryMessageUi
+
+/**
  * 一轮对话（两条用户消息之间）里最后一条 Agent 正文视为最终结果，其余为中间步骤。
  * 流式传输期间当前轮次尚未结束，最后一轮不标记，等传输结束后复制按钮才出现；
  * 之前已结束轮次的最终结果不受影响。

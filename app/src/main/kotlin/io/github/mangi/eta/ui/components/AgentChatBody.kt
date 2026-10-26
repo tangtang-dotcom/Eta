@@ -1176,20 +1176,38 @@ internal fun List<AgentTimelineEntry>.mergeWorkIntoAnswers(): List<AgentTimeline
         turnMessages += message
     }
 
+    // 被系统提示切断的待插入条目：提示不进 Turn，但也不能把 Turn 拦腰斩断，
+    // 否则「工具 → 重试提示 → 工具」会渲染成两个独立的过程块加一条裸提示，
+    // 用户看到的就是没有气泡的终端消息散落在对话里。
+    // 连续多条提示也先攒着，一起插到本轮收口之后。
+    val pendingNotices = mutableListOf<AgentTimelineEntry.Message>()
+
+    fun flushNotices() {
+        pendingNotices.forEach { add(it) }
+        pendingNotices.clear()
+    }
+
     for (entry in this@mergeWorkIntoAnswers) {
         when (entry) {
-            is AgentTimelineEntry.WorkProcess -> entry.messages.forEach(::append)
+            is AgentTimelineEntry.WorkProcess -> {
+                entry.messages.forEach(::append)
+            }
             is AgentTimelineEntry.Message -> {
                 val message = entry.message
                 when {
-                    // 新的用户消息是轮次边界：先把上一轮收口，再由它开启新一轮。
+                    // 新的用户消息是轮次边界：先把提示与本轮流次全部收口。
                     message is UserMessageUi -> {
                         flushTurn()
+                        flushNotices()
                         turnKey = message.id
                         add(entry)
                     }
+                    message is SystemNoticeMessageUi -> {
+                        // 系统提示挂起，插在本轮收口之后；若后面紧跟更多工具/正文，
+                        // 它们继续进同一个 Turn，过程块不会被切成两段。
+                        pendingNotices += entry
+                    }
                     message.isTurnAnswer() -> append(message)
-                    // 系统提示打断本轮：先收口，再让提示自己成条。
                     else -> {
                         flushTurn()
                         add(entry)
@@ -1209,6 +1227,7 @@ internal fun List<AgentTimelineEntry>.mergeWorkIntoAnswers(): List<AgentTimeline
         }
     }
     flushTurn()
+    flushNotices()
 }
 
 /**

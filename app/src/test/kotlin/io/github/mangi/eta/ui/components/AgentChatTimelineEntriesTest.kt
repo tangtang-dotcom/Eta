@@ -264,6 +264,50 @@ class AgentChatTimelineEntriesTest {
     }
 
     /**
+     * 回归：工具之间的系统提示曾把一轮切成两段——
+     * 「工具 → 重试提示 → 工具」渲染成两个独立过程块加一条裸提示，
+     * 用户看到的就是没有气泡的终端消息散落在对话里。
+     * 现在提示挂起到本轮收口之后，前后的工具保持在同一个 Turn。
+     */
+    @Test
+    fun noticeBetweenToolsDoesNotSplitTheTurn() {
+        val entries = listOf(
+            AgentTimelineEntry.Message(UserMessageUi("user-1", "提交构建")),
+            AgentTimelineEntry.Message(
+                ToolActivityMessageUi(
+                    id = "t-1",
+                    toolName = "terminal",
+                    status = ToolActivityStatusUi.Success,
+                    argumentsSummary = "git push",
+                ),
+            ),
+            AgentTimelineEntry.Message(
+                SystemNoticeMessageUi(id = "retry-1", code = SystemNoticeCode.ModelRetry),
+            ),
+            AgentTimelineEntry.Message(
+                ToolActivityMessageUi(
+                    id = "t-2",
+                    toolName = "terminal",
+                    status = ToolActivityStatusUi.Success,
+                    argumentsSummary = "gh run watch",
+                ),
+            ),
+            AgentTimelineEntry.Message(AgentMessageUi("a-1", "构建已触发")),
+        ).mergeTurnTurns()
+
+        // 前后工具必须在同一个 Turn 里，不能被提示切开。
+        val turn = entries.filterIsInstance<AgentTimelineEntry.Turn>().single()
+        val toolIds = turn.blocks.filterIsInstance<AgentTurnBlock.Procedure>()
+            .flatMap { it.steps }.map { it.id }
+        assertEquals(listOf("t-1", "t-2"), toolIds)
+        // 提示插在 Turn 之后，仍然独立成条。
+        val lastNotice = entries.lastOrNull {
+            it is AgentTimelineEntry.Message && it.message.id == "retry-1"
+        }
+        assertTrue("提示应保留为独立条目", lastNotice != null)
+    }
+
+    /**
      * 回归：系统提示曾被并进本轮 Turn，变成一个没有正文的 Content 块，
      * 于是"模型请求重试""任务已中断"这类提示整条从界面消失。
      * 现在它们必须保留为独立条目，交给 SystemNoticeMessageUi 分支渲染本地化文案。

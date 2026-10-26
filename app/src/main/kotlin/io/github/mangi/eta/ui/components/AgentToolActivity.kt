@@ -217,7 +217,9 @@ internal fun ToolActivityRow(
                         },
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.padding(top = if (showTitle) 1.dp else 0.dp),
+                        // 标题与下面这行结论/输出之间留 4dp：原来贴着 1dp，
+                        // 等宽字体的时间戳看起来像粘在标题尾巴上，整块显得糊成一团。
+                        modifier = Modifier.padding(top = if (showTitle) 4.dp else 0.dp),
                     )
                 }
             }
@@ -347,7 +349,8 @@ internal fun ToolGroupRow(
                         },
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.padding(top = 1.dp),
+                        // 与单步一致：标题和下面这行之间留 4dp。
+                        modifier = Modifier.padding(top = 4.dp),
                     )
                 }
             }
@@ -385,7 +388,12 @@ internal fun ToolGroupRow(
                     )
                     .padding(bottom = 4.dp),
             ) {
-                group.calls.forEach { call ->
+                group.calls.forEachIndexed { index, call ->
+                    // 子步骤之间留 6dp：原来逐个紧贴排列，多条终端输出叠在一起
+                    // 就是一片糊住的灰字，看不出哪行属于哪一次调用。
+                    if (index > 0) {
+                        Spacer(modifier = Modifier.height(6.dp))
+                    }
                     Row(verticalAlignment = Alignment.Top) {
                         Box(
                             modifier = Modifier

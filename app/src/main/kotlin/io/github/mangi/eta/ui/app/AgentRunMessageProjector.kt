@@ -30,6 +30,34 @@ internal class AgentRunMessageProjector(
     ): List<AgentChatMessageUi> = handleEvent(runId, event, clearModelRetryNotice(runId, event, messages))
 
     /**
+     * 把仍然是「进行中」的系统提示收口。
+     *
+     * 目前只有上下文压缩提示带 [SystemNoticeMessageUi.running]：它在开始时写入、
+     * 由完成事件改回 false。一旦 run 在压缩完成前失败退出，完成事件不会再来，
+     * 这条提示就永久停在「正在压缩上下文…」，用户看到的就是对话再也不会结束。
+     */
+    private fun settlePendingProgress(
+        runId: String,
+        messages: List<AgentChatMessageUi>,
+    ): List<AgentChatMessageUi> {
+        val prefix = "assistant-$runId-compaction-"
+        if (messages.none { it is SystemNoticeMessageUi && it.running && it.id.startsWith(prefix) }) {
+            return messages
+        }
+        return messages.map { message ->
+            if (message is SystemNoticeMessageUi && message.running && message.id.startsWith(prefix)) {
+                message.copy(
+                    detail = message.detail?.takeIf(String::isNotBlank)
+                        ?: "上下文压缩已中断，原始上下文已保留。",
+                    running = false,
+                )
+            } else {
+                message
+            }
+        }
+    }
+
+    /**
      * 重试提示只是「当前正在重试」的临时状态，模型一旦恢复输出就必须撤掉。
      *
      * 之前只有 [scheduleModelRetry] 会动这条提示，后续的正文、思考、工具与收尾事件都不清它，
@@ -105,11 +133,25 @@ internal class AgentRunMessageProjector(
             )
         }
         is AgentEvent.ModelRetryScheduled -> scheduleModelRetry(runId, event, messages)
-        is AgentEvent.RunFailed -> failRunningTools(event.reason, finalizeText(runId, finalizeThinking(runId, messages)))
+        // 失败退出时，仍在「进行中」的痕迹必须一起收口：工具行、思考块之外，
+        // 还包括上下文压缩提示。压缩是失败后触发的一步，若 run 在这里就退出，
+        // 那条「正在压缩上下文…」会永远停在进行态，界面看起来就是卡在最后一条消息。
+        is AgentEvent.RunFailed -> settlePendingProgress(
+            runId,
+            failRunningTools(
+                event.reason,
+                finalizeText(runId, finalizeThinking(runId, messages)),
+            ),
+        )
         is AgentEvent.AssistantReceived -> if (event.reasoningContent.isBlank()) messages else {
             ensureCompletedThinking(runId, event.round, event.reasoningContent, messages)
         }
-        is AgentEvent.RunFinished -> finalizeText(runId, finalizeThinking(runId, messages))
+        // 正常收尾同样兜底：若中途留下进行中的提示，这里一并收口，
+        // 保证「对话结束」之后界面上不再有转圈或进行中的文案。
+        is AgentEvent.RunFinished -> settlePendingProgress(
+            runId,
+            finalizeText(runId, finalizeThinking(runId, messages)),
+        )
         is AgentEvent.UserSupplementReceived,
         is AgentEvent.RunStarted,
         is AgentEvent.ProviderRequestStarted,

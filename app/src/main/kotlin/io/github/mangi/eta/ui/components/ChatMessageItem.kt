@@ -807,18 +807,27 @@ private fun AgentMessageBlock(
                 // 是 mergeTurnAnswers() 拼好的整轮答复，只用来承载气泡身份、操作行定位
                 // 与复制内容，不参与逐块渲染，因此不会出现整段回答重复。
                 val lastProcedureIndex = turnBlocks.indexOfLast { it is AgentTurnBlock.Procedure }
+                // 被正文隔开的多段过程，视觉上拼成同一条引用：整轮只有首段留顶部圆角、
+                // 末段留底部圆角，中间的段上下都直边。这样模型边做事边插几句话时，
+                // 界面不会冒出一排各自独立的小条，读起来仍是一条过程。
+                val procedureIndexes = turnBlocks.indices.filter { turnBlocks[it] is AgentTurnBlock.Procedure }
                 turnBlocks.forEachIndexed { index, block ->
                     val isLast = index == turnBlocks.lastIndex
                     when (block) {
-                        is AgentTurnBlock.Procedure -> AssistantWorkBubble(
-                            messages = block.steps,
-                            // 只有最后一个过程块在生成中才自动播报进度。
-                            active = workActive && index == lastProcedureIndex,
-                            assistantOverlay = assistantOverlay,
-                            onOpenBrowser = onOpenBrowser,
-                            currentBrowserMessageId = currentBrowserMessageId,
-                            retainedStreamingStates = workStreamingStates,
-                        )
+                        is AgentTurnBlock.Procedure -> {
+                            val procedurePosition = procedureIndexes.indexOf(index)
+                            AssistantWorkBubble(
+                                messages = block.steps,
+                                // 只有最后一个过程块在生成中才自动播报进度。
+                                active = workActive && index == lastProcedureIndex,
+                                assistantOverlay = assistantOverlay,
+                                onOpenBrowser = onOpenBrowser,
+                                currentBrowserMessageId = currentBrowserMessageId,
+                                retainedStreamingStates = workStreamingStates,
+                                connectsTop = procedurePosition > 0,
+                                connectsBottom = procedurePosition in 0 until procedureIndexes.lastIndex,
+                            )
+                        }
                         is AgentTurnBlock.Content -> {
                             val blockAnswer = block.message as? AgentMessageUi
                             // 每段正文用自己的渲染会话：正在流式的段按自己的 id 取打字机
@@ -837,7 +846,15 @@ private fun AgentMessageBlock(
                                     ?.takeIf { it.id == message.id }
                                     ?.let { completedDocument },
                                 onRevealCompleteChange = { streamingRevealComplete = it },
-                                modifier = Modifier.padding(bottom = if (isLast) 0.dp else 10.dp),
+                                // 这段正文后面还接着过程块时不留底边间距：中间那句话
+                                // 本来就夹在同一条过程里，留缝会把竖条切成两截。
+                                modifier = Modifier.padding(
+                                    bottom = if (isLast || procedureIndexes.any { it > index }) {
+                                        0.dp
+                                    } else {
+                                        10.dp
+                                    },
+                                ),
                             )
                         }
                     }
@@ -1014,12 +1031,21 @@ private fun AssistantWorkBubble(
     onOpenBrowser: () -> Unit,
     currentBrowserMessageId: String?,
     retainedStreamingStates: Map<String, StreamingMarkdownState>,
+    // 与相邻过程块连通时，只在整组首尾保留圆角，中间的段直边相接。
+    connectsTop: Boolean = false,
+    connectsBottom: Boolean = false,
 ) {
     // 不再给过程单独套灰色圆角卡片：展开时由 AgentWorkProcess 自己画一条主题色竖线，
     // 与 Markdown 引用块同一套视觉语言，气泡里只剩一层文字，不会被内层卡片压厚。
     // 底部间距加在这里而不是交给 AgentWorkProcess：整块画布必须贴紧气泡内的左右边缘，
     // 竖条才能从折叠行一路贯到底只有一条。
-    Column(modifier = Modifier.fillMaxWidth().padding(bottom = 10.dp)) {
+    // 与下一段过程相连时不留底边间距，否则两段的竖条之间会多出一道缝，
+    // 视觉上仍然像两个独立的小条。
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(bottom = if (connectsBottom) 0.dp else 10.dp)
+    ) {
         AgentWorkProcess(
             id = messages.first().id,
             messages = messages,
@@ -1035,6 +1061,8 @@ private fun AssistantWorkBubble(
             // 气泡内的过程收成一条：折叠时就是那一行引用条，展开才铺时间线。
             collapsedVisibleCount = 0,
             singleRow = true,
+            connectsTop = connectsTop,
+            connectsBottom = connectsBottom,
         )
     }
 }

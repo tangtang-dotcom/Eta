@@ -107,6 +107,10 @@ internal fun AgentWorkProcess(
     // 过程整段收成一行：折叠行本身就是那条引用条，展开时在其下方铺时间线。
     // 嵌进回答气泡时开启，做到“一条过程、一行可见”。
     singleRow: Boolean = false,
+    // 与相邻的过程块在视觉上连成一条：整轮只保留首段顶部圆角与末段底部圆角，
+    // 中间被正文隔开的各段共用一条竖条，减少「一堆小条」的碎片感。
+    connectsTop: Boolean = false,
+    connectsBottom: Boolean = false,
 ) {
     val running = messages.any { message ->
         (message is ThinkingMessageUi && message.isStreaming) ||
@@ -170,7 +174,16 @@ internal fun AgentWorkProcess(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .then(if (joinedPanel) Modifier.workQuoteBar() else Modifier),
+                .then(
+                    if (joinedPanel) {
+                        Modifier.workQuoteBar(
+                            connectsTop = connectsTop,
+                            connectsBottom = connectsBottom,
+                        )
+                    } else {
+                        Modifier
+                    },
+                ),
         ) {
             AgentWorkHeader(
                 messages = messages,
@@ -181,6 +194,8 @@ internal fun AgentWorkProcess(
                 quoted = singleRow,
                 // 整块由外层画时，这一行不再自己画竖条与底色。
                 quotedBackground = !joinedPanel,
+                connectsTop = connectsTop,
+                connectsBottom = connectsBottom,
                 onClick = { manualExpanded = !bodyVisible },
             )
             AnimatedVisibility(
@@ -280,6 +295,9 @@ private fun AgentWorkHeader(
     quoted: Boolean = false,
     // 这一行是否自己画底色与竖条；展开时整块由外层统一画，这里传 false。
     quotedBackground: Boolean = true,
+    // 与相邻过程块连通：圆角只在整组首尾出现，中间的段保持直边。
+    connectsTop: Boolean = false,
+    connectsBottom: Boolean = false,
     onClick: () -> Unit,
 ) {
     val runningTool = messages.lastOrNull { message ->
@@ -322,7 +340,16 @@ private fun AgentWorkHeader(
             // 展开时整块由外层画，这里不留底边间距，两块才能连成一体。
             .then(if (quotedBackground) Modifier.padding(bottom = 2.dp) else Modifier)
             // 竖条 + 横条自己画；整块由外层画时这一步跳过。
-            .then(if (quotedBackground) Modifier.workQuoteBar() else Modifier)
+            .then(
+                if (quotedBackground) {
+                    Modifier.workQuoteBar(
+                        connectsTop = connectsTop,
+                        connectsBottom = connectsBottom,
+                    )
+                } else {
+                    Modifier
+                },
+            )
             .padding(start = WorkQuoteBarWidth + 8.dp, end = 10.dp, top = 7.dp, bottom = 7.dp)
     } else {
         Modifier
@@ -601,7 +628,14 @@ private val WorkQuoteFillShape = RoundedCornerShape(
  * 两块等高，看起来就是一小段「｜」嵌进长条里。
  */
 @Composable
-private fun Modifier.workQuoteBar(): Modifier {
+private fun Modifier.workQuoteBar(
+    // 与上一段过程块共用同一条视觉引用时，顶部外缘不做圆角，让两段在切口处
+    // 严丝合缝地接上；竖条本身始终贯通，不受这两个开关影响。
+    connectsTop: Boolean = false,
+    // 与下一段过程块相连：底部同理。整轮只有首段画顶部圆角、末段画底部圆角，
+    // 中间的段只留竖条与直边横条，读起来就是「一条过程、中间插了几句话」。
+    connectsBottom: Boolean = false,
+): Modifier {
     val barColor = AetherChatColors.quoteBar()
     val fillColor = AetherChatColors.quoteFill()
     val fillShape = WorkQuoteFillShape
@@ -625,11 +659,15 @@ private fun Modifier.workQuoteBar(): Modifier {
         }
         onDrawBehind {
             // 竖条：先画，圆角竖条，右侧一截会被下面的横条压住。
+            // 与相邻段连通时不收圆角：上下两段的竖条首尾相接，视觉上才是同一条。
+            val verticalTopRadius = if (connectsTop) 0f else barRadius
+            val verticalBottomRadius = if (connectsBottom) 0f else barRadius
+            val verticalRadius = maxOf(verticalTopRadius, verticalBottomRadius)
             drawRoundRect(
                 color = barColor,
                 topLeft = Offset(0f, 0f),
                 size = Size(barWidthPx, size.height),
-                cornerRadius = CornerRadius(barRadius, barRadius),
+                cornerRadius = CornerRadius(verticalRadius, verticalRadius),
             )
             // 横条：从露出宽度处起笔，盖在竖条右半边上面。
             translate(left = barVisiblePx) {

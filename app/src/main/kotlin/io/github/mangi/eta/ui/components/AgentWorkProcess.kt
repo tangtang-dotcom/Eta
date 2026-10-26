@@ -520,13 +520,25 @@ private fun AgentWorkStepNode(
                 )
             }
 
-            // 旁白行：为兼容历史会话里已被并进过程的消息，仍按普通正文排版，
-            // 不挂徽章、不画节点图标。新消息不再把正文并进过程块。
-            is AgentMessageUi -> WorkStepText(
-                text = message.content,
-                quoted = quoted,
+            // 旁白行：模型在两次工具调用之间说的那一句。它是「说的话」而不是
+            // 「做的一步动作」，因此不套工具的交叉图标、也不套思考的灯泡，
+            // 改用对话气泡（与 rikkahub 的 ChatMessageNarrationStep 一致）。
+            // 但图标槽位必须照样占着：整组过程靠这条槽位对齐成同一条时间线，
+            // 少一个图标就会让这一行文字顶到最左边，看起来像排版塌了。
+            is AgentMessageUi -> WorkStep(
+                icon = WorkIcons.Narration,
+                tone = WorkNodeTone.Done,
                 isLast = isLast,
-            )
+                quoted = quoted,
+                // 旁白不是动作，没有「正在执行」，不要呼吸点顶替小图标。
+                spinnerWhileRunning = false,
+            ) {
+                WorkStepText(
+                    text = message.content,
+                    quoted = quoted,
+                    isLast = isLast,
+                )
+            }
 
             else -> Unit
         }
@@ -538,10 +550,11 @@ private fun AgentWorkStep.isAsideStep(): Boolean =
     this is AgentWorkStep.Single && message is AgentMessageUi
 
 /**
- * 过程块内部的短旁白行。
+ * 过程块内部的短旁白文字。
  *
- * 它没有节点图标与状态徽章：这条消息是模型说的话，不是一次工具调用，
- * 套上「已完成」的勾选图标会让人误以为它是个步骤。
+ * 只负责文字本身：图标槽位、底色与竖条横条都由外层 [WorkStep] 统一画。
+ * 之前这里自己也画一次 workQuoteBar()，与外层叠加成双重背景、双重缩进，
+ * 旁白那一行会明显比相邻步骤更靠右。
  */
 @Composable
 private fun WorkStepText(
@@ -558,15 +571,7 @@ private fun WorkStepText(
         )
     }
     if (quoted) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(top = 2.dp)
-                .workQuoteBar()
-                .padding(start = WorkQuoteBarWidth + 8.dp, end = 8.dp, top = 4.dp, bottom = 4.dp),
-        ) {
-            content()
-        }
+        content()
     } else {
         Row(
             modifier = Modifier

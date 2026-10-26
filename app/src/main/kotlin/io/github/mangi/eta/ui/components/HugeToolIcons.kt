@@ -3,6 +3,7 @@ package io.github.mangi.eta.ui.components
 import androidx.compose.ui.graphics.vector.ImageVector
 import me.rerere.hugeicons.HugeIcons
 import me.rerere.hugeicons.stroke.Idea01
+import me.rerere.hugeicons.stroke.Message01
 import me.rerere.hugeicons.stroke.Tools
 
 /**
@@ -25,6 +26,15 @@ internal object WorkIcons {
 
     /** 思考步骤图标：灯泡。 */
     val Reasoning: ImageVector = HugeIcons.Idea01
+
+    /**
+     * 过程旁白图标：对话气泡。
+     *
+     * 模型在两次工具调用之间说的那一句，是它说的话而不是它做的一次动作，
+     * 因此不挂工具或思考的图标，改用 rikkahub 的 ChatMessageNarrationStep
+     * 同一个 Message01，读起来像「插话」而不是「步骤」。
+     */
+    val Narration: ImageVector = HugeIcons.Message01
 }
 
 /**

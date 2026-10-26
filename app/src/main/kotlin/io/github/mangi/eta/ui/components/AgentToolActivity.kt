@@ -165,11 +165,9 @@ internal fun ToolActivityRow(
                             Text(
                                 text = title,
                                 style = MiuixTheme.textStyles.body2,
-                                color = if (running) {
-                                    MiuixTheme.colorScheme.onSurface
-                                } else {
-                                    MiuixTheme.colorScheme.onSurfaceVariantSummary
-                                },
+                                // 标题与外面正文同色：一步做完之后不该整行变灰，
+                                // 「做了什么」是这段过程里要读的内容。
+                                color = AetherChatColors.workStepTitle(),
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis,
                             )
@@ -197,11 +195,7 @@ internal fun ToolActivityRow(
                             text = title,
                             active = running,
                             style = MiuixTheme.textStyles.body2,
-                            color = if (running) {
-                                MiuixTheme.colorScheme.onSurface
-                            } else {
-                                MiuixTheme.colorScheme.onSurfaceVariantSummary
-                            },
+                            color = AetherChatColors.workStepTitle(),
                         )
                     }
                 }
@@ -308,11 +302,7 @@ internal fun ToolGroupRow(
                         Text(
                             text = title,
                             style = MiuixTheme.textStyles.body2,
-                            color = if (running) {
-                                MiuixTheme.colorScheme.onSurface
-                            } else {
-                                MiuixTheme.colorScheme.onSurfaceVariantSummary
-                            },
+                            color = AetherChatColors.workStepTitle(),
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
                         )
@@ -461,7 +451,8 @@ private fun ToolActivityDetail(
                 Text(
                     text = argumentsDetail,
                     style = MiuixTheme.textStyles.footnote2,
-                    color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                    // 参数是标题的补充说明：比标题暗一档，但仍随莫奈开关与深浅模式走。
+                    color = AetherChatColors.workStepSecondary(),
                     maxLines = MAX_RESULT_LINES,
                     overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.fillMaxWidth(),
@@ -478,7 +469,7 @@ private fun ToolActivityDetail(
                     } else {
                         MiuixTheme.textStyles.footnote2
                     },
-                    color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                    color = AetherChatColors.workStepSecondary(),
                     maxLines = MAX_RESULT_LINES,
                     overflow = TextOverflow.Ellipsis,
                     modifier = Modifier

@@ -566,7 +566,9 @@ private fun WorkStepText(
         Text(
             text = text.trim(),
             style = MiuixTheme.textStyles.body2,
-            color = AetherChatColors.onSurfaceVariant(),
+            // 旁白是模型说的话，与正文同色；它仍然是过程的一部分，
+            // 但不再是「被压灰的一行注释」。
+            color = AetherChatColors.workStepTitle(),
             modifier = Modifier.fillMaxWidth(),
         )
     }
@@ -958,13 +960,12 @@ internal fun ExpandChevron(
 /**
  * 时间线竖线的颜色：节点之间的连线与展开详情的续线共用，保证是同一条线。
  *
- * 原来把 outline 压到 0.6 透明度，在深色底上几乎看不见，时间线读不出「同一条」。
- * 这里提到 0.85：比原先明显，又不至于和文字抢注意力——rikkahub 用的是
- * outlineVariant（完全不透明），全量照搬会偏亮，0.85 是接近但不刺眼的折中。
+ * 取正文同色再加透明度，深浅两套主题与莫奈开启时都自动跟随，
+ * 不再单独依赖 outline，避免在某些主题下几乎看不见。
  */
 internal val WorkLineColor: Color
     @Composable @ReadOnlyComposable
-    get() = MiuixTheme.colorScheme.outline.copy(alpha = 0.85f)
+    get() = AetherChatColors.workLine()
 
 /** 时间线标题行与节点徽章共用的几何尺寸，保证图标中心与首行文字中线对齐。 */
 internal val WorkRowHeight: Dp = 32.dp

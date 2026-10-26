@@ -1340,11 +1340,8 @@ internal fun ThinkingRow(
                     } ?: stringResource(R.string.reasoning_completed)
                 },
                 style = MiuixTheme.textStyles.body2,
-                color = if (message.isStreaming) {
-                    MiuixTheme.colorScheme.onSurface
-                } else {
-                    MiuixTheme.colorScheme.onSurfaceVariantSummary
-                },
+                // 思考行的状态文字与外面正文同色：完成后不该整行掉成灰色。
+                color = AetherChatColors.workStepTitle(),
                 modifier = Modifier.weight(1f, fill = !compact),
             )
             ExpandChevron(

@@ -189,6 +189,39 @@ internal object AetherChatColors {
     }
 
     /**
+     * 过程步骤的标题文字：与外面正文同色。
+     *
+     * 之前这里直接用 onSurfaceVariantSummary（次要色），整个过程卡读起来比正文
+     * 暗一档，像被压灰的注释。标题是「这一步做了什么」，属于要读的内容，
+     * 应当和正文一个层级；更暗的层次留给参数、结果这类补充信息。
+     */
+    @Composable
+    fun workStepTitle(): Color = onSurface()
+
+    /**
+     * 过程步骤的补充文字：参数、结果、耗时这类附注。
+     *
+     * 比标题暗一档但没有旧版那么灰，保证在深浅两套主题下都能看清，
+     * 莫奈开启时跟随主题的次级文字色。
+     */
+    @Composable
+    fun workStepSecondary(): Color = when {
+        monet -> MiuixTheme.colorScheme.onSurfaceVariantSummary
+        dark -> Color(0xFFCFC9BE)
+        else -> Color(0xFF55565A)
+    }
+
+    /**
+     * 过程步骤的时间线竖线：取正文同色再加透明度。
+     *
+     * 原先用 outline 压 0.6，在深色底上几乎看不见，整组过程读不出「同一条线」。
+     * 改成正文色 + 0.22 透明度：颜色主体与文字同源，深浅模式都自然，
+     * 又不会亮到抢文字。
+     */
+    @Composable
+    fun workLine(): Color = onSurface().copy(alpha = 0.22f)
+
+    /**
      * 把页面底色向用户气泡的紫轻轻推一点。
      * 掺比很小：气泡要“落在主背景的基调上”，紫色只作呼应，不能盖过背景的中性冷灰。
      */

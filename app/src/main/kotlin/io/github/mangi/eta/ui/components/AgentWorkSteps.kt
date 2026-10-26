@@ -1,6 +1,10 @@
 package io.github.mangi.eta.ui.components
 
+import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
+import androidx.compose.ui.res.stringResource
+import io.github.mangi.eta.R
+import io.github.mangi.eta.agent.overlay.toolDisplayName
 import io.github.mangi.eta.ui.model.AgentChatMessageUi
 import io.github.mangi.eta.ui.model.ThinkingMessageUi
 import io.github.mangi.eta.ui.model.ToolActivityMessageUi
@@ -132,3 +136,48 @@ private const val FAILURE_CODE_SEPARATOR = " · code="
 private const val SUCCESS_PREFIX = "完成 · "
 private const val TRUNCATION_MARK = "…"
 private val TRIVIAL_SUCCESS = setOf("完成", "执行完成")
+
+/**
+ * 过程步骤的标题：动词 + 参数（如「搜索 · token 私有仓库」「读取 · /tmp/a.log」）。
+ *
+ * 对齐 RikkaHub 的 capsule 标题写法（Searched X / Read X / Fetched X）：
+ * 标题先说这一步「做了什么」，再用参数点明「对什么做」，
+ * 比单纯一个工具名更容易扫读。参数过长时截断，避免把整行撑开。
+ *
+ * 参数为空时退回不带参数的动词短语；工具不属于这几类时退回原来的工具名标题。
+ */
+@Composable
+internal fun toolStepTitle(toolName: String, argumentsSummary: String): String {
+    val summary = argumentsSummary.trim()
+    val detail = summary.takeIf { it.isNotEmpty() }?.let(::shortenToolArgument)
+    return when (toolName) {
+        "web_search" -> detail
+            ?.let { stringResource(R.string.tool_step_search, it) }
+            ?: stringResource(R.string.tool_step_search_empty)
+        "fetch_url" -> detail
+            ?.let { stringResource(R.string.tool_step_fetch, it) }
+            ?: stringResource(R.string.tool_step_fetch_empty)
+        "browser_use", "open_uri" -> detail
+            ?.let { stringResource(R.string.tool_step_read, it) }
+            ?: stringResource(R.string.tool_step_read_empty)
+        "read_file", "list_directory", "stat_file", "grep_files", "glob_files" -> detail
+            ?.let { stringResource(R.string.tool_step_read, it) }
+            ?: stringResource(R.string.tool_step_read_empty)
+        "terminal", "terminal_job", "terminal_daemon", "run_command" -> detail
+            ?.let { stringResource(R.string.tool_step_run, it) }
+            ?: stringResource(R.string.tool_step_run_empty)
+        else -> toolDisplayName(toolName)
+    }
+}
+
+/**
+ * 参数摘要的显示长度上限。
+ *
+ * 中文按字宽算，超过这个长度在步骤行里会被截断并补省略号：一行只放得下
+ * 一个简短的对象名（文件名、查询词），完整参数留给展开后的详情。
+ */
+private const val ToolArgumentMaxLength = 24
+
+private fun shortenToolArgument(value: String): String =
+    if (value.length <= ToolArgumentMaxLength) value
+    else value.take(ToolArgumentMaxLength - 1) + "…"

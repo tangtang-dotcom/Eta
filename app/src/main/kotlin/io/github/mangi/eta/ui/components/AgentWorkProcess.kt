@@ -325,7 +325,7 @@ private fun AgentWorkHeader(
         else -> base
     }
     val icon = when {
-        runningTool != null -> hugeIconForTool(runningTool.toolName)
+        runningTool != null -> workIconForTool(runningTool.toolName)
         working -> WorkIcons.Reasoning
         else -> Icons.Rounded.Checklist
     }
@@ -451,7 +451,7 @@ private fun AgentWorkStepNode(
 ) {
     when (step) {
         is AgentWorkStep.ToolGroup -> WorkStep(
-            icon = hugeIconForTool(step.toolName),
+            icon = workIconForTool(step.toolName),
             tone = when {
                 step.running -> WorkNodeTone.Running
                 step.failedCount > 0 -> WorkNodeTone.Failed
@@ -471,7 +471,7 @@ private fun AgentWorkStepNode(
 
         is AgentWorkStep.Single -> when (val message = step.message) {
             is ToolActivityMessageUi -> WorkStep(
-                icon = hugeIconForTool(message.toolName),
+                icon = workIconForTool(message.toolName),
                 tone = message.status.nodeTone(),
                 isLast = isLast,
                 quoted = quoted,
@@ -955,10 +955,16 @@ internal fun ExpandChevron(
     )
 }
 
-/** 时间线竖线的颜色：节点之间的连线与展开详情的续线共用，保证是同一条线。 */
+/**
+ * 时间线竖线的颜色：节点之间的连线与展开详情的续线共用，保证是同一条线。
+ *
+ * 原来把 outline 压到 0.6 透明度，在深色底上几乎看不见，时间线读不出「同一条」。
+ * 这里提到 0.85：比原先明显，又不至于和文字抢注意力——rikkahub 用的是
+ * outlineVariant（完全不透明），全量照搬会偏亮，0.85 是接近但不刺眼的折中。
+ */
 internal val WorkLineColor: Color
     @Composable @ReadOnlyComposable
-    get() = MiuixTheme.colorScheme.outline.copy(alpha = 0.6f)
+    get() = MiuixTheme.colorScheme.outline.copy(alpha = 0.85f)
 
 /** 时间线标题行与节点徽章共用的几何尺寸，保证图标中心与首行文字中线对齐。 */
 internal val WorkRowHeight: Dp = 32.dp

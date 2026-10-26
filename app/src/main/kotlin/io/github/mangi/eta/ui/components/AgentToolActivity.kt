@@ -121,7 +121,9 @@ internal fun ToolActivityRow(
     val failed = message.status == ToolActivityStatusUi.Failed
     // 与 chatcube 的 buildToolStepTitle 一致：标题只放语义化的工具名，
     // 参数摘要不占第二行，避免十几步时每步都翻倍占高。
-    val title = toolDisplayName(message.toolName)
+    // 标题改成「动词 + 参数」：一眼能看出这一步做了什么、对什么做的。
+    // 参数为空或工具不在语义分类内时，函数内部会退回工具名。
+    val title = toolStepTitle(message.toolName, message.argumentsSummary)
     val outcome = remember(message.status, message.resultSummary) { message.outcomeLine() }
     val browserLine = browserSnapshot?.let { snapshot ->
         when {
@@ -274,7 +276,9 @@ internal fun ToolGroupRow(
     var expanded by rememberSaveable(group.key) { mutableStateOf(false) }
     val running = group.running
     val latest = group.calls.last()
-    val title = toolDisplayName(group.toolName) + " · " +
+    // 分组标题同样用「动词 + 参数」，参数取最后一次调用：连续读多个文件时，
+    // 标题反映的是最近那一个，展开后能看到全部。
+    val title = toolStepTitle(group.toolName, latest.argumentsSummary) + " · " +
         pluralStringResource(R.plurals.tool_group_calls, group.calls.size, group.calls.size)
     val failedText = if (group.failedCount > 0) {
         pluralStringResource(R.plurals.work_summary_failed, group.failedCount, group.failedCount)

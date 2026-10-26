@@ -490,6 +490,15 @@
     <item quantity="other">%d 个失败</item>
   </plurals>
   <string name="work_show_more_steps">显示更多 %1$d 步</string>
+  <!-- 过程步骤标题：动词 + 参数，对齐 RikkaHub 的 capsule 写法 -->
+  <string name="tool_step_search">搜索 %1$s</string>
+  <string name="tool_step_search_empty">搜索网页</string>
+  <string name="tool_step_read">读取 %1$s</string>
+  <string name="tool_step_read_empty">读取页面</string>
+  <string name="tool_step_fetch">抓取 %1$s</string>
+  <string name="tool_step_fetch_empty">抓取页面</string>
+  <string name="tool_step_run">执行 %1$s</string>
+  <string name="tool_step_run_empty">执行命令</string>
   <string name="work_hide_steps">收起</string>
   <string name="work_collapse">收起工作过程</string>
   <string name="work_expand">展开工作过程</string>

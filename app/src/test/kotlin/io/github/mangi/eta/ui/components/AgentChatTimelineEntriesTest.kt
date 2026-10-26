@@ -161,11 +161,14 @@ class AgentChatTimelineEntriesTest {
     }
 
     /**
-     * 短旁白不切断过程：模型边做事边一句「我先看下文件」时，
-     * 过程应保持为一条，而不是被切成两段、冒出两个折叠行。
+     * 回归：短正文也必须独立成块。
+     *
+     * 曾经把「一句半句的短正文」并进过程块以减少折叠行，结果模型把回答说得短、
+     * 或结尾那句被单独切成一条消息时，整段回答沉进过程里变成一行灰字——
+     * 气泡消失、正文被吞，界面上只剩过程那一行。这里锁定：无论多短，正文都单独成块。
      */
     @Test
-    fun briefAsideDoesNotSplitProcedure() {
+    fun shortAnswerStillGetsItsOwnBlock() {
         val blocks = listOf(
             UserMessageUi("user-1", "帮我看看"),
             ThinkingMessageUi("think-1", "先想一下", isStreaming = false),
@@ -179,8 +182,34 @@ class AgentChatTimelineEntriesTest {
             AgentMessageUi("agent-2", "结论如下", isStreaming = false),
         ).turn().blocks
 
-        // 短旁白并入过程，只有最后那段长正文独立成块。
-        assertEquals(listOf("过程:think-1,aside-1,tool-1", "正文:agent-2"), blocks.map { it.describe() })
+        assertEquals(
+            listOf("过程:think-1", "正文:aside-1", "过程:tool-1", "正文:agent-2"),
+            blocks.map { it.describe() },
+        )
+    }
+
+    /**
+     * 回归：一轮末尾那句很短的正文不能被过程吞掉。
+     *
+     * 用户实际遇到的是「回复没出现气泡、正文被吞，只剩终端那一行」。
+     * 这里断言最后一段短正文仍是独立的 Content，不会被收进过程步骤里。
+     */
+    @Test
+    fun trailingShortAnswerIsNotSwallowedByProcedure() {
+        val blocks = listOf(
+            UserMessageUi("user-1", "提交推送构建"),
+            ToolActivityMessageUi(
+                id = "tool-1",
+                toolName = "terminal",
+                status = ToolActivityStatusUi.Success,
+                argumentsSummary = "git push",
+            ),
+            AgentMessageUi("agent-1", "已提交并推送。", isStreaming = false),
+        ).turn().blocks
+
+        assertEquals("正文:agent-1", blocks.last().describe())
+        val procedure = blocks.filterIsInstance<AgentTurnBlock.Procedure>().single()
+        assertTrue(procedure.steps.none { it is AgentMessageUi })
     }
 
     /** 长正文仍然切断过程：模型真正在回答时不能被折进折叠行。 */
@@ -202,7 +231,7 @@ class AgentChatTimelineEntriesTest {
         assertEquals(listOf("过程:think-1", "正文:agent-1", "过程:tool-1"), blocks.map { it.describe() })
     }
 
-    /** 被并入过程块的旁白仍要出现在整轮全文里，复制不能丢半句话。 */
+    /** 每段正文都要出现在整轮全文里，复制不能丢半句话。 */
     @Test
     fun briefAsideSurvivesInMergedAnswer() {
         val turn = listOf(
@@ -369,6 +398,45 @@ class AgentChatTimelineEntriesTest {
         )
 
         assertEquals("第一段\n\n第二段", turn.answers.mergeTurnAnswers(turn.key).content)
+    }
+
+    /**
+     * 回归：过程块夹在两段正文中间时必须能被识别出来，好让界面给它补上下留白。
+     *
+     * 「正文 → 过程 → 正文」中间那段过程收起后横条两端都裸露，前后都是正文，
+     * 曾经只有 2dp 底边距，横条几乎直接压在正文上。
+     */
+    @Test
+    fun procedureBetweenContentsIsSandwiched() {
+        val longText = "这是一段足够长的正文，用来确认它是独立的正文块。".repeat(4)
+        val entries = listOf(
+            AgentTimelineEntry.Message(UserMessageUi("user-1", "列一下文件")),
+            AgentTimelineEntry.Message(AgentMessageUi("a-1", longText)),
+            AgentTimelineEntry.WorkProcess(
+                key = "w-1",
+                messages = listOf(
+                    ToolActivityMessageUi(
+                        id = "t-1",
+                        toolName = "terminal",
+                        status = ToolActivityStatusUi.Success,
+                        argumentsSummary = "ls",
+                    ),
+                ),
+            ),
+            AgentTimelineEntry.Message(AgentMessageUi("a-2", longText)),
+        ).mergeTurnTurns()
+
+        val turn = entries.filterIsInstance<AgentTimelineEntry.Turn>().single()
+        val kinds = turn.blocks.map { block ->
+            when (block) {
+                is AgentTurnBlock.Content -> "content"
+                is AgentTurnBlock.Procedure -> "procedure"
+            }
+        }
+        assertEquals(listOf("content", "procedure", "content"), kinds)
+        val procedureIndex = kinds.indexOf("procedure")
+        assertTrue(kinds.take(procedureIndex).contains("content"))
+        assertTrue(kinds.drop(procedureIndex + 1).contains("content"))
     }
 }
 

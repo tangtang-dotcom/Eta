@@ -520,8 +520,8 @@ private fun AgentWorkStepNode(
                 )
             }
 
-            // 短旁白：模型边做事边随口一句，被并进过程块内部。它是正文不是步骤，
-            // 因此不挂徽章、不画节点图标，按普通正文排进时间线，位置仍是它被说出的位置。
+            // 旁白行：为兼容历史会话里已被并进过程的消息，仍按普通正文排版，
+            // 不挂徽章、不画节点图标。新消息不再把正文并进过程块。
             is AgentMessageUi -> WorkStepText(
                 text = message.content,
                 quoted = quoted,

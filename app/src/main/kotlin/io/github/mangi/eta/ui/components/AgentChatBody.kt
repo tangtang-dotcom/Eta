@@ -1086,8 +1086,8 @@ internal sealed interface AgentTimelineEntry {
         /**
          * 本轮全部模型正文，按原始发生顺序。
          *
-         * 短旁白被并进了过程块，但它仍然是模型说的话：复制与合并全文都要带上，
-         * 否则那半句话会从回答里消失。顺序按块展开保证，与生成时序一致。
+         * 按块顺序展开取正文，保证「正文 → 过程 → 正文」里的每一段都按生成时序出现，
+         * 复制与合并全文都不会漏掉其中一段。
          */
         val answers: List<AgentChatMessageUi>
             get() = blocks.answerMessagesInOrder()

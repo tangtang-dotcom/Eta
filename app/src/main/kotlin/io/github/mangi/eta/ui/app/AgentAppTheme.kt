@@ -70,11 +70,22 @@ fun AgentAppTheme(
             } else {
                 colors
             }
-            // 非莫奈：全应用统一底色。聊天、侧边栏、设置页的 Scaffold 都读
-            // colorScheme.background，在主题层覆盖这一处，三处一起统一，
-            // 不用逐页去改各自的背景修饰符。
-            isDark -> colors.copy(background = Color(0xFF10131C))
-            else -> colors.copy(background = Color(0xFFF0F1F3))
+            // 非莫奈：全应用统一底色。
+            // 三个字段必须一起覆盖，因为它们分别被不同页面读取：
+            // - background：聊天页舞台、部分自定义页面；
+            // - surface：Miuix Scaffold 的默认容器色（设置页等一律取它）；
+            // - surfaceContainer：侧边栏 conversationPaneContainerColor() 在深色下取它。
+            // 只改 background 时，设置页与侧边栏读到的仍是主题自带色，看起来就没变。
+            isDark -> colors.copy(
+                background = Color(0xFF10131C),
+                surface = Color(0xFF10131C),
+                surfaceContainer = Color(0xFF10131C),
+            )
+            else -> colors.copy(
+                background = Color(0xFFF0F1F3),
+                surface = Color(0xFFF0F1F3),
+                surfaceContainer = Color(0xFFF0F1F3),
+            )
         }
     }
 

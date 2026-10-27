@@ -67,14 +67,16 @@ internal object AetherChatColors {
     fun surfaceHigh(): Color = when {
         monet -> MiuixTheme.colorScheme.surfaceContainer
         dark -> Color(0xFF24282D)
-        else -> Color(0xFFF3F3F2)
+        // 浅色背景是 #F0F1F3，卡片必须明显高于它，否则层级消失、整页糊成一片。
+        else -> Color(0xFFFFFFFF)
     }
 
     @Composable
     fun surfaceHigher(): Color = when {
         monet -> MiuixTheme.colorScheme.surfaceContainerHigh
         dark -> Color(0xFF2C3036)
-        else -> Color(0xFFECECEC)
+        // 再高一档用比背景略深的灰，两层卡片叠放时仍能区分。
+        else -> Color(0xFFE4E5E8)
     }
 
     @Composable

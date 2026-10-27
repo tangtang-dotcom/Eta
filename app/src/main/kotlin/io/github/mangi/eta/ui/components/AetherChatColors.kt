@@ -144,6 +144,23 @@ internal object AetherChatColors {
     }
 
     /**
+     * Markdown 代码块底色。
+     *
+     * 必须和气泡有明确的层级差：代码块是气泡内部的一块独立区域，视觉上要「退后一层」。
+     * 之前直接用主题的 surfaceContainer，恰好和气泡同色级——莫奈模式下两者完全相等，
+     * 浅色模式都是近白，代码块等于没有背景。
+     *
+     * 取法：在气泡上再压一档。深色从 #1C1F23 压到 #14171A（更沉，但不纯黑，
+     * 保留一点蓝调）；浅色从纯白压到 #F1F1F4（能看出边界，又不至于灰得发脏）。
+     */
+    @Composable
+    fun codeBlock(): Color = when {
+        monet -> MiuixTheme.colorScheme.surfaceContainerHigh
+        dark -> deepPurpleTint(Color(0xFF14171A), 0.06f)
+        else -> Color(0xFFF1F1F4)
+    }
+
+    /**
      * 引用条 / 工作过程横条的底色：深灰紫。
      *
      * 比模型气泡的紫再沉一档、灰一点，靠竖条的紫和文字的亮度拉反差，

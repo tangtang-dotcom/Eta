@@ -70,7 +70,9 @@ internal fun rememberMarkdownStyle(tone: MarkdownTone): MarkdownStyle {
     val quoteBar = AetherChatColors.quoteBar()
     val quoteFill = AetherChatColors.quoteFill()
     val quoteCard = AetherChatColors.assistantBubble()
-    return remember(tone, colors, textStyles, quoteBar, quoteFill, quoteCard) {
+    // 代码块底色必须在组合期取值：它要跟着莫奈开关与深浅模式走。
+    val codeBlock = AetherChatColors.codeBlock()
+    return remember(tone, colors, textStyles, quoteBar, quoteFill, quoteCard, codeBlock) {
         val answer = tone == MarkdownTone.Answer
         val textColor = if (answer) colors.onSurface else colors.onSurfaceVariantSummary
         val body = (if (answer) textStyles.body1 else textStyles.body2).copy(
@@ -110,9 +112,8 @@ internal fun rememberMarkdownStyle(tone: MarkdownTone): MarkdownStyle {
             quoteBarColor = quoteBar,
             quoteBackground = quoteFill,
             quoteCardBackground = quoteCard,
-            // 恢复成一直以来的默认：代码块底色跟随主题的 surfaceContainer。
-            codeBackground = colors.surfaceContainer,
-            tableHeaderBackground = colors.surfaceContainer,
+            codeBackground = codeBlock,
+            tableHeaderBackground = codeBlock,
             inline = MarkdownInlineStyle(
                 linkColor = colors.primary,
                 codeBackground = colors.onSurface.copy(alpha = 0.07f),

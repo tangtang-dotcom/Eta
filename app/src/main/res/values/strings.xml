@@ -1988,4 +1988,17 @@
     <string name="conversation_move_category_empty">没有匹配的分类</string>
     <string name="markdown_code_wrap">按宽度折行</string>
     <string name="markdown_code_nowrap">取消折行（横向滚动）</string>
+  <string name="chat_copy_message">复制内容</string>
+  <string name="chat_regenerate_user_action">重新生成</string>
+  <string name="chat_regenerate_user_body">将删除这条回复及其后续内容，并重新发送该提问。</string>
+  <string name="chat_regenerate_user_title">重新生成这条消息？</string>
+  <string name="tool_step_fetch">抓取 %1$s</string>
+  <string name="tool_step_fetch_empty">抓取页面</string>
+  <string name="tool_step_read">读取 %1$s</string>
+  <string name="tool_step_read_empty">读取页面</string>
+  <string name="tool_step_run_empty">执行命令</string>
+  <string name="tool_step_search">搜索 %1$s</string>
+  <string name="tool_step_search_empty">搜索网页</string>
+  <string name="work_hide_steps">收起</string>
+  <string name="work_show_more_steps">显示更多 %1$d 步</string>
 </resources>

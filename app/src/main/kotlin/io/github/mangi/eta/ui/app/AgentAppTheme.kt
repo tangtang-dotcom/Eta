@@ -88,6 +88,9 @@ fun AgentAppTheme(
             }
         }
         CompositionLocalProvider(
+            // AetherChatColors 的三态配色靠它判定深浅；必须在主题层提供，
+            // 否则 CompositionLocal 落回默认值 false，深色模式下的自定义配色全部失效。
+            LocalIsDarkTheme provides isDark,
             LocalAppearanceSettings provides appearance,
             LocalBlurEnabled provides appearance.blurEnabled,
             LocalTopBarBlurStyle provides appearance.topBarBlurStyle,

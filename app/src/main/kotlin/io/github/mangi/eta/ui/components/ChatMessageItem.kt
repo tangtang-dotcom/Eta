@@ -1,6 +1,7 @@
 package io.github.mangi.eta.ui.components
 
 import android.graphics.BitmapFactory
+import android.os.SystemClock
 import android.util.Base64
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.FastOutSlowInEasing
@@ -39,19 +40,22 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.AutoAwesome
+import androidx.compose.material.icons.rounded.TextFields
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.ChevronLeft
 import androidx.compose.material.icons.rounded.ChevronRight
 import androidx.compose.material.icons.rounded.Compress
 import androidx.compose.material.icons.rounded.ContentCopy
 import androidx.compose.material.icons.rounded.Delete
+import androidx.compose.material.icons.rounded.Dns
 import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material.icons.rounded.Lightbulb
 import androidx.compose.material.icons.rounded.Refresh
-import androidx.compose.material.icons.rounded.TextFields
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -61,7 +65,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -77,6 +83,7 @@ import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.pluralStringResource
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
@@ -87,14 +94,16 @@ import androidx.compose.ui.unit.sp
 import io.github.mangi.eta.R
 import io.github.mangi.eta.agent.model.AgentFileReferencePromptCodec
 import io.github.mangi.eta.agent.overlay.toolDisplayName
+import io.github.mangi.eta.ui.app.LocalAppearanceSettings
+import io.github.mangi.eta.ui.markdown.MarkdownDocument
 import io.github.mangi.eta.ui.markdown.MarkdownTone
-import io.github.mangi.eta.ui.voice.LocalSpeechPlaybackProgress
 import io.github.mangi.eta.ui.markdown.StaticMarkdown
 import io.github.mangi.eta.ui.markdown.StreamingMarkdown
 import io.github.mangi.eta.ui.markdown.StreamingMarkdownState
 import io.github.mangi.eta.ui.markdown.THINKING_LINE_HEIGHT_SP
 import io.github.mangi.eta.ui.model.AgentChatMessageUi
 import io.github.mangi.eta.ui.model.AgentMessageUi
+import io.github.mangi.eta.ui.model.AgentModelOptionUi
 import io.github.mangi.eta.ui.model.RunTraceMessageUi
 import io.github.mangi.eta.ui.model.SuggestionChipsMessageUi
 import io.github.mangi.eta.ui.model.SystemNoticeCode
@@ -130,6 +139,8 @@ internal fun decodeDataUrlBitmap(dataUrl: String, maxPx: Int? = null): ImageBitm
         if (maxPx == null) {
             BitmapFactory.decodeByteArray(bytes, 0, bytes.size)?.asImageBitmap()
         } else {
+            // 缩略图场景先读尺寸再按 2 的幂降采样：整张原图解码会在多图消息里
+            // 直接吃掉大量堆内存，decodeByteArray 本身不做任何缩放。
             val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
             BitmapFactory.decodeByteArray(bytes, 0, bytes.size, bounds)
             var sample = 1
@@ -209,6 +220,14 @@ internal fun ChatMessageItem(
     retainedStreamingState: StreamingMarkdownState? = null,
     showCopyAction: Boolean = true,
     showMessageActions: Boolean = false,
+    assistantModel: AgentModelOptionUi? = null,
+    workMessages: List<AgentChatMessageUi> = emptyList(),
+    workActive: Boolean = false,
+    workStreamingStates: Map<String, StreamingMarkdownState> = emptyMap(),
+    // 整轮分组：非空时按 RikkaHub 的分组渲染整个气泡（过程卡与正文按发生位置排列），
+    // 空则表示这是单条消息（用户消息、系统提示），走各自的渲染分支。
+    turnGroups: List<AgentTurnGroup> = emptyList(),
+    currentBrowserMessageId: String? = null,
     messageActionsEnabled: Boolean = true,
     isEditing: Boolean = false,
     onEditMessage: (String) -> Unit = {},
@@ -224,11 +243,19 @@ internal fun ChatMessageItem(
             isEditing = isEditing,
             onEdit = { onEditMessage(message.id) },
             onDelete = { onDeleteMessage(message.id) },
+            onRegenerate = { onRegenerateMessage(message.id) },
             modifier = modifier,
         )
         is AgentMessageUi -> AgentMessageBlock(
             message = message,
             allowSpeech = true,
+            model = assistantModel,
+            workMessages = workMessages,
+            workActive = workActive,
+            workStreamingStates = workStreamingStates,
+            turnGroups = turnGroups,
+            currentBrowserMessageId = currentBrowserMessageId,
+            onOpenBrowser = onOpenBrowser,
             assistantOverlay = assistantOverlay,
             retainedStreamingState = retainedStreamingState,
             showCopyAction = showCopyAction,
@@ -266,6 +293,8 @@ internal fun ChatMessageItem(
                     },
                     renderMarkdown = false,
                 ),
+                forceBubble = true,
+                model = assistantModel,
                 assistantOverlay = false,
                 retainedStreamingState = null,
                 showCopyAction = showCopyAction,
@@ -305,27 +334,30 @@ private fun UserMessageBubble(
     isEditing: Boolean,
     onEdit: () -> Unit,
     onDelete: () -> Unit,
+    onRegenerate: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     @Suppress("DEPRECATION")
     val clipboardManager = LocalClipboardManager.current
     val tooltipState = rememberTooltipState(isPersistent = true)
     val haptic = LocalHapticFeedback.current
+    var copied by remember(message.id) { mutableStateOf(false) }
+    var confirmRegenerate by remember(message.id) { mutableStateOf(false) }
+    // 操作行默认收起，单击气泡再显示，点一下又收起来。
+    var actionsVisible by rememberSaveable(message.id) { mutableStateOf(false) }
+    val appearance = LocalAppearanceSettings.current
+    LaunchedEffect(copied) {
+        if (copied) {
+            delay(1_400)
+            copied = false
+        }
+    }
     LaunchedEffect(actionsEnabled) {
         if (!actionsEnabled) tooltipState.dismiss()
     }
     LaunchedEffect(tooltipState) {
         snapshotFlow { tooltipState.isVisible }.collect { visible ->
             if (visible) haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-        }
-    }
-
-    // 自己发的消息也常驻一行操作：复制后给一句轻提示，避免"点了没反应"。
-    var copied by remember(message.id) { mutableStateOf(false) }
-    LaunchedEffect(copied) {
-        if (copied) {
-            delay(1600)
-            copied = false
         }
     }
     val visiblePrompt = remember(message.content) {
@@ -337,15 +369,16 @@ private fun UserMessageBubble(
         Color(0xFFE5E7EA)
     }
 
-    Column(
+    Row(
         modifier = modifier
             .fillMaxWidth()
             .padding(
                 horizontal = if (assistantOverlay) 16.dp else 20.dp,
                 vertical = if (assistantOverlay) 4.dp else 8.dp,
             ),
-        horizontalAlignment = Alignment.End,
+        horizontalArrangement = Arrangement.End,
     ) {
+        Column(horizontalAlignment = Alignment.End) {
         TooltipBox(
             positionProvider = TooltipDefaults.rememberTooltipPositionProvider(
                 positioning = TooltipAnchorPosition.Below,
@@ -393,39 +426,40 @@ private fun UserMessageBubble(
                         if (assistantOverlay) {
                             Modifier.background(overlayBubbleColor, RoundedCornerShape(10.dp))
                         } else {
-                            Modifier.squircleSurface(
-                                color = MiuixTheme.colorScheme.surfaceContainerHigh,
-                                topStart = 20.dp,
-                                topEnd = 20.dp,
-                                // 描边只支持统一圆角，编辑态收起气泡尾角，让描边与填充贴合。
-                                bottomEnd = if (isEditing) 20.dp else 6.dp,
-                                bottomStart = 20.dp,
-                            )
+                            // Aether 用户气泡：统一 24dp 圆角 + messageBubble 实色，没有尾巴。
+                            Modifier
+                                .clip(RoundedCornerShape(UserBubbleCorner))
+                                .background(AetherChatColors.userBubble())
                         }
                     )
                     .then(
                         if (isEditing) {
-                            Modifier.squircleBorder(
+                            Modifier.border(
                                 width = 1.dp,
                                 color = MiuixTheme.colorScheme.primary,
-                                cornerRadius = 20.dp,
+                                shape = RoundedCornerShape(UserBubbleCorner),
                             )
                         } else {
                             Modifier
                         }
                     )
+                    .clickable(enabled = actionsEnabled) {
+                        actionsVisible = !actionsVisible
+                    }
                     .padding(
-                        horizontal = if (assistantOverlay) 12.dp else 16.dp,
-                        vertical = if (assistantOverlay) 8.dp else 12.dp,
+                        start = if (assistantOverlay) 12.dp else 18.dp,
+                        end = if (assistantOverlay) 12.dp else 18.dp,
+                        top = if (assistantOverlay) 8.dp else 14.dp,
+                        // 底部留白交给操作行自己控制，图标才会贴着气泡下沿。
+                        bottom = if (assistantOverlay) 8.dp else 14.dp,
                     ),
             ) {
                 if (message.images.isNotEmpty()) {
-                    var previewIndex by remember(message.images) { mutableStateOf<Int?>(null) }
                     Row(
                         horizontalArrangement = Arrangement.spacedBy(6.dp),
                         modifier = Modifier.padding(bottom = 8.dp)
                     ) {
-                        message.images.forEachIndexed { index, dataUrl ->
+                        message.images.forEach { dataUrl ->
                             val bitmap = rememberDataUrlBitmap(dataUrl, 256)
                             if (bitmap != null) {
                                 Image(
@@ -433,19 +467,11 @@ private fun UserMessageBubble(
                                     contentDescription = stringResource(R.string.chat_image_attachment),
                                     modifier = Modifier
                                         .size(100.dp)
-                                        .clip(RoundedCornerShape(12.dp))
-                                        .clickable { previewIndex = index },
+                                        .clip(RoundedCornerShape(12.dp)),
                                     contentScale = ContentScale.Crop,
                                 )
                             }
                         }
-                    }
-                    previewIndex?.let { start ->
-                        ImagePreviewOverlay(
-                            images = message.images,
-                            initialIndex = start,
-                            onDismiss = { previewIndex = null },
-                        )
                     }
                 }
                 if (visiblePrompt.references.isNotEmpty()) {
@@ -461,7 +487,11 @@ private fun UserMessageBubble(
                         Text(
                             text = visiblePrompt.request,
                             style = MiuixTheme.textStyles.body1,
-                            color = MiuixTheme.colorScheme.onSurface,
+                            color = if (assistantOverlay) {
+                                MiuixTheme.colorScheme.onSurface
+                            } else {
+                                AetherChatColors.onUserBubble()
+                            },
                         )
                     }
                 }
@@ -469,69 +499,116 @@ private fun UserMessageBubble(
                     Text(
                         text = stringResource(R.string.ui_edited_c36776),
                         style = MiuixTheme.textStyles.body2,
-                        color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                        color = if (assistantOverlay) {
+                            MiuixTheme.colorScheme.onSurfaceVariantSummary
+                        } else {
+                            AetherChatColors.onUserBubble().copy(alpha = 0.72f)
+                        },
                         modifier = Modifier.padding(top = 4.dp),
                     )
                 }
             }
         }
-        // 复制 / 编辑 / 删除：跟自己这行常驻按钮一致，长按菜单也保留不动。
-        UserMessageActionRow(
-            actionsEnabled = actionsEnabled,
-            copied = copied,
-            onCopy = {
-                @Suppress("DEPRECATION")
-                clipboardManager.setText(AnnotatedString(message.content))
-                copied = true
-            },
-            onEdit = onEdit,
-            onDelete = onDelete,
-        )
+        if (!assistantOverlay) {
+            Spacer(Modifier.height(2.dp))
+            UserMessageActionRow(
+                visible = actionsVisible &&
+                    actionsEnabled &&
+                    appearance.chatUserMessageActions &&
+                    visiblePrompt.request.isNotBlank(),
+                copied = copied,
+                onCopy = {
+                    @Suppress("DEPRECATION")
+                    clipboardManager.setText(AnnotatedString(message.content))
+                    haptic.performHapticFeedback(HapticFeedbackType.Confirm)
+                    copied = true
+                },
+                onRegenerate = { confirmRegenerate = true },
+                onEdit = onEdit,
+                onDelete = onDelete,
+            )
+        }
+        }
+    }
+    if (confirmRegenerate) {
+        EtaWindowDialog(
+            show = true,
+            title = stringResource(R.string.chat_regenerate_user_title),
+            summary = stringResource(R.string.chat_regenerate_user_body),
+            onDismissRequest = { confirmRegenerate = false },
+        ) {
+            MiuixDialogActions(
+                confirmText = stringResource(R.string.ui_regenerate_2e1905),
+                onCancel = { confirmRegenerate = false },
+                onConfirm = {
+                    confirmRegenerate = false
+                    onRegenerate()
+                },
+            )
+        }
     }
 }
 
-
+/**
+ * 用户消息下方的常驻操作行：复制、重新生成、编辑、删除。
+ *
+ * 与助手回答的操作行共用 [AnswerActionButton] 的尺寸和弱化配色，两处样式保持一致；
+ * 流式运行中由外部传入 visible=false 隐藏，避免打断执行态。
+ */
 @Composable
 private fun UserMessageActionRow(
-    actionsEnabled: Boolean,
+    visible: Boolean,
     copied: Boolean,
     onCopy: () -> Unit,
+    onRegenerate: () -> Unit,
     onEdit: () -> Unit,
     onDelete: () -> Unit,
 ) {
-    Row(
-        modifier = Modifier.padding(top = 4.dp, end = 2.dp),
-        horizontalArrangement = Arrangement.spacedBy(2.dp),
-        verticalAlignment = Alignment.CenterVertically,
+    // 气泡回到默认底色，操作行也回到弱化的次级文字色；复制成功时用主题色反馈。
+    val actionTint = MiuixTheme.colorScheme.onSurfaceVariantSummary.copy(alpha = 0.75f)
+    val copiedTint = MiuixTheme.colorScheme.primary
+    AnimatedVisibility(
+        visible = visible,
+        enter = fadeIn(tween(160)) + expandVertically(tween(160)),
+        exit = fadeOut(tween(120)) + shrinkVertically(tween(120)),
     ) {
-        if (copied) {
-            Text(
-                text = "已复制",
-                style = MiuixTheme.textStyles.body2,
-                color = MiuixTheme.colorScheme.primary,
-                modifier = Modifier.padding(end = 4.dp),
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.End,
+            modifier = Modifier,
+        ) {
+            AnswerActionButton(
+                icon = if (copied) Icons.Rounded.Check else Icons.Rounded.ContentCopy,
+                contentDescription = stringResource(
+                    if (copied) R.string.copy_copied else R.string.chat_copy_message,
+                ),
+                onClick = onCopy,
+                tint = if (copied) copiedTint else actionTint,
             )
-        }
-        IconButton(onClick = onCopy, enabled = actionsEnabled, minWidth = 30.dp, minHeight = 30.dp) {
-            Icon(
-                imageVector = Icons.Rounded.ContentCopy,
-                contentDescription = stringResource(R.string.ui_copy_4edd1d),
-                modifier = Modifier.size(18.dp),
-            )
-        }
-        IconButton(onClick = onEdit, enabled = actionsEnabled, minWidth = 30.dp, minHeight = 30.dp) {
-            Icon(
-                imageVector = Icons.Rounded.Edit,
-                contentDescription = stringResource(R.string.ui_edit_a7f814),
-                modifier = Modifier.size(18.dp),
-            )
-        }
-        IconButton(onClick = onDelete, enabled = actionsEnabled, minWidth = 30.dp, minHeight = 30.dp) {
-            Icon(
-                imageVector = Icons.Rounded.Delete,
-                contentDescription = stringResource(R.string.ui_delete_3755f5),
-                modifier = Modifier.size(18.dp),
-            )
+            TooltipBox(text = stringResource(R.string.ui_regenerate_2e1905)) {
+                AnswerActionButton(
+                    icon = Icons.Rounded.Refresh,
+                    contentDescription = stringResource(R.string.chat_regenerate_user_action),
+                    onClick = onRegenerate,
+                    tint = actionTint,
+                )
+            }
+            TooltipBox(text = stringResource(R.string.ui_edit_a7f814)) {
+                AnswerActionButton(
+                    icon = Icons.Rounded.Edit,
+                    contentDescription = stringResource(R.string.ui_edit_a7f814),
+                    onClick = onEdit,
+                    tint = actionTint,
+                )
+            }
+            TooltipBox(text = stringResource(R.string.ui_delete_3755f5)) {
+                AnswerActionButton(
+                    icon = Icons.Rounded.Delete,
+                    contentDescription = stringResource(R.string.ui_delete_3755f5),
+                    onClick = onDelete,
+                    tint = actionTint,
+                )
+            }
         }
     }
 }
@@ -625,6 +702,15 @@ private fun ContextCompactionMarker(
 private fun AgentMessageBlock(
     message: AgentMessageUi,
     allowSpeech: Boolean = false,
+    model: AgentModelOptionUi? = null,
+    workMessages: List<AgentChatMessageUi> = emptyList(),
+    workActive: Boolean = false,
+    workStreamingStates: Map<String, StreamingMarkdownState> = emptyMap(),
+    turnGroups: List<AgentTurnGroup> = emptyList(),
+    currentBrowserMessageId: String? = null,
+    onOpenBrowser: () -> Unit = {},
+    // 系统提示（已停止、任务中断等）也要落在气泡里，但它没有正文可渲染。
+    forceBubble: Boolean = false,
     assistantOverlay: Boolean = false,
     retainedStreamingState: StreamingMarkdownState?,
     showCopyAction: Boolean,
@@ -639,12 +725,28 @@ private fun AgentMessageBlock(
     @Suppress("DEPRECATION")
     val clipboardManager = LocalClipboardManager.current
     val haptic = LocalHapticFeedback.current
-    // 只有正在朗读的这条消息才进入高亮分支，其余消息不产生额外重组。
-    val speechProgress = LocalSpeechPlaybackProgress.current.value
-    val speechHighlight = speechProgress.highlight.takeIf { speechProgress.messageId == message.id }
     var copied by remember(message.id) { mutableStateOf(false) }
+    // 选择性复制弹窗的开关，只在需要时挂载。
     var showSelectionCopy by remember(message.id) { mutableStateOf(false) }
+    // 生成触感反馈：内容每有新字符到达时给一次轻触感，45ms 节流，
+    // 避免逐字刷新时连续触发把马达打满。
+    val appearance = LocalAppearanceSettings.current
+    var lastGenerationHapticAt by remember(message.id) { mutableLongStateOf(0L) }
+    LaunchedEffect(message.content.length, message.isStreaming, appearance.chatGenerationHaptic) {
+        if (!appearance.chatGenerationHaptic || !message.isStreaming || message.content.isEmpty()) {
+            return@LaunchedEffect
+        }
+        val now = SystemClock.elapsedRealtime()
+        if (now - lastGenerationHapticAt >= 45L) {
+            lastGenerationHapticAt = now
+            haptic.performHapticFeedback(HapticFeedbackType.KeyboardTap)
+        }
+    }
     val keepStreamingMarkdown = remember(message.id) { message.isStreaming }
+    DisposableEffect(retainedStreamingState) {
+        retainedStreamingState?.attachContent()
+        onDispose { retainedStreamingState?.detachContent() }
+    }
     var streamingRevealComplete by remember(message.id) {
         mutableStateOf(!keepStreamingMarkdown)
     }
@@ -671,6 +773,15 @@ private fun AgentMessageBlock(
 
     val character = LocalRoleplayChat.current.takeUnless { assistantOverlay }
     val isGreeting = character != null && message.id.startsWith(GreetingMessagePrefix)
+    // 回答气泡：非悬浮窗的正常回答包成描边卡片，并在顶部署名模型。
+    // 气泡只由「是不是回答」决定，不再看 renderMarkdown：后者描述的是正文该不该
+    // 走 Markdown 排版，不是「要不要气泡」。之前把两者绑在一起，流式期间
+    // renderMarkdown 还是 false，第一个字到定稿之间正文是裸文本，气泡要等消息
+    // 结束后才突然出现。
+    val showBubble = !assistantOverlay && (forceBubble || isReplyBubble(message))
+    // 回答气泡同样支持单击切换操作行；无气泡（悬浮窗）时保持原来的常显规则。
+    var replyActionsVisible by rememberSaveable(message.id) { mutableStateOf(false) }
+
     Column(
         modifier = modifier
             .fillMaxWidth()
@@ -682,42 +793,93 @@ private fun AgentMessageBlock(
         if (character != null) {
             CharacterReplyHeader(character = character, isGreeting = isGreeting)
         }
-        when {
-            message.content.isBlank() && message.isStreaming -> {
-                AITypingIndicator(
-                    modifier = Modifier.padding(top = 4.dp)
-                )
-            }
-            streamingState != null && !revealComplete -> {
-                StreamingMarkdown(
-                    state = streamingState,
-                    content = message.content,
-                    isStreaming = message.isStreaming,
-                    tone = MarkdownTone.Answer,
+        if (showBubble) {
+            AssistantReplyHeader(model = model)
+        }
+        // 气泡底色交给 AetherChatColors：深色下是页面底掺一层用户气泡的紫，
+        // 与用户气泡同色相但明显更浅，不再是一块中性灰。
+        val bubbleFill = AetherChatColors.assistantBubble()
+        Column(
+            modifier = if (showBubble) {
+                Modifier
+                    .widthIn(max = AssistantBubbleMaxWidth)
+                    .squircleSurface(
+                        color = bubbleFill,
+                        cornerRadius = AssistantBubbleCorner,
+                    )
+                    .clickable(enabled = messageActionsEnabled) {
+                        replyActionsVisible = !replyActionsVisible
+                    }
+                    .padding(start = 14.dp, end = 14.dp, top = 12.dp, bottom = 12.dp)
+            } else {
+                Modifier.fillMaxWidth()
+            },
+        ) {
+            // 有整轮分组时按 RikkaHub 的规则渲染：过程卡与正文按发生位置排在
+            // 同一个气泡里。分组由 toAgentTurnGroups() 算出，只有 Process / Content
+            // 两种，各自的渲染出口固定，不存在「有内容却没画出来」的可能。
+            // 没有分组时退回单条消息渲染（系统提示、历史条目、悬浮窗）。
+            if (showBubble && turnGroups.isNotEmpty()) {
+                // 整轮分组渲染（对齐 RikkaHub 的 groupMessageParts）：过程卡与正文
+                // 按真实发生位置交替出现，同处一个气泡。每组的出口都是确定的——
+                // Process 交给 AgentWorkProcess，Content 交给 AgentAnswerText，
+                // 两者都会画出内容，不存在「有内容却一个分支都没选中」的空白。
+                val lastProcessIndex = turnGroups.indexOfLast { it is AgentTurnGroup.Process }
+                turnGroups.forEachIndexed { index, group ->
+                    when (group) {
+                        is AgentTurnGroup.Process -> AssistantWorkBubble(
+                            messages = group.steps,
+                            // 只有最后一个过程组在生成中才播报进度。
+                            active = workActive && index == lastProcessIndex,
+                            assistantOverlay = assistantOverlay,
+                            onOpenBrowser = onOpenBrowser,
+                            currentBrowserMessageId = currentBrowserMessageId,
+                            retainedStreamingStates = workStreamingStates,
+                        )
+                        is AgentTurnGroup.Content -> {
+                            val answer = group.message as? AgentMessageUi
+                            AgentAnswerText(
+                                answer = answer,
+                                fallbackContent = null,
+                                // 每段正文用自己的 id 取流式会话，不再借用气泡身份。
+                                streamingState = answer
+                                    ?.takeIf { it.isStreaming }
+                                    ?.let { workStreamingStates[it.id] },
+                                message = message,
+                                // 每段各自判定显现完成：只有整轮都收口了才跳过打字机。
+                                revealComplete = answer == null ||
+                                    answer.id != message.id ||
+                                    revealComplete,
+                                completedDocument = answer
+                                    ?.takeIf { it.id == message.id }
+                                    ?.let { completedDocument },
+                                onRevealCompleteChange = { streamingRevealComplete = it },
+                            )
+                        }
+                    }
+                }
+            } else {
+                if (showBubble && workMessages.isNotEmpty()) {
+                    AssistantWorkBubble(
+                        messages = workMessages,
+                        active = workActive,
+                        assistantOverlay = assistantOverlay,
+                        onOpenBrowser = onOpenBrowser,
+                        currentBrowserMessageId = currentBrowserMessageId,
+                        retainedStreamingStates = workStreamingStates,
+                    )
+                }
+                AgentAnswerText(
+                    answer = message,
+                    fallbackContent = null,
+                    streamingState = streamingState,
+                    message = message,
+                    revealComplete = revealComplete,
+                    completedDocument = completedDocument,
                     onRevealCompleteChange = { streamingRevealComplete = it },
-                    modifier = Modifier.fillMaxWidth(),
                 )
             }
-            message.renderMarkdown -> {
-                SelectionContainer {
-                    StaticMarkdown(
-                        content = message.content,
-                        tone = MarkdownTone.Answer,
-                        parsed = completedDocument,
-                        highlight = speechHighlight,
-                        modifier = Modifier.fillMaxWidth(),
-                    )
-                }
-            }
-            message.content.isNotBlank() -> {
-                SelectionContainer {
-                    Text(
-                        text = message.content,
-                        style = MiuixTheme.textStyles.body1,
-                        color = MiuixTheme.colorScheme.onSurface,
-                    )
-                }
-            }
+
         }
 
         if (showSelectionCopy) {
@@ -727,21 +889,26 @@ private fun AgentMessageBlock(
             )
         }
 
+        message.searchSuggestionsHtml.forEach { html ->
+            SearchSuggestionsView(html = html, modifier = Modifier.padding(top = 8.dp))
+        }
+
         // 回答显现完成后才出现操作行；淡入展开避免贴底滚动时整页突然跳动一行高度。
         AnimatedVisibility(
             visible = showCopyAction &&
                 !message.isStreaming &&
                 message.content.isNotBlank() &&
-                revealComplete,
+                revealComplete &&
+                (!showBubble || replyActionsVisible),
             enter = fadeIn(tween(160)) + expandVertically(tween(160)),
             exit = fadeOut(tween(120)) + shrinkVertically(tween(120)),
         ) {
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    // 抵消按钮的居中留白，与工作过程标题图标共用左侧中心线。
+                    // 与工作过程标题图标共用左侧中心线。
                     .offset(x = -AnswerActionCenterOffset)
-                    .padding(top = 2.dp),
+                    .padding(top = 0.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 AnswerActionButton(
@@ -757,18 +924,12 @@ private fun AgentMessageBlock(
                     },
                     tint = if (copied) MiuixTheme.colorScheme.primary else null,
                 )
-                IconButton(
+                // 选择性复制：长回答里只挑需要的几段，比整段复制更实用。
+                AnswerActionButton(
+                    icon = Icons.Rounded.TextFields,
+                    contentDescription = stringResource(R.string.selection_copy_entry),
                     onClick = { showSelectionCopy = true },
-                    minWidth = 30.dp,
-                    minHeight = 30.dp,
-                ) {
-                    Icon(
-                        imageVector = Icons.Rounded.TextFields,
-                        contentDescription = stringResource(R.string.selection_copy_entry),
-                        modifier = Modifier.size(15.dp),
-                        tint = MiuixTheme.colorScheme.onSurfaceVariantSummary.copy(alpha = 0.75f),
-                    )
-                }
+                )
                 if (allowSpeech) SpeechReadAloudButton(message.id, message.content)
                 if (showMessageActions) {
                     if (message.characterEditable) {
@@ -807,6 +968,180 @@ private fun AgentMessageBlock(
                 }
             }
         }
+    }
+}
+
+/**
+ * 回答气泡里的一段正文。
+ *
+ * 一轮对话可能有多段正文，中间被工具调用隔开；每段都按同样的方式渲染，
+ * 只有末尾那段仍处于流式状态时才走流式视图。
+ */
+@Composable
+private fun AgentAnswerText(
+    answer: AgentMessageUi?,
+    fallbackContent: String?,
+    streamingState: StreamingMarkdownState?,
+    message: AgentMessageUi,
+    revealComplete: Boolean,
+    completedDocument: MarkdownDocument?,
+    onRevealCompleteChange: (Boolean) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val content = answer?.content ?: fallbackContent.orEmpty()
+    // 有具体正文段时只看它自己的流式标记；只有整条兜底消息才回落到 message。
+    val streaming = answer?.isStreaming ?: (fallbackContent != null && message.isStreaming)
+    // 交错渲染时同一气泡里有多段正文，每段按各自的 id 判定是否走流式视图；
+    // 沿用的 message 只是气泡身份代表，不能再拿来比较。
+    val useStreamingView = streamingState != null && !revealComplete
+    Column(modifier = modifier.fillMaxWidth()) {
+        when {
+            content.isBlank() && streaming -> {
+                AITypingIndicator(modifier = Modifier.padding(top = 4.dp))
+            }
+            useStreamingView -> {
+                StreamingMarkdown(
+                    state = streamingState,
+                    content = content,
+                    isStreaming = streaming,
+                    tone = MarkdownTone.Answer,
+                    onRevealCompleteChange = onRevealCompleteChange,
+                )
+            }
+            answer?.renderMarkdown == true || (answer == null && message.renderMarkdown) -> {
+                SelectionContainer {
+                    StaticMarkdown(
+                        content = content,
+                        tone = MarkdownTone.Answer,
+                        parsed = completedDocument,
+                    )
+                }
+            }
+            content.isNotBlank() -> {
+                SelectionContainer {
+                    Text(
+                        text = content,
+                        style = MiuixTheme.textStyles.body1,
+                        color = MiuixTheme.colorScheme.onSurface,
+                    )
+                }
+            }
+        }
+    }
+}
+
+/**
+ * 回答气泡里的工作过程气泡：思考与工具调用收在浅色内层卡片里，形成气泡包气泡。
+ *
+ * 内层只提供背景与内边距，可展开的摘要行、时间线与节点沿用 [AgentWorkProcess]。
+ */
+@Composable
+private fun AssistantWorkBubble(
+    messages: List<AgentChatMessageUi>,
+    active: Boolean,
+    assistantOverlay: Boolean,
+    onOpenBrowser: () -> Unit,
+    currentBrowserMessageId: String?,
+    retainedStreamingStates: Map<String, StreamingMarkdownState>,
+) {
+    // 不再给过程单独套灰色圆角卡片：展开时由 AgentWorkProcess 自己画一条主题色竖线，
+    // 与 Markdown 引用块同一套视觉语言，气泡里只剩一层文字，不会被内层卡片压厚。
+    // 底部间距加在这里而不是交给 AgentWorkProcess：整块画布必须贴紧气泡内的左右边缘，
+    // 竖条才能从折叠行一路贯到底只有一条。
+    // 与下一段过程相连时不留底边间距，否则两段的竖条之间会多出一道缝，
+    // 视觉上仍然像两个独立的小条。
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(bottom = 10.dp)
+    ) {
+        AgentWorkProcess(
+            id = messages.first().id,
+            messages = messages,
+            assistantOverlay = assistantOverlay,
+            onOpenBrowser = onOpenBrowser,
+            currentBrowserMessageId = currentBrowserMessageId,
+            retainedStreamingStates = retainedStreamingStates,
+            active = active,
+            embedded = true,
+            // 生成中也保持收起：十几步过程全摊开会把气泡撑得很长，
+            // 进行中的进度交给那一行摘要播报。
+            autoExpandWhileActive = false,
+            // 对齐 rikkahub ChainOfThought：收起时保留尾部两步，
+            // 顶部收纳条给出「展开 N 步」，点开才铺完整时间线。
+            collapsedVisibleCount = 2,
+            singleRow = true,
+        )
+    }
+}
+
+/** 回答气泡圆角：与用户气泡保持一致，两边气泡形状才对得上。 */
+private val AssistantBubbleCorner = 24.dp
+
+/**
+ * 这条消息是不是「模型的回答」，从而该包在回答气泡里。
+ *
+ * 只有系统提示（已停止、任务中断等）这类借 [AgentMessageUi] 承载的临时消息不在此列，
+ * 它们由 [forceBubble] 单独放行。正文的排版方式（[AgentMessageUi.renderMarkdown]）
+ * 与是否给气泡无关：流式输出的首字就该已经落在气泡里。
+ */
+/** 是否给这条回答包气泡：只有非悬浮窗下的模型正文才包。 */
+private fun isReplyBubble(message: AgentMessageUi): Boolean =
+    message::class == AgentMessageUi::class
+
+/** 用户气泡圆角：模型气泡同步这个值，两边圆角才对得上。 */
+private val UserBubbleCorner = 24.dp
+
+/** 回答气泡最宽；与用户气泡一致，短回答不再铺满整行。 */
+private val AssistantBubbleMaxWidth = 360.dp
+
+/**
+ * 回答气泡顶部的署名行：圆角方块 AI 标识加模型名。
+ *
+ * 底色取主题色低透明度，不引入图片资源；模型名缺失时退回“AI”。
+ */
+@Composable
+private fun AssistantReplyHeader(model: AgentModelOptionUi?) {
+    Row(
+        modifier = Modifier.padding(start = 1.dp, bottom = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        val logo = modelOrProviderBrandLogoRes(model?.modelId, model?.providerSourceType)
+        if (logo != null) {
+            Image(
+                painter = painterResource(logo),
+                contentDescription = null,
+                contentScale = ContentScale.Fit,
+                modifier = Modifier
+                    .size(26.dp)
+                    .clip(CircleShape),
+            )
+        } else {
+            Box(
+                modifier = Modifier
+                    .size(26.dp)
+                    .clip(CircleShape)
+                    .background(MiuixTheme.colorScheme.primaryContainer),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    imageVector = Icons.Rounded.Dns,
+                    contentDescription = null,
+                    modifier = Modifier.size(15.dp),
+                    tint = MiuixTheme.colorScheme.primary,
+                )
+            }
+        }
+        Spacer(Modifier.width(7.dp))
+        Text(
+            text = model?.displayName?.takeIf(String::isNotBlank) ?: "AI",
+            style = MiuixTheme.textStyles.footnote1,
+            fontWeight = FontWeight.Medium,
+            color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1f, fill = false),
+        )
     }
 }
 
@@ -936,7 +1271,16 @@ internal fun ThinkingRow(
     retainedStreamingState: StreamingMarkdownState?,
     modifier: Modifier = Modifier,
     compact: Boolean = false,
+    // 单行形态：只保留“思考中/已思考 N 秒”一行，摘要折进展开里。
+    oneLine: Boolean = false,
+    // 展开的思考内容要继续画时间线竖线（末步为 false），并与步骤文字左对齐。
+    lineContinues: Boolean = false,
+    alignToTimeline: Boolean = false,
 ) {
+    DisposableEffect(retainedStreamingState) {
+        retainedStreamingState?.attachContent()
+        onDispose { retainedStreamingState?.detachContent() }
+    }
     // null 表示跟随思考生命周期；用户点过之后只认手动选择。
     var manualExpanded by rememberSaveable(message.id) { mutableStateOf<Boolean?>(null) }
     val keepStreamingMarkdown = remember(message.id) { message.isStreaming }
@@ -949,9 +1293,10 @@ internal fun ThinkingRow(
         ?.snapshot?.completedDocumentFor(message.content)
     // 展开态必须在组合期同步推导：若经 LaunchedEffect 晚一帧收起，思考结束的那一帧尾部窗口
     // 已解除而正文仍展开，会以全文高度闪现一帧，再从该高度执行收起动画。
-    val expanded = manualExpanded ?: message.isStreaming
+    // 单行形态默认收起：过程只占一行，想看内容再点开。
+    val expanded = manualExpanded ?: (message.isStreaming && !oneLine)
     // 自动模式下高度上限覆盖到收起动画结束，退出过程不会先撑开再收拢。
-    val tailWindow = manualExpanded == null
+    val tailWindow = manualExpanded == null && !oneLine
 
     val pulseAlpha = rememberActivePulse(
         active = message.isStreaming,
@@ -987,7 +1332,7 @@ internal fun ThinkingRow(
                 }
                 .then(
                     if (compact) {
-                        Modifier.heightIn(min = WorkRowHeight)
+                        Modifier.heightIn(min = if (oneLine) 0.dp else WorkRowHeight)
                     } else {
                         Modifier.padding(horizontal = 12.dp, vertical = 12.dp)
                     },
@@ -1023,11 +1368,8 @@ internal fun ThinkingRow(
                     } ?: stringResource(R.string.reasoning_completed)
                 },
                 style = MiuixTheme.textStyles.body2,
-                color = if (message.isStreaming) {
-                    MiuixTheme.colorScheme.onSurface
-                } else {
-                    MiuixTheme.colorScheme.onSurfaceVariantSummary
-                },
+                // 思考行的状态文字与外面正文同色：完成后不该整行掉成灰色。
+                color = AetherChatColors.workStepTitle(),
                 modifier = Modifier.weight(1f, fill = !compact),
             )
             ExpandChevron(
@@ -1050,10 +1392,34 @@ internal fun ThinkingRow(
                             .background(MiuixTheme.colorScheme.outline.copy(alpha = 0.45f)),
                     )
                 }
+                // 展开的思考摘要在时间线里也是这一步的一部分：缩进到文字列起点，
+                // 并把节点下方的竖线接到详情底部，读起来仍是一条连续的过程。
+                val inTimeline = compact && alignToTimeline
+                // drawBehind 的 lambda 不是 @Composable 上下文，颜色必须在组合期取好。
+                val timelineLineColor = WorkLineColor
                 val contentModifier = Modifier
                     .fillMaxWidth()
+                    .then(
+                        if (inTimeline) {
+                            Modifier
+                                .drawBehind {
+                                    if (lineContinues) {
+                                        val x = WorkGutterWidth.toPx() / 2f
+                                        drawLine(
+                                            color = timelineLineColor,
+                                            start = Offset(x, -12.dp.toPx()),
+                                            end = Offset(x, size.height),
+                                            strokeWidth = 1.dp.toPx(),
+                                        )
+                                    }
+                                }
+                        } else {
+                            Modifier
+                        },
+                    )
                     .padding(
-                        start = if (compact) 0.dp else 12.dp,
+                        // 时间线里缩进到文字列，否则沿用原来的左内边距。
+                        start = if (inTimeline) WorkGutterWidth + WorkGutterGap else if (compact) 0.dp else 12.dp,
                         end = if (compact) 8.dp else 12.dp,
                         top = if (compact) 0.dp else 8.dp,
                         bottom = if (compact) 8.dp else 12.dp,

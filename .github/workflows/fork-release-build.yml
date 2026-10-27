@@ -1,0 +1,125 @@
+name: Fork Release Build
+
+# 自编译用工作流：构建 R8 正式包（assembleRelease）。
+# 与 android-release.yml 的区别：
+#   1. 不依赖仓库 Actions Secrets，签名材料由 workflow_dispatch 输入传入；
+#   2. 只跑 assembleRelease，不跑 lint / 单元测试；
+#   3. 未提供签名输入时仍构建未签名包，产物名标注 unsigned。
+on:
+  workflow_dispatch:
+    inputs:
+      keystore_base64:
+        description: "签名证书 .jks 的 base64 文本（留空则构建未签名包）"
+        required: false
+        type: string
+      store_password:
+        description: "KeyStore 密码"
+        required: false
+        type: string
+      key_alias:
+        description: "Key alias"
+        required: false
+        default: "eta"
+        type: string
+      key_password:
+        description: "Key 密码（留空则同 KeyStore 密码）"
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+# 并发粒度按「分支 + 提交」：不同提交各自跑，互不压队。
+# 原来只按分支分组并 cancel-in-progress，接连触发两次时后一次会把前一次
+# 压住（连 job 都不创建），表现为长时间 queued。同一提交重复触发才需要
+# 取消旧的，避免同一份代码重复占用 runner。
+concurrency:
+  group: fork-release-${{ github.ref }}-${{ github.sha }}
+  cancel-in-progress: true
+
+jobs:
+  build-release:
+    name: 构建 R8 Release APK
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: 配置构建环境
+        uses: ./.github/actions/setup-build
+
+      - name: 还原签名证书
+        id: signing
+        env:
+          KEYSTORE_B64: ${{ inputs.keystore_base64 }}
+          STORE_PASSWORD: ${{ inputs.store_password }}
+          KEY_ALIAS: ${{ inputs.key_alias }}
+          KEY_PASSWORD: ${{ inputs.key_password }}
+        run: |
+          if [[ -z "$KEYSTORE_B64" || -z "$STORE_PASSWORD" ]]; then
+            echo "::warning::未提供签名材料，将构建未签名 Release APK（无法直接安装）。"
+            echo "signed=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          printf '%s' "$KEYSTORE_B64" | base64 --decode > "$RUNNER_TEMP/eta-release.jks"
+          if [[ ! -s "$RUNNER_TEMP/eta-release.jks" ]]; then
+            echo "::error::证书 base64 解码失败。"
+            exit 1
+          fi
+          echo "signed=true" >> "$GITHUB_OUTPUT"
+          echo "store_file=$RUNNER_TEMP/eta-release.jks" >> "$GITHUB_OUTPUT"
+
+      - name: 构建 R8 Release APK
+        env:
+          ETA_RELEASE_STORE_FILE: ${{ steps.signing.outputs.store_file }}
+          ETA_RELEASE_STORE_PASSWORD: ${{ inputs.store_password }}
+          ETA_RELEASE_KEY_ALIAS: ${{ inputs.key_alias }}
+          ETA_RELEASE_KEY_PASSWORD: ${{ inputs.key_password || inputs.store_password }}
+        run: >-
+          ./gradlew --no-daemon --no-configuration-cache --stacktrace
+          -Peta.buildMetadata=${GITHUB_SHA::7}
+          :app:assembleRelease
+
+      - name: 校验并整理产物
+        id: apk
+        run: |
+          shopt -s nullglob
+          apks=(app/build/outputs/apk/release/Eta-v*.apk)
+          if [[ ${#apks[@]} -ne 1 ]]; then
+            echo "::error::Release APK 数量异常（${#apks[@]}）。"
+            ls -la app/build/outputs/apk/release/ || true
+            exit 1
+          fi
+          src="${apks[0]}"
+          version_name="$(jq -r '.elements[0].versionName' app/build/outputs/apk/release/output-metadata.json)"
+          if [[ "${{ steps.signing.outputs.signed }}" == "true" ]]; then
+            apksigner_path="$(find "$ANDROID_HOME/build-tools" -type f -name apksigner | sort -V | tail -n 1)"
+            "$apksigner_path" verify --verbose "$src"
+            out="app/build/outputs/apk/release/Eta-v${version_name}-r8-signed.apk"
+          else
+            out="app/build/outputs/apk/release/Eta-v${version_name}-r8-unsigned.apk"
+          fi
+          cp "$src" "$out"
+          echo "path=$out" >> "$GITHUB_OUTPUT"
+          echo "version=$version_name" >> "$GITHUB_OUTPUT"
+          ls -l "$out"
+
+      - name: 上传 APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: Eta-release-r8-apk
+          path: ${{ steps.apk.outputs.path }}
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: 上传 R8 mapping
+        uses: actions/upload-artifact@v4
+        with:
+          name: Eta-release-r8-mapping
+          path: app/build/outputs/mapping/release/mapping.txt
+          if-no-files-found: warn
+          retention-days: 14

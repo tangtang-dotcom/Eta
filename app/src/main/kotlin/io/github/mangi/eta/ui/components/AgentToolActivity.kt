@@ -13,6 +13,8 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.IntrinsicSize
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -37,6 +39,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalClipboardManager
@@ -46,8 +50,8 @@ import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import io.github.mangi.eta.R
-import io.github.mangi.eta.agent.browser.AgentBrowserSession
 import io.github.mangi.eta.agent.browser.BrowserSessionSnapshot
 import io.github.mangi.eta.agent.overlay.toolDisplayName
 import io.github.mangi.eta.ui.model.ToolActivityMessageUi
@@ -102,17 +106,27 @@ internal fun ToolActivityRow(
     showBrowserShortcut: Boolean,
     modifier: Modifier = Modifier,
     showTitle: Boolean = true,
+    // 单行形态：结论拼到标题后面，不再占第二行；命令与完整结果仍在展开里。
+    oneLine: Boolean = false,
+    // 展开的详情要继续画时间线竖线（末步为 false），并与步骤文字左对齐。
+    lineContinues: Boolean = false,
+    alignToTimeline: Boolean = false,
 ) {
     var expanded by rememberSaveable(message.id) { mutableStateOf(false) }
     // 只有「当前浏览器」条目订阅实时会话快照，避免每个工具行都跟随快照重组。
-    val browserSnapshot = if (showBrowserShortcut) {
-        AgentBrowserSession.snapshots.collectAsState().value
+    val browser = LocalAgentBrowserSession.current
+    val browserSnapshot = if (showBrowserShortcut && browser != null) {
+        browser.snapshots.collectAsState().value
     } else {
         null
     }
     val running = message.status == ToolActivityStatusUi.Running
     val failed = message.status == ToolActivityStatusUi.Failed
-    val title = message.argumentsSummary.ifBlank { toolDisplayName(message.toolName) }
+    // 与 chatcube 的 buildToolStepTitle 一致：标题只放语义化的工具名，
+    // 参数摘要不占第二行，避免十几步时每步都翻倍占高。
+    // 标题改成「动词 + 参数」：一眼能看出这一步做了什么、对什么做的。
+    // 参数为空或工具不在语义分类内时，函数内部会退回工具名。
+    val title = toolStepTitle(message.toolName, message.argumentsSummary)
     val outcome = remember(message.status, message.resultSummary) { message.outcomeLine() }
     val browserLine = browserSnapshot?.let { snapshot ->
         when {
@@ -122,11 +136,16 @@ internal fun ToolActivityRow(
             else -> null
         }
     }
-    val subtitle = browserLine ?: outcome
+    val subtitle = if (oneLine) null else browserLine ?: outcome
     // 结果只有一行且已作为结论显示时，展开不会带来新信息，不提供展开入口。
     val resultDetail = message.resultSummary?.trim()?.takeIf { it.isNotEmpty() && it != outcome }
+    // 参数摘要挪进展开详情，收起态只留「工具名 + 一行结论」。
+    val argumentsDetail = message.argumentsSummary.trim().takeIf {
+        it.isNotEmpty() && it != title
+    }
     val hasDetail = !message.command.isNullOrBlank() ||
         resultDetail != null ||
+        argumentsDetail != null ||
         showBrowserShortcut
     val elapsedSeconds = rememberRunningSeconds(message.id, running)
 
@@ -134,24 +153,54 @@ internal fun ToolActivityRow(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .heightIn(min = WorkRowHeight)
+                // 时间线里不再设固定行高：行距由外层节点的上下留白提供，
+                // 与 rikkahub 的「内容自适应 + 每步 8dp」保持一致。
+                .heightIn(min = if (oneLine) 0.dp else WorkRowHeight)
                 .clip(RoundedCornerShape(10.dp))
-                .then(if (hasDetail) Modifier.clickable { expanded = !expanded } else Modifier)
-                .padding(vertical = 6.dp),
+                .then(if (hasDetail) Modifier.clickable { expanded = !expanded } else Modifier),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Column(modifier = Modifier.weight(1f)) {
                 if (showTitle) {
-                    ShimmerText(
-                        text = title,
-                        active = running,
-                        style = MiuixTheme.textStyles.body2,
-                        color = if (running) {
-                            MiuixTheme.colorScheme.onSurface
-                        } else {
-                            MiuixTheme.colorScheme.onSurfaceVariantSummary
-                        },
-                    )
+                    if (oneLine) {
+                        val inlineTail = browserLine ?: outcome
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                text = title,
+                                style = MiuixTheme.textStyles.body2,
+                                // 标题与外面正文同色：一步做完之后不该整行变灰，
+                                // 「做了什么」是这段过程里要读的内容。
+                                color = AetherChatColors.workStepTitle(),
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                            if (inlineTail != null) {
+                                Text(
+                                    text = " · " + inlineTail,
+                                    style = if (message.isTerminalTool() && browserLine == null) {
+                                        MiuixTheme.textStyles.footnote2.copy(fontFamily = FontFamily.Monospace)
+                                    } else {
+                                        MiuixTheme.textStyles.footnote2
+                                    },
+                                    color = if (failed) {
+                                        StatusError
+                                    } else {
+                                        MiuixTheme.colorScheme.onSurfaceVariantSummary.copy(alpha = 0.75f)
+                                    },
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                    modifier = Modifier.weight(1f, fill = false),
+                                )
+                            }
+                        }
+                    } else {
+                        ShimmerText(
+                            text = title,
+                            active = running,
+                            style = MiuixTheme.textStyles.body2,
+                            color = AetherChatColors.workStepTitle(),
+                        )
+                    }
                 }
                 if (subtitle != null) {
                     Text(
@@ -168,7 +217,9 @@ internal fun ToolActivityRow(
                         },
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.padding(top = if (showTitle) 1.dp else 0.dp),
+                        // 标题与下面这行结论/输出之间留 4dp：原来贴着 1dp，
+                        // 等宽字体的时间戳看起来像粘在标题尾巴上，整块显得糊成一团。
+                        modifier = Modifier.padding(top = if (showTitle) 4.dp else 0.dp),
                     )
                 }
             }
@@ -181,12 +232,14 @@ internal fun ToolActivityRow(
                 )
             }
             if (hasDetail) {
+                // 与 rikkahub 一致：行尾一个 16dp 的上下箭头，表示这一步能不能点开。
                 ExpandChevron(
                     expanded = expanded,
                     contentDescription = stringResource(
                         if (expanded) R.string.tool_details_collapse else R.string.tool_details_expand,
                     ),
                     modifier = Modifier.padding(start = 6.dp, end = 8.dp),
+                    vertical = true,
                 )
             }
         }
@@ -196,7 +249,10 @@ internal fun ToolActivityRow(
                 message = message,
                 browserSnapshot = browserSnapshot,
                 showBrowserShortcut = showBrowserShortcut,
+                argumentsDetail = argumentsDetail,
                 onOpenBrowser = onOpenBrowser,
+                alignToTimeline = alignToTimeline,
+                lineContinues = lineContinues,
             )
         }
     }
@@ -210,43 +266,78 @@ internal fun ToolGroupRow(
     group: AgentWorkStep.ToolGroup,
     onOpenBrowser: () -> Unit,
     modifier: Modifier = Modifier,
+    // 单行形态：失败计数拼在标题后面，进行中的参数摘要不占第二行。
+    oneLine: Boolean = false,
+    // 展开后的调用列表继续画时间线竖线，并与步骤文字左对齐（末步为 false）。
+    lineContinues: Boolean = false,
+    alignToTimeline: Boolean = false,
 ) {
     var expanded by rememberSaveable(group.key) { mutableStateOf(false) }
     val running = group.running
     val latest = group.calls.last()
-    val title = toolDisplayName(group.toolName) + " · " +
+    // 分组标题同样用「动词 + 参数」，参数取最后一次调用：连续读多个文件时，
+    // 标题反映的是最近那一个，展开后能看到全部。
+    val title = toolStepTitle(group.toolName, latest.argumentsSummary) + " · " +
         pluralStringResource(R.plurals.tool_group_calls, group.calls.size, group.calls.size)
+    val failedText = if (group.failedCount > 0) {
+        pluralStringResource(R.plurals.work_summary_failed, group.failedCount, group.failedCount)
+    } else {
+        null
+    }
     val subtitle = when {
+        oneLine -> null
         running -> latest.argumentsSummary.takeIf(String::isNotBlank)
-        group.failedCount > 0 -> pluralStringResource(
-            R.plurals.work_summary_failed,
-            group.failedCount,
-            group.failedCount,
-        )
-        else -> null
+        else -> failedText
     }
 
+    // 同上：展开区的续线颜色在组合期取好，供 drawBehind 捕获。
+    val groupLineColor = WorkLineColor
     Column(modifier = modifier.fillMaxWidth()) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .heightIn(min = WorkRowHeight)
+                .heightIn(min = if (oneLine) 0.dp else WorkRowHeight)
                 .clip(RoundedCornerShape(10.dp))
-                .clickable { expanded = !expanded }
-                .padding(vertical = 6.dp),
+                .clickable { expanded = !expanded },
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Column(modifier = Modifier.weight(1f)) {
-                ShimmerText(
-                    text = title,
-                    active = running,
-                    style = MiuixTheme.textStyles.body2,
-                    color = if (running) {
-                        MiuixTheme.colorScheme.onSurface
-                    } else {
-                        MiuixTheme.colorScheme.onSurfaceVariantSummary
-                    },
-                )
+                if (oneLine) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            text = title,
+                            style = MiuixTheme.textStyles.body2,
+                            color = AetherChatColors.workStepTitle(),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                        if (failedText != null) {
+                            Text(
+                                text = " · " + failedText,
+                                style = MiuixTheme.textStyles.footnote2,
+                                color = if (running) {
+                                    MiuixTheme.colorScheme.onSurfaceVariantSummary
+                                } else {
+                                    StatusError
+                                },
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier.weight(1f, fill = false),
+                            )
+                        }
+                    }
+                } else {
+                    ShimmerText(
+                        text = title,
+                        active = running,
+                        style = MiuixTheme.textStyles.body2,
+                        color = if (running) {
+                            MiuixTheme.colorScheme.onSurface
+                        } else {
+                            MiuixTheme.colorScheme.onSurfaceVariantSummary
+                        },
+                    )
+                }
                 if (subtitle != null) {
                     Text(
                         text = subtitle,
@@ -258,7 +349,8 @@ internal fun ToolGroupRow(
                         },
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.padding(top = 1.dp),
+                        // 与单步一致：标题和下面这行之间留 4dp。
+                        modifier = Modifier.padding(top = 4.dp),
                     )
                 }
             }
@@ -268,12 +360,42 @@ internal fun ToolGroupRow(
                     if (expanded) R.string.tool_details_collapse else R.string.tool_details_expand,
                 ),
                 modifier = Modifier.padding(start = 6.dp, end = 8.dp),
+                vertical = true,
             )
         }
         AnimatedVisibility(visible = expanded) {
-            Column(modifier = Modifier.padding(bottom = 4.dp)) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .then(
+                        if (alignToTimeline) {
+                            Modifier
+                                .drawBehind {
+                                    val x = WorkGutterWidth.toPx() / 2f
+                                    if (lineContinues) {
+                                        drawLine(
+                                            color = groupLineColor,
+                                            start = Offset(x, 0f),
+                                            end = Offset(x, size.height),
+                                            strokeWidth = 1.dp.toPx(),
+                                        )
+                                    }
+                                }
+                                .padding(start = WorkGutterWidth + WorkGutterGap, end = 4.dp)
+                        } else {
+                            Modifier
+                        },
+                    )
+                    .padding(bottom = 4.dp),
+            ) {
                 group.calls.forEach { call ->
-                    Row(verticalAlignment = Alignment.Top) {
+                    // 间距照 RikkaHub 的 ChainOfThoughtStepContent：每个步骤行
+                    // 自己带 vertical = 8dp，而不是靠外部 Spacer 补齐。
+                    // 行内边距参与点击区域，整行都可点，不会只点到文字。
+                    Row(
+                        modifier = Modifier.padding(vertical = 8.dp),
+                        verticalAlignment = Alignment.Top,
+                    ) {
                         Box(
                             modifier = Modifier
                                 .padding(top = 13.dp, end = 8.dp)
@@ -286,6 +408,8 @@ internal fun ToolGroupRow(
                             onOpenBrowser = onOpenBrowser,
                             showBrowserShortcut = false,
                             modifier = Modifier.weight(1f),
+                            // 分组内的行已经缩进到文字列，不再各自缩进或续画主线。
+                            alignToTimeline = false,
                         )
                     }
                 }
@@ -299,16 +423,53 @@ private fun ToolActivityDetail(
     message: ToolActivityMessageUi,
     browserSnapshot: BrowserSessionSnapshot?,
     showBrowserShortcut: Boolean,
+    // 调用参数：收起态不显示，展开后才和结果一起看。
+    argumentsDetail: String?,
     onOpenBrowser: () -> Unit,
+    // 嵌在过程时间线里时，详情缩进到文字列起点，并接管这一步的竖向连线。
+    alignToTimeline: Boolean = false,
+    // 展开的详情是否继续画左侧的竖向连线（末步不画）。
+    lineContinues: Boolean = true,
 ) {
+    // drawBehind 的 lambda 不是 @Composable 上下文，颜色必须在组合期取好再捕获进去。
+    val timelineLineColor = WorkLineColor
+    val timelineModifier = if (alignToTimeline) {
+        Modifier
+            .fillMaxWidth()
+            .drawBehind {
+                val x = WorkGutterWidth.toPx() / 2f
+                val stroke = 1.dp.toPx()
+                // 从上一行（工具名所在行）落笔，接上节点徽章下方的断口；
+                // 末步不再往下画，其余一直画到详情底部，与下一步的连线相接。
+                // 再往上多画 12dp，盖住展开动画期间露出的空档，避免线断一截。
+                if (lineContinues) {
+                    drawLine(timelineLineColor, Offset(x, -12.dp.toPx()), Offset(x, size.height), stroke)
+                }
+            }
+            .padding(start = WorkGutterWidth + WorkGutterGap)
+    } else {
+        Modifier
+    }
     Column(
-        modifier = Modifier
+        modifier = timelineModifier
             .fillMaxWidth()
             .padding(top = 2.dp, bottom = 8.dp, end = 4.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         if (!message.command.isNullOrBlank()) {
             ToolCommandBlock(command = message.command, context = message.argumentsSummary)
+        } else if (argumentsDetail != null) {
+            SelectionContainer {
+                Text(
+                    text = argumentsDetail,
+                    style = MiuixTheme.textStyles.footnote2,
+                    // 参数是标题的补充说明：比标题暗一档，但仍随莫奈开关与深浅模式走。
+                    color = AetherChatColors.workStepSecondary(),
+                    maxLines = MAX_RESULT_LINES,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
         }
         val result = message.resultSummary?.takeIf(String::isNotBlank)
         if (result != null) {
@@ -320,13 +481,14 @@ private fun ToolActivityDetail(
                     } else {
                         MiuixTheme.textStyles.footnote2
                     },
-                    color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                    color = AetherChatColors.workStepSecondary(),
                     maxLines = MAX_RESULT_LINES,
                     overflow = TextOverflow.Ellipsis,
                     modifier = Modifier
                         .fillMaxWidth()
+                        // 终端输出与过程条共用同一个背景色，展开后不再是一块突兀的深灰。
                         .squircleSurface(
-                            color = MiuixTheme.colorScheme.surfaceContainer,
+                            color = AetherChatColors.quoteFill(),
                             cornerRadius = 10.dp,
                         )
                         .padding(horizontal = 12.dp, vertical = 10.dp),
@@ -393,11 +555,12 @@ private fun BrowserPagePreview(
     snapshot: BrowserSessionSnapshot,
     modifier: Modifier = Modifier,
 ) {
+    val browser = LocalAgentBrowserSession.current ?: return
     var preview by remember(snapshot.url) { mutableStateOf<ImageBitmap?>(null) }
-    LaunchedEffect(snapshot.url, snapshot.isLoading) {
+    LaunchedEffect(browser, snapshot.url, snapshot.isLoading) {
         while (true) {
             val image = withContext(Dispatchers.IO) {
-                AgentBrowserSession.capturePreview()?.let { decodeDataUrlBitmap(it.dataUrl) }
+                browser.capturePreview()?.let { decodeDataUrlBitmap(it.dataUrl) }
             }
             if (image != null) preview = image
             delay(if (snapshot.isLoading) 1_200L else 4_000L)
@@ -493,23 +656,14 @@ private fun ToolCommandBlock(
         }
     }
 
-    Column(
-        modifier = modifier
-            .fillMaxWidth()
-            .squircleSurface(
-                color = MiuixTheme.colorScheme.surface,
-                cornerRadius = 10.dp,
-            )
-            .squircleBorder(
-                width = 0.5.dp,
-                color = MiuixTheme.colorScheme.outline.copy(alpha = 0.5f),
-                cornerRadius = 10.dp,
-            ),
-    ) {
+    // 命令块不再叠一层自己的底色与外框：它本来就嵌在过程条里，而过程条已经画了
+    // 底色。两层不同深浅的底加一道边框叠在一起，看起来就是块突兀的色差补丁。
+    // 改用左侧一条细竖线作分隔，材质与整条过程保持一致，只靠线区分「这是命令」。
+    Column(modifier = modifier.fillMaxWidth()) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(start = 12.dp, end = 2.dp, top = 2.dp, bottom = 2.dp),
+                .padding(start = 10.dp, end = 2.dp, top = 6.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(
@@ -544,23 +698,38 @@ private fun ToolCommandBlock(
                 )
             }
         }
-        Box(
+        Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 12.dp)
-                .height(0.5.dp)
-                .background(MiuixTheme.colorScheme.outline.copy(alpha = 0.45f)),
-        )
-        SelectionContainer {
-            Text(
-                text = command,
-                style = MiuixTheme.textStyles.footnote2.copy(fontFamily = FontFamily.Monospace),
-                color = MiuixTheme.colorScheme.onSurface,
+                .height(IntrinsicSize.Min)
+                .padding(start = 10.dp, top = 6.dp, bottom = 8.dp),
+        ) {
+            // 左侧细竖线：与整条过程的时间线同一套语言，标明「下面这段是命令本体」。
+            // 高度取父 Row 的最小子高度，随命令行数自动伸缩。
+            Box(
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .horizontalScroll(rememberScrollState())
-                    .padding(horizontal = 12.dp, vertical = 10.dp),
+                    .width(2.dp)
+                    .fillMaxHeight()
+                    .background(
+                        color = AetherChatColors.workLine(),
+                        shape = RoundedCornerShape(1.dp),
+                    ),
             )
+            SelectionContainer {
+                Text(
+                    text = command,
+                    style = MiuixTheme.textStyles.footnote2.copy(fontFamily = FontFamily.Monospace),
+                    color = MiuixTheme.colorScheme.onSurface,
+                    // 行高放大一点：等宽字体在小字号下多行会黏在一起，
+                    // 终端输出本来就密，这里给行与行之间留出呼吸。
+                    lineHeight = 18.sp,
+                    modifier = Modifier
+                        .weight(1f)
+                        .horizontalScroll(rememberScrollState())
+                        // 行距与命令块的上下留白一起撑开，避免整块看起来被挤扁。
+                        .padding(start = 10.dp, end = 4.dp, top = 2.dp, bottom = 2.dp),
+                )
+            }
         }
     }
 }

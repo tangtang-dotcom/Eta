@@ -19,6 +19,13 @@ dependencyResolutionManagement {
     repositories {
         google()
         mavenCentral()
+        // HugeIcons（过程步骤图标）发布在 JitPack 上，与 rikkahub 使用同一套图标。
+        // 只放行 com.github.rikkahub 这一个 group，避免其它依赖改走 JitPack 拉取。
+        maven("https://jitpack.io") {
+            content {
+                includeGroup("com.github.rikkahub")
+            }
+        }
     }
 }
 

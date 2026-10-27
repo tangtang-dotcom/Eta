@@ -1093,14 +1093,17 @@ private fun AssistantReplyHeader(model: AgentModelOptionUi?) {
                 modifier = Modifier
                     .size(26.dp)
                     .clip(CircleShape)
-                    .background(MiuixTheme.colorScheme.primaryContainer),
+                    // 无品牌图时的占位底：用比气泡再亮/深一档的容器色，
+                    // 不再用 primaryContainer 的紫调——那个紫在深色气泡上很跳。
+                    .background(AetherChatColors.avatarPlaceholder()),
                 contentAlignment = Alignment.Center,
             ) {
                 Icon(
                     imageVector = Icons.Rounded.Dns,
                     contentDescription = null,
                     modifier = Modifier.size(15.dp),
-                    tint = MiuixTheme.colorScheme.primary,
+                    // 头像里的占位图标与署名文字同色，二者是一组标识。
+                    tint = AetherChatColors.onSurface(),
                 )
             }
         }
@@ -1109,7 +1112,9 @@ private fun AssistantReplyHeader(model: AgentModelOptionUi?) {
             text = model?.displayName?.takeIf(String::isNotBlank) ?: "AI",
             style = MiuixTheme.textStyles.footnote1,
             fontWeight = FontWeight.Medium,
-            color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+            // 与正文同色：署名行原来是次要灰，压在气泡上显得灰扑扑的。
+            // 走 AetherChatColors.onSurface()，深色即白、浅色即近黑，随主题翻转。
+            color = AetherChatColors.onSurface(),
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier.weight(1f, fill = false),

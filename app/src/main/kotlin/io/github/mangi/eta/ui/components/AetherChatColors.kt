@@ -146,6 +146,20 @@ internal object AetherChatColors {
      * 结果 #24262D，与更早那版中性灰 #262629 处于同一明度层级，只是偏冷偏紫一点点。
      */
     @Composable
+    /**
+     * 无品牌图时的模型头像占位底色。
+     *
+     * 原来取 primaryContainer（紫调），压在深色气泡上很跳、也是用户说的
+     * 「格格不入」的一部分。这里用比气泡再提亮一档的中性色，深浅两套各自
+     * 递增一个色阶，头像只是一个小圆，不需要强调色。
+     */
+    @Composable
+    fun avatarPlaceholder(): Color = when {
+        monet -> MiuixTheme.colorScheme.surfaceContainerHigh
+        dark -> Color(0xFF24283A)
+        else -> Color(0xFFE8E9ED)
+    }
+
     fun assistantBubble(): Color = when {
         // 莫奈下 surface 常与 background 同色，沿用带色调的容器色。
         monet -> MiuixTheme.colorScheme.surfaceContainer

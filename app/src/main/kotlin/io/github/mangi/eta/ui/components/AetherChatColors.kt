@@ -39,7 +39,6 @@ internal object AetherChatColors {
         else -> Color(0xFFF0F1F3)
     }
 
-    @Composable
     /**
      * 聊天页竖向渐变的顶端色。
      *
@@ -47,6 +46,7 @@ internal object AetherChatColors {
      * 保留这个函数是因为渐变结构还在，只是三段取同一个值，避免整页被拉出
      * 上浅下深的色带，与其它页面接不上。
      */
+    @Composable
     fun backgroundGradientTop(): Color = when {
         monet -> MiuixTheme.colorScheme.background
         dark -> Color(0xFF10131C)
@@ -141,12 +141,6 @@ internal object AetherChatColors {
     }
 
     /**
-     * 模型气泡底色：以深色页面渐变（#1B1D22 → #151619 → #1C1F23）中最亮的一档为基调，
-     * 整体提亮一档、再掺入极少量用户气泡的紫，让两个气泡色相呼应而不抢眼。
-     * 结果 #24262D，与更早那版中性灰 #262629 处于同一明度层级，只是偏冷偏紫一点点。
-     */
-    @Composable
-    /**
      * 无品牌图时的模型头像占位底色。
      *
      * 原来取 primaryContainer（紫调），压在深色气泡上很跳、也是用户说的
@@ -160,6 +154,13 @@ internal object AetherChatColors {
         else -> Color(0xFFE8E9ED)
     }
 
+    /**
+     * 模型气泡底色。
+     *
+     * 深色取固定 #181A26；浅色纯白。两者都与页面背景（#10131C / #F0F1F3）
+     * 拉开一个层级，气泡边界靠这点色差成立。
+     */
+    @Composable
     fun assistantBubble(): Color = when {
         // 莫奈下 surface 常与 background 同色，沿用带色调的容器色。
         monet -> MiuixTheme.colorScheme.surfaceContainer

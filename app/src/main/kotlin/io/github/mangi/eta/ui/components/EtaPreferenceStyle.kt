@@ -45,8 +45,11 @@ internal object EtaPreferenceDefaults {
 internal fun EtaPreferenceTheme(content: @Composable () -> Unit) {
     val colors = MiuixTheme.colorScheme
     val appearance = LocalAppearanceSettings.current
+    // 非莫奈浅色：只替换强调色，背景与卡片（surfaceContainer）交给上层主题，
+    // 不再在这里硬编码底色——写死会盖掉主题层统一的 #F0F1F3，并让
+    // 分组卡片（CardDefaults 取 surfaceContainer）与背景同色而糊成一片。
     val pageColors = if (!appearance.monetEnabled && colors.background.luminance() > 0.5f) {
-        colors.copy(background = Color(0xFFF0F1F2), primary = EtaPreferenceColors.Blue)
+        colors.copy(primary = EtaPreferenceColors.Blue)
     } else {
         colors
     }

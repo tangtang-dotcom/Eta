@@ -71,20 +71,23 @@ fun AgentAppTheme(
                 colors
             }
             // 非莫奈：全应用统一底色。
-            // 三个字段必须一起覆盖，因为它们分别被不同页面读取：
+            // 背景相关字段各自被不同页面读取，必须分别覆盖：
             // - background：聊天页舞台、部分自定义页面；
-            // - surface：Miuix Scaffold 的默认容器色（设置页等一律取它）；
-            // - surfaceContainer：侧边栏 conversationPaneContainerColor() 在深色下取它。
-            // 只改 background 时，设置页与侧边栏读到的仍是主题自带色，看起来就没变。
+            // - surface：Miuix Scaffold 的默认容器色（设置页等）；
+            // - surfaceContainer：设置里的分组卡片（CardDefaults 取它）与侧边栏。
+            //
+            // background 与 surface 统一成同一个底色；surfaceContainer 不能再等值，
+            // 否则卡片与背景完全同色——设置页那些小 tap 会整块糊进背景里。
+            // 这里让 surfaceContainer 等于「供应商气泡色」，卡片就是气泡那块颜色。
             isDark -> colors.copy(
                 background = Color(0xFF10131C),
                 surface = Color(0xFF10131C),
-                surfaceContainer = Color(0xFF10131C),
+                surfaceContainer = Color(0xFF181A26),
             )
             else -> colors.copy(
                 background = Color(0xFFF0F1F3),
                 surface = Color(0xFFF0F1F3),
-                surfaceContainer = Color(0xFFF0F1F3),
+                surfaceContainer = Color(0xFFFFFFFF),
             )
         }
     }

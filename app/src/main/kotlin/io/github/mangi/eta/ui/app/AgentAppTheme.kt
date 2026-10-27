@@ -63,13 +63,18 @@ fun AgentAppTheme(
     }
     val colors = controller.currentColors()
     val themedColors = remember(colors, isDark, appearance.monetEnabled, appearance.pureBlackEnabled) {
-        if (appearance.monetEnabled && appearance.pureBlackEnabled && isDark) {
-            colors.copy(
-                background = Color.Black,
-                surface = Color.Black,
-            )
-        } else {
-            colors
+        when {
+            // 莫奈取色优先：背景交给壁纸配色，这里一个色值都不覆盖。
+            appearance.monetEnabled -> if (appearance.pureBlackEnabled && isDark) {
+                colors.copy(background = Color.Black, surface = Color.Black)
+            } else {
+                colors
+            }
+            // 非莫奈：全应用统一底色。聊天、侧边栏、设置页的 Scaffold 都读
+            // colorScheme.background，在主题层覆盖这一处，三处一起统一，
+            // 不用逐页去改各自的背景修饰符。
+            isDark -> colors.copy(background = Color(0xFF10131C))
+            else -> colors.copy(background = Color(0xFFF0F1F3))
         }
     }
 

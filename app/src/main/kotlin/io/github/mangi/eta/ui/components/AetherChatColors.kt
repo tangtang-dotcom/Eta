@@ -35,15 +35,22 @@ internal object AetherChatColors {
     @Composable
     fun background(): Color = when {
         monet -> MiuixTheme.colorScheme.background
-        dark -> Color(0xFF151619)
-        else -> Color(0xFFFFFFFF)
+        dark -> Color(0xFF10131C)
+        else -> Color(0xFFF0F1F3)
     }
 
     @Composable
+    /**
+     * 聊天页竖向渐变的顶端色。
+     *
+     * 现在与 [background] 同色：整页是一个纯色底，和侧边栏、设置页一致。
+     * 保留这个函数是因为渐变结构还在，只是三段取同一个值，避免整页被拉出
+     * 上浅下深的色带，与其它页面接不上。
+     */
     fun backgroundGradientTop(): Color = when {
         monet -> MiuixTheme.colorScheme.background
-        dark -> Color(0xFF1B1D22)
-        else -> Color(0xFFFFFFFF)
+        dark -> Color(0xFF10131C)
+        else -> Color(0xFFF0F1F3)
     }
 
     @Composable
@@ -51,8 +58,9 @@ internal object AetherChatColors {
         // 莫奈下 surface 常与 background 同色，输入卡片会“消失”；
         // 改用带色调的容器色，保证卡片/胶囊与背景有色差。
         monet -> MiuixTheme.colorScheme.surfaceContainer
-        dark -> Color(0xFF1C1F23)
-        else -> Color(0xFFFFFFFF)
+        // 非莫奈：与 background 统一，整应用一个底色（聊天页渐变底部也是它）。
+        dark -> Color(0xFF10131C)
+        else -> Color(0xFFF0F1F3)
     }
 
     @Composable
@@ -139,7 +147,9 @@ internal object AetherChatColors {
     fun assistantBubble(): Color = when {
         // 莫奈下 surface 常与 background 同色，沿用带色调的容器色。
         monet -> MiuixTheme.colorScheme.surfaceContainer
-        dark -> deepPurpleTint(Color(0xFF1C1F23), 0.10f)
+        // 深色下用固定色 #181A26。之前经过 deepPurpleTint(#1C1F23, 0.10) 后
+        // 实际输出是 #24252D，比基色亮不少；这里要的是精确值，不再叠调。
+        dark -> Color(0xFF181A26)
         else -> Color.White
     }
 

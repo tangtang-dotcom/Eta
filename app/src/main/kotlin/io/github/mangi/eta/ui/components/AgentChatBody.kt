@@ -94,6 +94,7 @@ import io.github.mangi.eta.ui.model.ToolAccessUiState
 import io.github.mangi.eta.ui.model.ToolToggleItem
 import io.github.mangi.eta.ui.model.AgentContextUsageUi
 import io.github.mangi.eta.ui.model.AgentMessageUi
+import io.github.mangi.eta.ui.model.AgentModelOptionUi
 import io.github.mangi.eta.ui.model.MessageReferenceUi
 import io.github.mangi.eta.ui.model.AgentModelPickerUiState
 import io.github.mangi.eta.ui.model.MessageEditUiState
@@ -546,6 +547,7 @@ private fun AgentChatScaffold(
                     bottomInset = bottomPadding,
                     keepBottomAnchored = keepBottomAnchored,
                     onBottomAnchorChanged = onBottomAnchorChanged,
+                    assistantModel = modelPickerState.selectedModel,
                     onSuggestionClick = onSuggestionClick,
                     onRunTraceClick = onRunTraceClick,
                     onOpenBrowser = onOpenBrowser,
@@ -578,6 +580,8 @@ internal fun AgentConversationMessages(
     keepBottomAnchored: Boolean,
     onBottomAnchorChanged: (Boolean) -> Unit,
     assistantOverlay: Boolean = false,
+    // 模型头像与名字：整轮一个气泡，署名也就只有一处。
+    assistantModel: AgentModelOptionUi? = null,
     onSuggestionClick: (String) -> Unit = {},
     onRunTraceClick: () -> Unit = {},
     onOpenBrowser: () -> Unit = {},

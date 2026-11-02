@@ -217,18 +217,18 @@ internal fun AgentAppShell(
                         // 静止在列表顶部时完全不画，页面是一整块干净的面。
                         val scrollUnder = LocalChatScrollUnder.current ?: 0f
                         val fadeProgress = animatedFadeProgress(scrollUnder)
-                        val fadeColor = AetherChatColors.backgroundGradientTop()
                         // 实心段覆盖「状态栏 + 按钮行」，再往下 TopFadeExtra 缓出。
                         // 与顶栏自身高度一致，否则实心段会切在按钮中间。
                         val statusBarTop = with(LocalDensity.current) {
                             WindowInsets.statusBars.getTop(this).toDp()
                         }
                         val barHeight = statusBarTop + ChatTopBarRowHeight
+                        // 遮罩画的是整张页面背景（渐变+光晕）再裁到顶部一条，
+                        // 所以和下面的页面严丝合缝，看不出「顶栏」这层边界。
                         TopFadeSurface(
                             progress = fadeProgress,
                             height = barHeight,
                             solidUntil = barHeight,
-                            color = fadeColor,
                         ) {
                             chatTopBar()
                         }

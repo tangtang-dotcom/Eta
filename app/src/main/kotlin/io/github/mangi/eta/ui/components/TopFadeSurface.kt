@@ -12,9 +12,10 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.drawscope.DrawScope
@@ -38,40 +39,48 @@ internal val TopFadeExtra = 12.dp
 private const val FadeSamples = 12
 
 /**
- * 顶栏底：**不是**一条常驻色带，而是「页面底色向下渐隐」。
+ * 顶栏底：把「整张页面背景」在顶栏位置重画一遍，向下羽化收边。
  *
- * 对应 dsh-go 的 `featherFade` / `TopFade`：
- * - 从顶边向下 [solidUntil] 保持完全不透明；
- * - 之后沿 easeInOutCubic 降到全透明，终点在 [height]。
+ * 对应 dsh-go 的 `BackdropVeil.top` / `TopFade`：
+ * - 实心段：顶边到 [solidUntil]，画面与下面的页面**完全同源**（同一张渐变+光晕），
+ *   所以看不出顶栏这层边界；内容滚上来在这里被遮住；
+ * - 羽化段：再往下到 [height]，沿 easeInOutCubic 削到全透明。
  *
- * 用 12 段采样而不是两色线性渐变——线性的斜坡在两端都会被读成一道硬边，
- * 缓动曲线才不会。
+ * 用 12 段采样而不是两色线性渐变——线性的斜坡在两端都会被读成一道硬边。
+ *
+ * [progress] 控制整体淡入：0 时不画（页面本来就是那张底色，遮不遮一样），
+ * 内容滚到顶栏下时才淡入，避免静止时白白多画一层。
  */
 @Composable
 fun TopFadeSurface(
     progress: Float,
     height: Dp,
     solidUntil: Dp,
-    color: Color,
     modifier: Modifier = Modifier,
     content: @Composable BoxScope.() -> Unit,
 ) {
+    val top = AetherChatColors.backgroundGradientTop()
+    val bottom = AetherChatColors.backgroundGradientBottom()
+    val glowPrimary = AetherChatColors.backdropGlowPrimary()
+    val glowSecondary = AetherChatColors.backdropGlowSecondary()
     Box(
         modifier = modifier
             .fillMaxWidth()
             .height(height + TopFadeExtra),
     ) {
-        // 底层遮罩画一次渐变就用 graphicsLayer 的 alpha 控制显隐：
-        // 滚动时每帧都在变，避免用一个 if 反复增删节点引起重组抖动。
         Box(
             modifier = Modifier
                 .matchParentSize()
                 .graphicsLayer { alpha = progress.coerceIn(0f, 1f) }
-                .drawBehind {
+                .drawWithContent {
                     val total = size.height
-                    if (total <= 0f) return@drawBehind
+                    if (total <= 0f) return@drawWithContent
+                    // 画的是「整张页面背景」在本区域的重绘，不是叠一层单色。
+                    // dsh-go 的 BackdropVeil 复用同一个 _BackdropPainter，从页面顶端
+                    // 起画、只保留顶部这一段，所以和真背景严丝合缝。
+                    drawEtaBackdrop(top, bottom, glowPrimary, glowSecondary)
                     val solid = (solidUntil.toPx() / total).coerceIn(0f, 1f)
-                    drawFadeRect(color = color, solid = solid)
+                    drawFadeMask(color = top, solid = solid)
                 },
         )
         content()
@@ -84,7 +93,7 @@ fun TopFadeSurface(
  * [solid] 是实心段占整个高度的比例。实心段之后用 easeInOutCubic 采
  * [FadeSamples] 段，逐段降低 alpha。
  */
-private fun DrawScope.drawFadeRect(
+private fun DrawScope.drawFadeMask(
     color: Color,
     solid: Float,
 ) {
@@ -97,7 +106,7 @@ private fun DrawScope.drawFadeRect(
     for (i in 1..FadeSamples) {
         val t = i.toFloat() / FadeSamples
         val eased = easeInOutCubic(t)
-        colors.add(color.copy(alpha = color.alpha * (1f - eased)))
+        colors.add(color.copy(alpha = 1f - eased))
         stops.add(solid + (1f - solid) * t)
     }
     drawRect(
@@ -108,6 +117,9 @@ private fun DrawScope.drawFadeRect(
         ),
         topLeft = Offset.Zero,
         size = size,
+        // 只保留已画背景在实心段的部分，向下按曲线削掉——这就是 dsh-go
+        // _VeilPainter 里 BlendMode.dstIn + 缓动渐变的等价写法。
+        blendMode = BlendMode.DstIn,
     )
 }
 

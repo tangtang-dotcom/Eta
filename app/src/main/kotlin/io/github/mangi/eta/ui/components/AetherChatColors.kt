@@ -462,3 +462,19 @@ private fun DrawScope.drawGlow(center: Offset, radius: Float, color: Color) {
         size = Size(radius * 2f, radius * 2f),
     )
 }
+
+
+/**
+ * 玻璃边缘光：上亮下暗的 1dp 渐变描边。
+ * 用纯绘制代替 Miuix 的 highlight（后者每帧要在整个控件上跑一遍 shader，
+ * 顶栏三个控件叠起来会明显掉帧）。
+ */
+internal fun Modifier.glassEdge(top: Color, bottom: Color, width: Dp = 1.dp): Modifier =
+    drawWithContent {
+        drawContent()
+        drawRoundRect(
+            brush = Brush.verticalGradient(listOf(top, bottom)),
+            cornerRadius = CornerRadius(size.height / 2f, size.height / 2f),
+            style = Stroke(width = width.toPx()),
+        )
+    }

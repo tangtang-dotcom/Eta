@@ -231,7 +231,6 @@ internal fun AgentAppShell(
                         TopFadeSurface(
                             progress = fadeProgress,
                             height = barHeight,
-                            solidUntil = barHeight,
                         ) {
                             chatTopBar()
                         }

@@ -15,49 +15,50 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.BlendMode
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.drawscope.DrawScope
+import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 
 /**
  * 聊天列表的「已滚到顶栏下面」进度，0（在顶部）→ 1（内容已压到顶栏下）。
  *
- * dsh-go 的 `scrolledUnder` 同款用途：顶栏按它决定遮罩要不要淡入。
- *
- * **必须是可变状态而不是单向的 Float**：顶栏在 Scaffold 的 topBar 槽位，
- * 聊天列表在 content 槽位，两者是兄弟关系、各自独立组合。如果顶栏上方
- * 提供一个只读值，列表侧根本改不到它（读到的永远是默认值，顶栏就永远
- * 不画遮罩）。所以这里下发的是一个可写状态，上层创建、下层写入、顶栏读。
+ * 必须是可变状态而不是只读值：顶栏在 Scaffold 的 topBar 槽位、聊天列表在
+ * content 槽位，两者是兄弟、各自独立组合。顶栏上方若只提供只读值，列表侧
+ * 改不到它，顶栏就永远读默认值。
  */
 val LocalChatScrollUnder = compositionLocalOf<MutableState<Float>?> { null }
 
-/** 渐隐尾带：顶栏本体之外再多画这么长，避免在按钮正下方截断成一条硬线。 */
-internal val TopFadeExtra = 12.dp
+/** 羽化段高度。dsh-go 的 BackdropVeil.top 用 14~16。 */
+private val FeatherHeight = 14.dp
 
-private const val FadeSamples = 12
+/** dsh-go 的 _VeilPainter 用 8 段采样。 */
+private const val VeilSamples = 8
 
 /**
  * 顶栏底：把「整张页面背景」在顶栏位置重画一遍，向下羽化收边。
  *
- * 对应 dsh-go 的 `BackdropVeil.top` / `TopFade`：
- * - 实心段：顶边到 [solidUntil]，画面与下面的页面**完全同源**（同一张渐变+光晕），
- *   所以看不出顶栏这层边界；内容滚上来在这里被遮住；
- * - 羽化段：再往下到 [height]，沿 easeInOutCubic 削到全透明。
+ * 严格复刻 dsh-go 的 `BackdropVeil.top` / `_VeilPainter.paint`：
  *
- * 用 12 段采样而不是两色线性渐变——线性的斜坡在两端都会被读成一道硬边。
+ * ```dart
+ * canvas.saveLayer(rect, Paint());      // ① 必须开独立图层
+ * canvas.clipRect(rect);
+ * backdrop.paint(canvas, size);         // ② 画整张背景
+ * canvas.drawRect(rect, dstIn + 渐变);   // ③ 在图层内削边
+ * canvas.restore();
+ * ```
  *
- * [progress] 控制整体淡入：0 时不画（页面本来就是那张底色，遮不遮一样），
- * 内容滚到顶栏下时才淡入，避免静止时白白多画一层。
+ * ①是重点：**不开 layer 就直接 DstIn，会削到下面已经画好的整屏内容**，
+ * 实心段下方被过度削掉、露出底色——也就是那条黑线。
  */
 @Composable
 fun TopFadeSurface(
     progress: Float,
     height: Dp,
-    solidUntil: Dp,
     modifier: Modifier = Modifier,
     content: @Composable BoxScope.() -> Unit,
 ) {
@@ -65,26 +66,43 @@ fun TopFadeSurface(
     val bottom = AetherChatColors.backgroundGradientBottom()
     val glowPrimary = AetherChatColors.backdropGlowPrimary()
     val glowSecondary = AetherChatColors.backdropGlowSecondary()
+    val feather = FeatherHeight
     Box(
         modifier = modifier
             .fillMaxWidth()
-            .height(height + TopFadeExtra),
+            .height(height + feather),
     ) {
         Box(
             modifier = Modifier
                 .matchParentSize()
                 .drawWithContent {
-                    val total = size.height
-                    if (total <= 0f) return@drawWithContent
-                    // 画的是「整张页面背景」在本区域的重绘，不是叠一层单色。
-                    // dsh-go 的 BackdropVeil 复用同一个 _BackdropPainter，从页面顶端
-                    // 起画、只保留顶部这一段，所以和真背景严丝合缝。
-                    drawEtaBackdrop(top, bottom, glowPrimary, glowSecondary)
-                    val solid = (solidUntil.toPx() / total).coerceIn(0f, 1f)
-                    // 实心段始终保留：聊天页的页面背景铺不到状态栏区域，顶栏必须
-                    // 自己把这一条填上，否则状态栏下面会透出内容/空白。
-                    // 只有羽化段随 progress 淡入——它才是「内容滚上来时才需要」的部分。
-                    drawFadeMask(color = top, solid = solid, feather = progress.coerceIn(0f, 1f))
+                    val band = size.height
+                    if (band <= 0f) return@drawWithContent
+                    val featherPx = feather.toPx()
+                    // dsh-go: fade = feather / band，按 1-fade+fade*t 取样。
+                    val fade = (featherPx / band).coerceIn(0f, 1f)
+
+                    // ①②③④ 必须在同一次 drawIntoCanvas 里完成：saveLayer 与
+                    // restore 要落在同一个 canvas 包装上，中间还夹着 DstIn 绘制。
+                    drawIntoCanvas { canvas ->
+                        // ① 开独立图层：之后的 DstIn 只作用于本图层内容，
+                        //    不会波及下面已经画好的页面。
+                        val layerPaint = androidx.compose.ui.graphics.Paint()
+                        canvas.saveLayer(
+                            androidx.compose.ui.geometry.Rect(0f, 0f, size.width, band),
+                            layerPaint,
+                        )
+                        // ② 画整张页面背景（同一张渐变 + 同一对光晕）。
+                        drawEtaBackdrop(top, bottom, glowPrimary, glowSecondary)
+                        // ③ 图层内按缓动曲线削出透明下缘。
+                        drawVeilMask(
+                            fade = fade,
+                            band = band,
+                            featherAlpha = progress.coerceIn(0f, 1f),
+                        )
+                        // ④ 关图层。
+                        canvas.restore()
+                    }
                 },
         )
         content()
@@ -92,41 +110,48 @@ fun TopFadeSurface(
 }
 
 /**
- * 画一层「上实下虚」的页面色。
+ * 图层内的削边遮罩，取样照抄 dsh-go `_VeilPainter.paint`。
  *
- * [solid] 是实心段占整个高度的比例。实心段之后用 easeInOutCubic 采
- * [FadeSamples] 段，逐段降低 alpha。
+ * - 顶部先放一个不透明黑 stop（实心段起点）；
+ * - 之后 i = 0..8，stop 从 `1 - fade + fade * t` 走到 1，
+ *   alpha 取 `1 - easeInOutCubic(t)`；
+ * - 最底部补一个全透明 stop。
+ *
+ * 线性斜坡在两端会被读成硬边，所以必须用缓动曲线。
  */
-private fun DrawScope.drawFadeMask(
-    color: Color,
-    solid: Float,
-    feather: Float,
+private fun DrawScope.drawVeilMask(
+    fade: Float,
+    band: Float,
+    featherAlpha: Float,
 ) {
-    val colors = ArrayList<Color>(FadeSamples + 3)
-    val stops = ArrayList<Float>(FadeSamples + 3)
-    colors.add(color)
+    val stops = ArrayList<Float>(VeilSamples + 3)
+    val colors = ArrayList<Color>(VeilSamples + 3)
+
     stops.add(0f)
-    colors.add(color)
-    stops.add(solid)
-    for (i in 1..FadeSamples) {
-        val t = i.toFloat() / FadeSamples
+    colors.add(Color.Black)
+
+    for (i in 0..VeilSamples) {
+        val t = i.toFloat() / VeilSamples
+        stops.add(1f - fade + fade * t)
         val eased = easeInOutCubic(t)
-        // 实心段下方的不透明度：progress 为 0 时直接切到透明（只留实心段，
-        // 下面是页面自己的底色，接得上）；progress 上来后逐渐变成完整羽化。
-        val keep = (1f - eased) * feather
-        colors.add(color.copy(alpha = keep))
-        stops.add(solid + (1f - solid) * t)
+        // 实心段（t=0）不透明；往下按曲线降到 0。
+        // featherAlpha 只作用于羽化区间：实心段常驻，聊天页的页面背景铺不到
+        // 状态栏，这一条必须自己填上。
+        val alpha = ((1f - eased) * featherAlpha).coerceIn(0f, 1f)
+        colors.add(Color.Black.copy(alpha = alpha))
     }
+
+    stops.add(1f)
+    colors.add(Color.Black.copy(alpha = 0f))
+
     drawRect(
         brush = Brush.verticalGradient(
             colorStops = stops.zip(colors).toTypedArray(),
             startY = 0f,
-            endY = size.height,
+            endY = band,
         ),
         topLeft = Offset.Zero,
-        size = size,
-        // 只保留已画背景在实心段的部分，向下按曲线削掉——这就是 dsh-go
-        // _VeilPainter 里 BlendMode.dstIn + 缓动渐变的等价写法。
+        size = Size(size.width, band),
         blendMode = BlendMode.DstIn,
     )
 }

@@ -95,7 +95,8 @@ internal object AetherChatColors {
      */
     @Composable
     fun backdropGlowSecondary(): Color = when {
-        monet -> MiuixTheme.colorScheme.tertiary.copy(alpha = 0.08f)
+        // Miuix 的 Colors 没有 tertiary，只有 tertiaryContainer（暮紫那一档）。
+        monet -> MiuixTheme.colorScheme.tertiaryContainer.copy(alpha = 0.08f)
         dark -> Color(0xFF5A4E74).copy(alpha = 0.05f)
         else -> Color(0xFFE6DCEF).copy(alpha = 0.26f)
     }

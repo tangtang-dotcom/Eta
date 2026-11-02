@@ -21,6 +21,7 @@ import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
@@ -72,6 +73,9 @@ import io.github.mangi.eta.ui.components.AetherChatColors
 import io.github.mangi.eta.ui.components.glassEdge
 import io.github.mangi.eta.ui.components.liquidGlassSurface
 import io.github.mangi.eta.ui.components.AgentModelPillButton
+import io.github.mangi.eta.ui.components.LocalChatScrollUnder
+import io.github.mangi.eta.ui.components.TopFadeSurface
+import io.github.mangi.eta.ui.components.animatedFadeProgress
 import io.github.mangi.eta.ui.components.TopBarBackdrop
 import io.github.mangi.eta.ui.components.captureForTopBar
 import io.github.mangi.eta.ui.components.rememberTopBarBackdrop
@@ -88,7 +92,6 @@ import top.yukonga.miuix.kmp.blur.BlendColorEntry
 import top.yukonga.miuix.kmp.blur.BlurDefaults
 import top.yukonga.miuix.kmp.blur.BlurColors
 import top.yukonga.miuix.kmp.blur.LayerBackdrop
-import top.yukonga.miuix.kmp.blur.ProgressiveBlur
 import top.yukonga.miuix.kmp.blur.isRuntimeShaderSupported
 import top.yukonga.miuix.kmp.blur.textureBlur
 import top.yukonga.miuix.kmp.blur.highlight.BloomStroke
@@ -209,18 +212,24 @@ internal fun AgentAppShell(
                                 onOpenCharacter = onOpenCharacter,
                         )
                         }
-                        if (chatFrosted) {
-                            TopBarBackdrop(
-                                backdrop = if (imeAnimating) null else backdrop,
-                                progressiveAlpha = AetherChatColors.topBarProgressiveAlpha(),
-                                surfaceAlpha = AetherChatColors.topBarSurfaceAlpha(),
-                                progressiveRadius = ChatTopBarProgressiveRadius,
-                                // 状态栏正下方一小段几乎不模糊，越往下越重（KernelSU 顶栏风格）。
-                                gradient = ChatTopBarProgressiveGradient,
-                            ) {
-                                chatTopBar()
-                            }
-                        } else {
+                        // 顶栏底：不再是常驻色带，而是「页面色向下渐隐」，
+                        // 且只在消息滚到顶栏下面时才浮现（dsh-go 的 TopFade）。
+                        // 静止在列表顶部时完全不画，页面是一整块干净的面。
+                        val scrollUnder = LocalChatScrollUnder.current ?: 0f
+                        val fadeProgress = animatedFadeProgress(scrollUnder)
+                        val fadeColor = AetherChatColors.backgroundGradientTop()
+                        // 实心段覆盖「状态栏 + 按钮行」，再往下 TopFadeExtra 缓出。
+                        // 与顶栏自身高度一致，否则实心段会切在按钮中间。
+                        val statusBarTop = with(LocalDensity.current) {
+                            WindowInsets.statusBars.getTop(this).toDp()
+                        }
+                        val barHeight = statusBarTop + ChatTopBarRowHeight
+                        TopFadeSurface(
+                            progress = fadeProgress,
+                            height = barHeight,
+                            solidUntil = barHeight,
+                            color = fadeColor,
+                        ) {
                             chatTopBar()
                         }
                     } else {
@@ -628,16 +637,12 @@ private val ChatHeaderButtonSize = 50.dp
 private val ChatHeaderIconSize = 25.dp
 private val ChatTopBarTailHeight = 42.dp
 
-/** 聊天页顶栏的遮蔽强度：比设置页更强，避免正文透出后看起来发脏。 */
-private const val ChatTopBarProgressiveAlpha = 0.72f
-private const val ChatTopBarSurfaceAlpha = 0.9f
-private const val ChatTopBarProgressiveRadius = 14f
-
-// 渐进模糊曲线：startFraction（顶部）是全模糊端，endFraction 是零模糊端。
-// 聊天顶栏要「状态栏区域糊得重、状态栏下面的顶栏主体尽量清晰」，
-// 所以把零模糊点提前到条高一半左右，并用 1.6 的曲线让状态栏区保持较重权重。
-private val ChatTopBarProgressiveGradient =
-    ProgressiveBlur.Top.copy(curve = 1.6f, endFraction = 0.5f)
+/**
+ * 顶栏渐隐的几何（对齐 dsh-go 的 TopFade）：
+ * 状态栏 + 这一行算作实心段，再往下 TopFadeExtra 缓出到透明。
+ * 50dp 按钮 + 上下各 12dp = 74dp。
+ */
+private val ChatTopBarRowHeight = 74.dp
 
 private val TopBarMenuIconSize = 20.dp
 

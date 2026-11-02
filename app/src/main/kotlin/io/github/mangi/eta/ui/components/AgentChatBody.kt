@@ -46,6 +46,7 @@ import androidx.compose.material.icons.rounded.Language
 import androidx.compose.material.icons.rounded.RocketLaunch
 import androidx.compose.material.icons.rounded.Terminal
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.collectAsState
@@ -187,6 +188,16 @@ internal fun AgentChatBody(
     modifier: Modifier = Modifier,
 ) {
     val scrollState = rememberLazyListState(initialFirstVisibleItemIndex = messages.size + if (hasEarlierMessages) 1 else 0)
+    // 顶栏渐隐用：列表滚到顶栏下面的进度，0..1。静止在顶部时为 0，
+    // 顶栏因此完全不画底，页面是一整块干净的面。
+    val scrollUnder by remember(scrollState) {
+        derivedStateOf {
+            scrollUnderProgress(
+                firstVisibleItemIndex = scrollState.firstVisibleItemIndex,
+                firstVisibleItemScrollOffset = scrollState.firstVisibleItemScrollOffset,
+            )
+        }
+    }
     val keyboard = LocalSoftwareKeyboardController.current
     val density = LocalDensity.current
     val imeBottomPx = WindowInsets.ime.getBottom(density)
@@ -240,6 +251,7 @@ internal fun AgentChatBody(
         }
     }
 
+    CompositionLocalProvider(LocalChatScrollUnder provides scrollUnder) {
     SpeechPlaybackHost {
         SpeechAutoReadAloud(messages = messages, isStreaming = isStreaming)
         AgentChatScaffold(
@@ -302,6 +314,7 @@ internal fun AgentChatBody(
             onHistoryViewportChanged = onHistoryViewportChanged,
             modifier = modifier,
         )
+    }
     }
 }
 

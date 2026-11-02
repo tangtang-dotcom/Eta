@@ -2,13 +2,17 @@ package io.github.mangi.eta.ui.components
 
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.lerp
 import io.github.mangi.eta.ui.app.LocalAppearanceSettings
 import io.github.mangi.eta.ui.app.LocalIsDarkTheme
@@ -42,15 +46,58 @@ internal object AetherChatColors {
     /**
      * 聊天页竖向渐变的顶端色。
      *
-     * 现在与 [background] 同色：整页是一个纯色底，和侧边栏、设置页一致。
-     * 保留这个函数是因为渐变结构还在，只是三段取同一个值，避免整页被拉出
-     * 上浅下深的色带，与其它页面接不上。
+     * 参考 dsh-go 的 backdrop：顶端不再是纯色，而是比底色略亮、略偏冷的一档，
+     * 往下拉回 [background]，于是整页有一条极浅的竖向过渡，不再死平。
+     *
+     * 非莫奈深色：#161A24（比底色 #10131C 亮 6 阶、略偏蓝）
+     * 非莫奈浅色：#F7F8FB（比底色 #F0F1F3 亮、略偏冷）
+     * 莫奈：底色往 primary 方向抬一点点，让壁纸配色顺着渐变渗下来。
      */
     @Composable
     fun backgroundGradientTop(): Color = when {
-        monet -> MiuixTheme.colorScheme.background
-        dark -> Color(0xFF10131C)
-        else -> Color(0xFFF0F1F3)
+        monet -> lerp(MiuixTheme.colorScheme.background, MiuixTheme.colorScheme.primary, 0.035f)
+        dark -> Color(0xFF161A24)
+        else -> Color(0xFFF7F8FB)
+    }
+
+    /**
+     * 聊天页竖向渐变的底端色。
+     *
+     * 比 [background] 略深一点点，让上浅下深有方向感；但不能深到和气泡混淆。
+     *
+     * 非莫奈深色：#0C0F16 / 浅色：#ECEEF2
+     * 莫奈：底色往 primary 反向压一点点。
+     */
+    @Composable
+    fun backgroundGradientBottom(): Color = when {
+        monet -> lerp(MiuixTheme.colorScheme.background, MiuixTheme.colorScheme.primary, 0.015f)
+        dark -> Color(0xFF0C0F16)
+        else -> Color(0xFFECEEF2)
+    }
+
+    /**
+     * 背景光晕：右上角的主色光。
+     *
+     * dsh-go 的做法是画一个半径接近「最长边」的径向渐变，只截取圆心附近的
+     * 一段，所以肉眼看不到圆，只觉得那一片「有点透亮」。
+     * 这里保留同样的几何，但透明度压得很低——配合非莫奈那套中性底色，
+     * 强度一大就会把整页拉回紫调。
+     */
+    @Composable
+    fun backdropGlowPrimary(): Color = when {
+        monet -> MiuixTheme.colorScheme.primary.copy(alpha = 0.10f)
+        dark -> Color(0xFF6E7BA8).copy(alpha = 0.06f)
+        else -> Color(0xFFC8D2EE).copy(alpha = 0.30f)
+    }
+
+    /**
+     * 背景光晕：左下角的副色光（往暖里偏一点）。
+     */
+    @Composable
+    fun backdropGlowSecondary(): Color = when {
+        monet -> MiuixTheme.colorScheme.tertiary.copy(alpha = 0.08f)
+        dark -> Color(0xFF5A4E74).copy(alpha = 0.05f)
+        else -> Color(0xFFE6DCEF).copy(alpha = 0.26f)
     }
 
     @Composable
@@ -343,6 +390,65 @@ internal object AetherChatColors {
 
     /** ChatGptComposerShadow */
     val composerShadow: Color = Color(0x18000000)
+}
+
+/**
+ * 全应用页面底色：竖向渐变 + 两团极淡的径向光晕（参考 dsh-go 的 backdrop）。
+ *
+ * 聊天舞台、设置页等二级页、侧边栏共用同一套画法，所以切页时底色是连贯的，
+ * 不会有「聊天页带渐变、设置页是平的」那种割裂。
+ *
+ * 光晕的几何：圆心压在屏幕角上，半径取「最长边 × 0.62 / 0.55」——比屏幕本身
+ * 还大，可见区域只有圆心附近那一段。所以肉眼看不到圆，只看到那一片比别处
+ * 透亮一点。这是它不喧宾夺主的关键。
+ */
+@Composable
+fun Modifier.etaBackdrop(): Modifier {
+    val top = AetherChatColors.backgroundGradientTop()
+    val mid = AetherChatColors.background()
+    val bottom = AetherChatColors.backgroundGradientBottom()
+    val glowPrimary = AetherChatColors.backdropGlowPrimary()
+    val glowSecondary = AetherChatColors.backdropGlowSecondary()
+    return drawBehind {
+        drawEtaBackdrop(top, mid, bottom, glowPrimary, glowSecondary)
+    }
+}
+
+/** [Modifier.etaBackdrop] 的绘制体；抽样层需要直接调用，故单独暴露。 */
+internal fun DrawScope.drawEtaBackdrop(
+    top: Color,
+    mid: Color,
+    bottom: Color,
+    glowPrimary: Color?,
+    glowSecondary: Color?,
+) {
+    drawRect(
+        brush = Brush.verticalGradient(colors = listOf(top, mid, bottom)),
+        size = size,
+    )
+    val longest = maxOf(size.width, size.height)
+    if (glowPrimary != null && glowPrimary.alpha > 0f) {
+        drawRect(
+            brush = Brush.radialGradient(
+                colors = listOf(glowPrimary, Color.Transparent),
+                center = Offset(size.width * 0.92f, 0f),
+                radius = longest * 0.62f,
+            ),
+            topLeft = Offset(size.width * 0.92f - longest * 0.62f, -longest * 0.62f),
+            size = Size(longest * 1.24f, longest * 1.24f),
+        )
+    }
+    if (glowSecondary != null && glowSecondary.alpha > 0f) {
+        drawRect(
+            brush = Brush.radialGradient(
+                colors = listOf(glowSecondary, Color.Transparent),
+                center = Offset(0f, size.height),
+                radius = longest * 0.55f,
+            ),
+            topLeft = Offset(-longest * 0.55f, size.height - longest * 0.55f),
+            size = Size(longest * 1.1f, longest * 1.1f),
+        )
+    }
 }
 
 /**

@@ -48,7 +48,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
@@ -100,18 +99,6 @@ private object ConversationPanelMetrics {
     val DockEntryIconSize = 20.dp
 }
 
-/**
- * 侧栏与外层推移容器共用的背景色。
- *
- * 深色下聊天区保持 surface（纯黑/近黑），侧栏沿用同一颜色会在展开后与聊天区融为一体；
- * 抬高一档到 surfaceContainer，保证两侧始终可分。浅色维持 surface，避免改变现有观感。
- */
-@Composable
-internal fun conversationPaneContainerColor(): Color {
-    val colors = MiuixTheme.colorScheme
-    return if (colors.background.luminance() > 0.5f) colors.surface else colors.surfaceContainer
-}
-
 @Composable
 internal fun ConversationPanePanel(
     state: ConversationPaneUiState,
@@ -135,10 +122,12 @@ internal fun ConversationPanePanel(
     val groups = remember(state.conversations) { state.conversations.groupForDrawer() }
 
     Surface(
+        // 底色交给 etaBackdrop：侧栏与聊天页共用同一套渐变+光晕，展开时不出现色块断层。
         modifier = modifier
             .width(width)
-            .fillMaxHeight(),
-        color = conversationPaneContainerColor(),
+            .fillMaxHeight()
+            .etaBackdrop(),
+        color = Color.Transparent,
         contentColor = MiuixTheme.colorScheme.onSurface,
     ) {
         // 搜索与工具条占据独立布局空间，列表只在中间视口内滚动和回弹。
@@ -224,8 +213,9 @@ internal fun ConversationPanePanel(
 @Composable
 private fun PaneFixedRegion(content: @Composable () -> Unit) {
     Box(
-        modifier = Modifier.fillMaxWidth()
-            .background(conversationPaneContainerColor()),
+        // 固定区不铺自己的底色，让侧栏那层渐变一路透上来；否则搜索框/工具条
+        // 会变成一块和下方列表不同色的横带。
+        modifier = Modifier.fillMaxWidth(),
     ) {
         content()
     }

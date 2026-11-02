@@ -354,15 +354,16 @@ private fun AgentChatScaffold(
     onHistoryViewportChanged: (Boolean) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val surfaceColor = MiuixTheme.colorScheme.surface
     // blur 可用性（开关 + 运行时 shader 支持）；消息区模糊仍要求有消息。
     val blurSupported = LocalBlurEnabled.current && isRuntimeShaderSupported()
     val frostEnabled = hasMessages && blurSupported
     // 录制舞台背景所需的颜色（在组合上下文提前取值，onDraw 是非组合 lambda 不能读 CompositionLocal）。
     val isDark = LocalIsDarkTheme.current
-    val backgroundGradientTop = AetherChatColors.backgroundGradientTop()
-    val backgroundMid = AetherChatColors.background()
-    val backgroundBottom = AetherChatColors.surface()
+    val stageTop = AetherChatColors.backgroundGradientTop()
+    val stageMid = AetherChatColors.background()
+    val stageBottom = AetherChatColors.backgroundGradientBottom()
+    val glowPrimary = AetherChatColors.backdropGlowPrimary()
+    val glowSecondary = AetherChatColors.backdropGlowSecondary()
     // 页面级采样层：录制「真实舞台背景 + 消息区」，覆盖全屏（含输入栏坐标）。
     // 输入栏是录制层的兄弟节点、不参与录制，因此无采样自引用；
     // 输入卡片/加号采样它时颜色公式与顶栏按钮相同（surfaceContainer@0.4f over 真实背景）。
@@ -370,40 +371,21 @@ private fun AgentChatScaffold(
     // 若背景作为 layerBackdrop 之外的 Modifier 绘制，采样层里就没有它，
     // 输入卡片只会采到 surface 实底 + 40% 容器色，比顶栏按钮（采到含渐变背景的 AppShell 层）更深。
     val pageBackdrop = rememberLayerBackdrop {
-        if (isDark) {
-            drawRect(
-                brush = Brush.verticalGradient(
-                    listOf(
-                        backgroundGradientTop,
-                        backgroundMid,
-                        backgroundBottom,
-                    ),
-                ),
-                size = this.size,
-            )
-        } else {
-            // Backdrop 必须包含不透明底色，否则文字边缘模糊到透明区域时会出现黑边。
-            drawRect(surfaceColor)
-        }
+        // 必须与舞台画完全相同的渐变+光晕：输入卡片、推荐卡都采样这一层，
+        // 底色对不上会让磨砂与周围脱节。渐变首端即不透明色，浅色也不会有黑边。
+        drawEtaBackdrop(
+            top = stageTop,
+            mid = stageMid,
+            bottom = stageBottom,
+            glowPrimary = glowPrimary,
+            glowSecondary = glowSecondary,
+        )
         drawContent()
     }
 
-    // 聊天舞台背景：
-    // - 浅色：跟设置页页面底色一致（Miuix Scaffold 默认 surface）；
-    // - 深色：回到上一版 Aether 三段竖向渐变（backgroundGradientTop → background → surface）。
-    val stageBackground = if (LocalIsDarkTheme.current) {
-        Modifier.background(
-            Brush.verticalGradient(
-                listOf(
-                    AetherChatColors.backgroundGradientTop(),
-                    AetherChatColors.background(),
-                    AetherChatColors.surface(),
-                ),
-            ),
-        )
-    } else {
-        Modifier.background(MiuixTheme.colorScheme.surface)
-    }
+    // 舞台底色：渐变 + 光晕，与采样层同源（etaBackdrop 内部即 drawEtaBackdrop）。
+    // 深浅与莫奈都走这一条路径——莫奈的端点色由 MiuixTheme 派生，壁纸配色会渗进来。
+    val stageBackground = Modifier.etaBackdrop()
     // 输入栏高度（含底部安全区），用于给消息区留出底部空间（替代原 Scaffold bottomBar 占位）。
     var composerHeightPx by remember { mutableFloatStateOf(0f) }
     val composerBottomInset = with(LocalDensity.current) { composerHeightPx.toDp() }

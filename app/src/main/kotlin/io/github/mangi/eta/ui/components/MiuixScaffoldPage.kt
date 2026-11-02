@@ -45,7 +45,7 @@ fun MiuixScaffoldPage(
         val topBarColor = topBarContainerColor(backdrop)
 
         Scaffold(
-            modifier = modifier.fillMaxSize(),
+            modifier = modifier.fillMaxSize().etaBackdrop(),
             topBar = {
                 TopBarBackdrop(backdrop) {
                     // 页面自带主视觉（如角色详情）时用紧凑标题，避免大标题与主视觉重复。
@@ -118,7 +118,7 @@ fun MiuixScaffold(
         val topBarColor = topBarContainerColor(backdrop)
 
         Scaffold(
-            modifier = modifier.fillMaxSize(),
+            modifier = modifier.fillMaxSize().etaBackdrop(),
             topBar = {
                 TopBarBackdrop(backdrop) {
                     AdaptiveTopAppBar(

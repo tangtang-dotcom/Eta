@@ -44,61 +44,61 @@ internal object AetherChatColors {
     }
 
     /**
-     * 聊天页竖向渐变的顶端色。
+     * 页面渐变顶端色 —— 完全复刻 dsh-go 的 DshPalette。
      *
-     * 参考 dsh-go 的 backdrop：顶端不再是纯色，而是比底色略亮、略偏冷的一档，
-     * 往下拉回 [background]，于是整页有一条极浅的竖向过渡，不再死平。
-     *
-     * 非莫奈深色：#161A24（比底色 #10131C 亮 6 阶、略偏蓝）
-     * 非莫奈浅色：#F7F8FB（比底色 #F0F1F3 亮、略偏冷）
-     * 莫奈：底色往 primary 方向抬一点点，让壁纸配色顺着渐变渗下来。
+     * dsh-go 的 backdrop 是**两段式**竖向渐变（top → bottom，无中段），
+     * 再叠两团大半径径向光晕。参数原样搬过来：
+     *   浅色 mistTop    #EBF1FE  → mistBottom #F6F7FC
+     *   深色 nightTop   #1D222C  → nightBottom #1B1C23
+     * 它的深色底比原来的 #10131C 亮 13~16 阶，这是那套观感成立的前提：
+     * 底色足够「有东西」，光晕才看得见，玻璃卡片才有东西可透。
      */
     @Composable
     fun backgroundGradientTop(): Color = when {
+        // 莫奈：壁纸配色渗进渐变端点（dsh-go 那边是主题 accent 派生）。
         monet -> lerp(MiuixTheme.colorScheme.background, MiuixTheme.colorScheme.primary, 0.035f)
-        dark -> Color(0xFF161A24)
-        else -> Color(0xFFF7F8FB)
+        dark -> Color(0xFF1D222C)
+        else -> Color(0xFFEBF1FE)
     }
 
     /**
-     * 聊天页竖向渐变的底端色。
+     * 页面渐变底端色，见 [backgroundGradientTop]。
      *
-     * 比 [background] 略深一点点，让上浅下深有方向感；但不能深到和气泡混淆。
-     *
-     * 非莫奈深色：#0C0F16 / 浅色：#ECEEF2
-     * 莫奈：底色往 primary 反向压一点点。
+     * 深色 #1B1C23 / 浅色 #F6F7FC。
      */
     @Composable
     fun backgroundGradientBottom(): Color = when {
         monet -> lerp(MiuixTheme.colorScheme.background, MiuixTheme.colorScheme.primary, 0.015f)
-        dark -> Color(0xFF0C0F16)
-        else -> Color(0xFFECEEF2)
+        dark -> Color(0xFF1B1C23)
+        else -> Color(0xFFF6F7FC)
     }
 
     /**
-     * 背景光晕：右上角的主色光。
+     * 光晕：右上角主色光。
      *
-     * dsh-go 的做法是画一个半径接近「最长边」的径向渐变，只截取圆心附近的
-     * 一段，所以肉眼看不到圆，只觉得那一片「有点透亮」。
-     * 这里保留同样的几何，但透明度压得很低——配合非莫奈那套中性底色，
-     * 强度一大就会把整页拉回紫调。
+     * 数值取自 dsh-go 的 DshSurfaces.dark/light：
+     *   浅色 accent.glow #ABC3FC @ 0.42
+     *   深色 accent.glowDark #51679D @ 0.28
+     * 几何（圆心压在角上、半径 = 最长边 × 0.62）在 drawEtaBackdrop 里。
      */
     @Composable
     fun backdropGlowPrimary(): Color = when {
-        monet -> MiuixTheme.colorScheme.primary.copy(alpha = 0.10f)
-        dark -> Color(0xFF6E7BA8).copy(alpha = 0.06f)
-        else -> Color(0xFFC8D2EE).copy(alpha = 0.30f)
+        monet -> MiuixTheme.colorScheme.primary.copy(alpha = 0.28f)
+        dark -> Color(0xFF51679D).copy(alpha = 0.28f)
+        else -> Color(0xFFABC3FC).copy(alpha = 0.42f)
     }
 
     /**
-     * 背景光晕：左下角的副色光（往暖里偏一点）。
+     * 光晕：左下角副色光。
+     *
+     *   浅色 accent.haze   #D5CBEB @ 0.38
+     *   深色 accent.hazeDark #514765 @ 0.24
      */
     @Composable
     fun backdropGlowSecondary(): Color = when {
-        // Miuix 的 Colors 没有 tertiary，只有 tertiaryContainer（暮紫那一档）。
-        monet -> MiuixTheme.colorScheme.tertiaryContainer.copy(alpha = 0.08f)
-        dark -> Color(0xFF5A4E74).copy(alpha = 0.05f)
-        else -> Color(0xFFE6DCEF).copy(alpha = 0.26f)
+        monet -> MiuixTheme.colorScheme.tertiaryContainer.copy(alpha = 0.24f)
+        dark -> Color(0xFF514765).copy(alpha = 0.24f)
+        else -> Color(0xFFD5CBEB).copy(alpha = 0.38f)
     }
 
     @Composable
@@ -406,63 +406,59 @@ internal object AetherChatColors {
 @Composable
 fun Modifier.etaBackdrop(): Modifier {
     val top = AetherChatColors.backgroundGradientTop()
-    val mid = AetherChatColors.background()
     val bottom = AetherChatColors.backgroundGradientBottom()
     val glowPrimary = AetherChatColors.backdropGlowPrimary()
     val glowSecondary = AetherChatColors.backdropGlowSecondary()
     return drawBehind {
-        drawEtaBackdrop(top, mid, bottom, glowPrimary, glowSecondary)
+        drawEtaBackdrop(top, bottom, glowPrimary, glowSecondary)
     }
 }
 
-/** [Modifier.etaBackdrop] 的绘制体；抽样层需要直接调用，故单独暴露。 */
+/**
+ * [Modifier.etaBackdrop] 的绘制体；采样层需要直接调用，故单独暴露。
+ *
+ * 完全按 dsh-go 的 _BackdropPainter._gradient() 复刻：
+ *   1. 竖向线性渐变 top → bottom（**只有两个端点**，没有中段）；
+ *   2. 右上主色光：圆心 (w*0.92, 0)，半径 最长边 × 0.62；
+ *   3. 左下副色光：圆心 (0, h)，半径 最长边 × 0.55。
+ * 光晕的半径比屏幕还大，可见区域只截到圆心附近一段，所以看不到圆。
+ */
 internal fun DrawScope.drawEtaBackdrop(
     top: Color,
-    mid: Color,
     bottom: Color,
     glowPrimary: Color?,
     glowSecondary: Color?,
 ) {
     drawRect(
-        brush = Brush.verticalGradient(colors = listOf(top, mid, bottom)),
+        brush = Brush.verticalGradient(colors = listOf(top, bottom)),
         size = size,
     )
     val longest = maxOf(size.width, size.height)
     if (glowPrimary != null && glowPrimary.alpha > 0f) {
-        drawRect(
-            brush = Brush.radialGradient(
-                colors = listOf(glowPrimary, Color.Transparent),
-                center = Offset(size.width * 0.92f, 0f),
-                radius = longest * 0.62f,
-            ),
-            topLeft = Offset(size.width * 0.92f - longest * 0.62f, -longest * 0.62f),
-            size = Size(longest * 1.24f, longest * 1.24f),
+        drawGlow(
+            center = Offset(size.width * 0.92f, 0f),
+            radius = longest * 0.62f,
+            color = glowPrimary,
         )
     }
     if (glowSecondary != null && glowSecondary.alpha > 0f) {
-        drawRect(
-            brush = Brush.radialGradient(
-                colors = listOf(glowSecondary, Color.Transparent),
-                center = Offset(0f, size.height),
-                radius = longest * 0.55f,
-            ),
-            topLeft = Offset(-longest * 0.55f, size.height - longest * 0.55f),
-            size = Size(longest * 1.1f, longest * 1.1f),
+        drawGlow(
+            center = Offset(0f, size.height),
+            radius = longest * 0.55f,
+            color = glowSecondary,
         )
     }
 }
 
-/**
- * 玻璃边缘光：上亮下暗的 1dp 渐变描边。
- * 用纯绘制代替 Miuix 的 highlight（后者每帧要在整个控件上跑一遍 shader，
- * 顶栏三个控件叠起来会明显掉帧）。
- */
-internal fun Modifier.glassEdge(top: Color, bottom: Color, width: Dp = 1.dp): Modifier =
-    drawWithContent {
-        drawContent()
-        drawRoundRect(
-            brush = Brush.verticalGradient(listOf(top, bottom)),
-            cornerRadius = CornerRadius(size.height / 2f, size.height / 2f),
-            style = Stroke(width = width.toPx()),
-        )
-    }
+/** 单团光晕：径向渐变从纯色到全透明，画在半透明整屏画布上。 */
+private fun DrawScope.drawGlow(center: Offset, radius: Float, color: Color) {
+    drawRect(
+        brush = Brush.radialGradient(
+            colors = listOf(color, color.copy(alpha = 0f)),
+            center = center,
+            radius = radius,
+        ),
+        topLeft = Offset(center.x - radius, center.y - radius),
+        size = Size(radius * 2f, radius * 2f),
+    )
+}

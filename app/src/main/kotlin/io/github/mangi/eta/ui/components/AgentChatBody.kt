@@ -360,7 +360,6 @@ private fun AgentChatScaffold(
     // 录制舞台背景所需的颜色（在组合上下文提前取值，onDraw 是非组合 lambda 不能读 CompositionLocal）。
     val isDark = LocalIsDarkTheme.current
     val stageTop = AetherChatColors.backgroundGradientTop()
-    val stageMid = AetherChatColors.background()
     val stageBottom = AetherChatColors.backgroundGradientBottom()
     val glowPrimary = AetherChatColors.backdropGlowPrimary()
     val glowSecondary = AetherChatColors.backdropGlowSecondary()
@@ -375,7 +374,6 @@ private fun AgentChatScaffold(
         // 底色对不上会让磨砂与周围脱节。渐变首端即不透明色，浅色也不会有黑边。
         drawEtaBackdrop(
             top = stageTop,
-            mid = stageMid,
             bottom = stageBottom,
             glowPrimary = glowPrimary,
             glowSecondary = glowSecondary,

@@ -122,11 +122,11 @@ internal fun ConversationPanePanel(
     val groups = remember(state.conversations) { state.conversations.groupForDrawer() }
 
     Surface(
-        // 底色交给 etaBackdrop：侧栏与聊天页共用同一套渐变+光晕，展开时不出现色块断层。
+        // 底色由外层 ConversationSidePaneScaffold 的 etaBackdrop 统一铺（它同时覆盖
+        // 侧栏和聊天舞台）。这里不能再画一遍，否则侧栏区域会叠两次光晕而偏亮。
         modifier = modifier
             .width(width)
-            .fillMaxHeight()
-            .etaBackdrop(),
+            .fillMaxHeight(),
         color = Color.Transparent,
         contentColor = MiuixTheme.colorScheme.onSurface,
     ) {

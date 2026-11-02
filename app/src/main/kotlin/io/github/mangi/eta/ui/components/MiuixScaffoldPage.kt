@@ -45,7 +45,10 @@ fun MiuixScaffoldPage(
         val topBarColor = topBarContainerColor(backdrop)
 
         Scaffold(
-            modifier = modifier.fillMaxSize().etaBackdrop(),
+            // Miuix Scaffold 内部是 Surface(containerColor = surface)，不透明，会盖住
+            // 挂在 modifier 上的 drawBehind。底色改由本页内容层用 etaBackdrop 铺。
+            containerColor = Color.Transparent,
+            modifier = modifier.fillMaxSize(),
             topBar = {
                 TopBarBackdrop(backdrop) {
                     // 页面自带主视觉（如角色详情）时用紧凑标题，避免大标题与主视觉重复。
@@ -75,6 +78,9 @@ fun MiuixScaffoldPage(
                     state = listState,
                     modifier = Modifier
                         .fillMaxSize()
+                        // 列表自身铺底色：Scaffold 已透明，这层 gradient+光晕就是页面底色。
+                        // 放在 fillMaxSize 之后，保证铺满整个视口而不是随内容高度变化。
+                        .etaBackdrop()
                         .horizontalCutoutPadding()
                         .captureForTopBar(backdrop)
                         .scrollEndHaptic()
@@ -118,7 +124,10 @@ fun MiuixScaffold(
         val topBarColor = topBarContainerColor(backdrop)
 
         Scaffold(
-            modifier = modifier.fillMaxSize().etaBackdrop(),
+            // Miuix Scaffold 内部是 Surface(containerColor = surface)，不透明，会盖住
+            // 挂在 modifier 上的 drawBehind。底色改由本页内容层用 etaBackdrop 铺。
+            containerColor = Color.Transparent,
+            modifier = modifier.fillMaxSize(),
             topBar = {
                 TopBarBackdrop(backdrop) {
                     AdaptiveTopAppBar(
@@ -131,7 +140,7 @@ fun MiuixScaffold(
                 }
             },
         ) { paddingValues ->
-            Box(modifier = Modifier.fillMaxSize().captureForTopBar(backdrop)) {
+            Box(modifier = Modifier.fillMaxSize().etaBackdrop().captureForTopBar(backdrop)) {
                 WidePageContent { sidePadding ->
                     content(paddingValues, scrollBehavior, sidePadding)
                 }

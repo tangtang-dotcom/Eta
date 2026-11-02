@@ -160,6 +160,9 @@ internal fun AgentAppShell(
     val topBarColor = topBarContainerColor(backdrop)
     val pageContent: @Composable () -> Unit = {
         Scaffold(
+            // Miuix Scaffold 内部是 Surface(containerColor)，默认 surface 不透明。
+            // 聊天舞台/二级页各自铺 etaBackdrop，这里必须透明，否则底色被这层盖掉。
+            containerColor = Color.Transparent,
             modifier = Modifier.fillMaxSize(),
             contentWindowInsets = WindowInsets.safeDrawing.only(
                 WindowInsetsSides.Top + WindowInsetsSides.Horizontal,

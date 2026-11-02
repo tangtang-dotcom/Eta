@@ -39,6 +39,7 @@ import androidx.compose.material.icons.rounded.Terminal
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -161,6 +162,9 @@ internal fun AgentAppShell(
     val scrollBehavior = MiuixScrollBehavior()
     val backdrop = rememberTopBarBackdrop()
     val topBarColor = topBarContainerColor(backdrop)
+    // 顶栏在 topBar 槽位、聊天列表在 content 槽位，两者是兄弟、各自独立组合。
+    // 状态必须由这一层持有，列表侧写入、顶栏侧读取；放在任一侧都会读不到。
+    val chatScrollUnder = remember { mutableStateOf(0f) }
     val pageContent: @Composable () -> Unit = {
         Scaffold(
             // Miuix Scaffold 内部是 Surface(containerColor)，默认 surface 不透明。
@@ -215,8 +219,7 @@ internal fun AgentAppShell(
                         // 顶栏底：不再是常驻色带，而是「页面色向下渐隐」，
                         // 且只在消息滚到顶栏下面时才浮现（dsh-go 的 TopFade）。
                         // 静止在列表顶部时完全不画，页面是一整块干净的面。
-                        val scrollUnder = LocalChatScrollUnder.current ?: 0f
-                        val fadeProgress = animatedFadeProgress(scrollUnder)
+                        val fadeProgress = animatedFadeProgress(chatScrollUnder.value)
                         // 实心段覆盖「状态栏 + 按钮行」，再往下 TopFadeExtra 缓出。
                         // 与顶栏自身高度一致，否则实心段会切在按钮中间。
                         val statusBarTop = with(LocalDensity.current) {
@@ -282,6 +285,7 @@ internal fun AgentAppShell(
         }
     }
 
+    CompositionLocalProvider(LocalChatScrollUnder provides chatScrollUnder) {
     Box(modifier = modifier.fillMaxSize()) {
         if (conversationPaneState != null && currentRoute is AppRoute.Home) {
             ConversationSidePaneScaffold(
@@ -307,6 +311,7 @@ internal fun AgentAppShell(
         } else {
             pageContent()
         }
+    }
     }
 }
 

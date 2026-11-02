@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
@@ -25,13 +26,14 @@ import androidx.compose.ui.unit.dp
 /**
  * 聊天列表的「已滚到顶栏下面」进度，0（在顶部）→ 1（内容已压到顶栏下）。
  *
- * 顶栏要按这个值渐隐自己的底，和 dsh-go 的 `scrolledUnder` 同一个思路：
- * 静止时页面是一整块干净的面，只有内容真滚上来才浮现一层页面色。
+ * dsh-go 的 `scrolledUnder` 同款用途：顶栏按它决定遮罩要不要淡入。
  *
- * 由聊天页的列表写入，顶栏读取。默认 null，表示当前页面没有可滚动的聊天内容
- * ——此时顶栏不画底。
+ * **必须是可变状态而不是单向的 Float**：顶栏在 Scaffold 的 topBar 槽位，
+ * 聊天列表在 content 槽位，两者是兄弟关系、各自独立组合。如果顶栏上方
+ * 提供一个只读值，列表侧根本改不到它（读到的永远是默认值，顶栏就永远
+ * 不画遮罩）。所以这里下发的是一个可写状态，上层创建、下层写入、顶栏读。
  */
-val LocalChatScrollUnder = compositionLocalOf<Float?> { null }
+val LocalChatScrollUnder = compositionLocalOf<MutableState<Float>?> { null }
 
 /** 渐隐尾带：顶栏本体之外再多画这么长，避免在按钮正下方截断成一条硬线。 */
 internal val TopFadeExtra = 12.dp
@@ -71,7 +73,6 @@ fun TopFadeSurface(
         Box(
             modifier = Modifier
                 .matchParentSize()
-                .graphicsLayer { alpha = progress.coerceIn(0f, 1f) }
                 .drawWithContent {
                     val total = size.height
                     if (total <= 0f) return@drawWithContent
@@ -80,7 +81,10 @@ fun TopFadeSurface(
                     // 起画、只保留顶部这一段，所以和真背景严丝合缝。
                     drawEtaBackdrop(top, bottom, glowPrimary, glowSecondary)
                     val solid = (solidUntil.toPx() / total).coerceIn(0f, 1f)
-                    drawFadeMask(color = top, solid = solid)
+                    // 实心段始终保留：聊天页的页面背景铺不到状态栏区域，顶栏必须
+                    // 自己把这一条填上，否则状态栏下面会透出内容/空白。
+                    // 只有羽化段随 progress 淡入——它才是「内容滚上来时才需要」的部分。
+                    drawFadeMask(color = top, solid = solid, feather = progress.coerceIn(0f, 1f))
                 },
         )
         content()
@@ -96,6 +100,7 @@ fun TopFadeSurface(
 private fun DrawScope.drawFadeMask(
     color: Color,
     solid: Float,
+    feather: Float,
 ) {
     val colors = ArrayList<Color>(FadeSamples + 3)
     val stops = ArrayList<Float>(FadeSamples + 3)
@@ -106,7 +111,10 @@ private fun DrawScope.drawFadeMask(
     for (i in 1..FadeSamples) {
         val t = i.toFloat() / FadeSamples
         val eased = easeInOutCubic(t)
-        colors.add(color.copy(alpha = 1f - eased))
+        // 实心段下方的不透明度：progress 为 0 时直接切到透明（只留实心段，
+        // 下面是页面自己的底色，接得上）；progress 上来后逐渐变成完整羽化。
+        val keep = (1f - eased) * feather
+        colors.add(color.copy(alpha = keep))
         stops.add(solid + (1f - solid) * t)
     }
     drawRect(
